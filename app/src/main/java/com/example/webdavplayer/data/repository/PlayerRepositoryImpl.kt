@@ -1,0 +1,94 @@
+package com.example.webdavplayer.data.repository
+
+import android.content.Context
+import com.example.webdavplayer.data.player.ExoPlayerEngine
+import com.example.webdavplayer.data.player.PlayerEngineFactory
+import com.example.webdavplayer.data.remote.WebDavClient
+import com.example.webdavplayer.domain.model.EngineListener
+import com.example.webdavplayer.domain.model.EngineType
+import com.example.webdavplayer.domain.model.PlayableMedia
+import com.example.webdavplayer.domain.model.PlaybackState
+import com.example.webdavplayer.domain.player.PlayerEngine
+import com.example.webdavplayer.domain.repository.PlayerRepository
+import com.example.webdavplayer.domain.repository.ServerRepository
+import com.example.webdavplayer.domain.repository.SettingsRepository
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.withContext
+import javax.inject.Inject
+import javax.inject.Singleton
+
+/**
+ * 播放控制仓库实现（§6 T09）。
+ *
+ * 持有当前 [PlayerEngine]；应用内切换内核 = `release()` 旧 + `Factory.create()` 新
+ * + `prepare()` 当前媒体（§1.2）。内核无状态记忆，进度/列表由上层持有。
+ */
+@Singleton
+class PlayerRepositoryImpl @Inject constructor(
+    private val webDavClient: WebDavClient,
+    private val serverRepository: ServerRepository,
+    private val settingsRepository: SettingsRepository,
+    @ApplicationContext private val context: Context,
+) : PlayerRepository {
+
+    private var engine: PlayerEngine? = null
+    private var currentMedia: PlayableMedia? = null
+    private var listener: EngineListener? = null
+
+    override fun getEngineType(): EngineType = settingsRepository.getEngineType()
+
+    override suspend fun setEngineType(type: EngineType) = withContext(Dispatchers.Main) {
+        if (engine != null && settingsRepository.getEngineType() == type) return
+        settingsRepository.setEngineType(type)
+        val media = currentMedia ?: return
+        val wasPlaying = engine?.getState() == PlaybackState.PLAYING
+        engine?.release()
+        engine = PlayerEngineFactory.create(type, context)
+        listener?.let { engine!!.setListener(it) }
+        connectFor(media)
+        (engine as? ExoPlayerEngine)?.setOkHttpClient(webDavClient.getOkHttpClient())
+        engine!!.prepare(media)
+        if (wasPlaying) engine!!.play()
+    }
+
+    override suspend fun prepare(media: PlayableMedia) = withContext(Dispatchers.Main) {
+        currentMedia = media
+        if (engine == null) {
+            engine = PlayerEngineFactory.create(settingsRepository.getEngineType(), context)
+        }
+        listener?.let { engine!!.setListener(it) }
+        connectFor(media)
+        (engine as? ExoPlayerEngine)?.setOkHttpClient(webDavClient.getOkHttpClient())
+        engine!!.prepare(media)
+    }
+
+    override fun play() {
+        engine?.play()
+    }
+
+    override fun pause() {
+        engine?.pause()
+    }
+
+    override fun seekTo(positionMs: Long) {
+        engine?.seekTo(positionMs)
+    }
+
+    override fun setListener(listener: EngineListener?) {
+        this.listener = listener
+        engine?.setListener(listener)
+    }
+
+    override fun getState(): PlaybackState = engine?.getState() ?: PlaybackState.IDLE
+
+    override fun release() {
+        engine?.release()
+        engine = null
+    }
+
+    private suspend fun connectFor(media: PlayableMedia) {
+        val cfg = serverRepository.getById(media.serverId)
+            ?: throw IllegalStateException("找不到服务器配置：${media.serverId}")
+        webDavClient.connect(cfg)
+    }
+}

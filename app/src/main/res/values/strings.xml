@@ -1,0 +1,96 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- 应用 -->
+    <string name="app_name">WebDAV 播放器</string>
+
+    <!-- 通用 -->
+    <string name="action_ok">确定</string>
+    <string name="action_cancel">取消</string>
+    <string name="action_confirm">确认</string>
+    <string name="action_save">保存</string>
+    <string name="action_delete">删除</string>
+    <string name="action_rename">重命名</string>
+    <string name="action_move">移动</string>
+    <string name="action_upload">上传</string>
+    <string name="action_add">添加</string>
+    <string name="action_back">返回</string>
+    <string name="action_refresh">刷新</string>
+    <string name="action_play">播放</string>
+    <string name="action_pause">暂停</string>
+    <string name="action_next">下一首</string>
+    <string name="action_previous">上一首</string>
+    <string name="action_clear">清空</string>
+    <string name="action_settings">设置</string>
+    <string name="action_add_to_playlist">加入播放列表</string>
+
+    <!-- 服务器管理 -->
+    <string name="server_list_title">服务器</string>
+    <string name="server_add">添加服务器</string>
+    <string name="server_edit">编辑服务器</string>
+    <string name="server_name_hint">名称（如：我的 NAS）</string>
+    <string name="server_url_hint">服务器地址（https://example.com/dav）</string>
+    <string name="server_username_hint">用户名</string>
+    <string name="server_password_hint">密码</string>
+    <string name="server_auth_type">鉴权方式</string>
+    <string name="auth_none">无</string>
+    <string name="auth_basic">Basic</string>
+    <string name="auth_digest">Digest</string>
+    <string name="server_trust_self_signed">信任自签名证书</string>
+    <string name="server_connect">连接并保存</string>
+    <string name="server_empty">还没有服务器，点击右下角添加</string>
+    <string name="server_delete_confirm">确定删除该服务器配置吗？</string>
+
+    <!-- 自签证书确认 -->
+    <string name="cert_untrusted_title">无法验证服务器证书</string>
+    <string name="cert_untrusted_message">该服务器使用了未被信任的证书。请核对以下指纹，确认无误后点击“信任并继续”。</string>
+    <string name="cert_fingerprint">SHA-256 指纹</string>
+    <string name="cert_issuer">颁发者</string>
+    <string name="cert_trust_and_continue">信任并继续</string>
+    <string name="cert_reject">拒绝</string>
+
+    <!-- 浏览 -->
+    <string name="browse_title">浏览</string>
+    <string name="browse_loading">加载中…</string>
+    <string name="browse_empty">此目录为空</string>
+    <string name="browse_error">加载失败：%1$s</string>
+    <string name="browse_long_press_dir">长按目录可将其中的视频加入播放列表</string>
+    <string name="browse_add_videos_success">已将 %1$d 个视频加入播放列表</string>
+    <string name="browse_add_videos_none">该目录未找到视频文件</string>
+    <string name="browse_upload_success">上传成功</string>
+    <string name="browse_rename_success">重命名成功</string>
+    <string name="browse_move_success">移动成功</string>
+    <string name="browse_delete_success">已删除</string>
+
+    <!-- 播放 -->
+    <string name="player_title">播放</string>
+    <string name="playback_channel_name">WebDAV 播放</string>
+    <string name="player_no_media">未选择媒体</string>
+    <string name="player_preparing">准备中…</string>
+    <string name="player_play_error">播放出错：%1$s</string>
+    <string name="player_switch_engine">切换内核</string>
+    <string name="player_engine_media3">Media3 / ExoPlayer</string>
+    <string name="player_engine_vlc">libVLC</string>
+    <string name="player_engine_unavailable">当前版本不包含该内核（需 full 风味）</string>
+
+    <!-- 播放列表 -->
+    <string name="playlist_title">播放列表</string>
+    <string name="playlist_empty">播放列表为空</string>
+    <string name="playlist_mode">播放模式</string>
+    <string name="playlist_mode_sequential">顺序</string>
+    <string name="playlist_mode_loop">循环</string>
+    <string name="playlist_mode_shuffle">随机</string>
+    <string name="playlist_remove_confirm">从播放列表移除该项？</string>
+
+    <!-- 设置 -->
+    <string name="settings_title">设置</string>
+    <string name="settings_player_engine">播放内核</string>
+    <string name="settings_trusted_certs">已信任的自签证书</string>
+    <string name="settings_no_certs">暂无已信任的证书</string>
+    <string name="settings_remove_cert_confirm">移除该信任证书？移除后再次连接需重新确认。</string>
+
+    <!-- 错误文案 -->
+    <string name="error_auth_failed">鉴权失败，请检查用户名与密码</string>
+    <string name="error_not_found">未找到资源</string>
+    <string name="error_network">网络错误，请检查连接与地址</string>
+    <string name="error_unknown">未知错误：%1$s</string>
+</resources>

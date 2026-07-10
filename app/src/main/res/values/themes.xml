@@ -1,0 +1,5 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- Compose + Material 3 使用无 ActionBar 主题作为底层窗口样式 -->
+    <style name="Theme.WebDavPlayer" parent="android:Theme.Material.Light.NoActionBar" />
+</resources>

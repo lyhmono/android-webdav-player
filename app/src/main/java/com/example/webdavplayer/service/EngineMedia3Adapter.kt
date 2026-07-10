@@ -1,0 +1,216 @@
+package com.example.webdavplayer.service
+
+import androidx.media3.common.C
+import androidx.media3.common.MediaItem
+import androidx.media3.common.MediaMetadata
+import androidx.media3.common.Player
+import androidx.media3.common.SimpleBasePlayer
+import androidx.media3.common.SimpleBasePlayer.MediaItemData
+import androidx.media3.common.SimpleBasePlayer.PeriodData
+import androidx.media3.common.util.UnstableApi
+import com.example.webdavplayer.domain.model.PlaybackState
+import com.example.webdavplayer.domain.model.PlaylistItem
+import com.example.webdavplayer.domain.player.PlaylistController
+import com.example.webdavplayer.domain.repository.PlayerRepository
+import com.google.common.base.Futures
+import com.google.common.util.concurrent.ListenableFuture
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.SupervisorJob
+import kotlinx.coroutines.launch
+
+/**
+ * 将 [PlayerRepository]（双内核抽象）适配为 Media3 [Player]（C1 / §7）。
+ *
+ * 这是 MediaSession 背后的“真实播放器”代理：MediaSession 与系统（通知/锁屏/
+ * 蓝牙）交互，所有命令经本类转译为对 [PlayerRepository] 与 [PlaylistController] 的调用。
+ * 内核无状态记忆，进度/顺序的真相源在 [PlaylistController]，本类只负责快照与转发。
+ *
+ * 设计要点：
+ * - 播放状态来自 [onEngineState]（由 [PlaybackService] 的引擎监听驱动）；
+ * - 进度来自 [onEngineProgress]（同一监听驱动）；
+ * - 上一首/下一首经 [PlaylistController] 计算，并通过 [playItem] 真正触发播放。
+ *
+ * @param looper 主线程 Looper（SimpleBasePlayer 要求）
+ * @param playerRepository 共享的单例播放仓库（与 UI 同一实例）
+ * @param playlistController 共享的播放列表导航控制
+ * @param playItem 真正“播放某一项”的挂起函数（由服务注入，内部走 PlayMediaUseCase）
+ */
+@UnstableApi
+class EngineMedia3Adapter(
+    looper: android.os.Looper,
+    private val playerRepository: PlayerRepository,
+    private val playlistController: PlaylistController,
+    private val playItem: suspend (PlaylistItem) -> Unit,
+) : SimpleBasePlayer(looper) {
+
+    /** 工作协程（用于触发 playItem 等挂起调用，主线程即可）。 */
+    private val scope = CoroutineScope(SupervisorJob() + Dispatchers.Main)
+
+    /** 当前播放状态（由引擎监听驱动）。 */
+    @Volatile
+    private var engineState: PlaybackState = PlaybackState.IDLE
+
+    /** 当前进度（毫秒，由引擎监听驱动）。 */
+    @Volatile
+    private var positionMs: Long = 0L
+
+    /** 当前总时长（毫秒，由引擎监听驱动）。 */
+    @Volatile
+    private var durationMs: Long = 0L
+
+    /** 引擎监听驱动：更新状态并推送。 */
+    fun onEngineState(state: PlaybackState) {
+        engineState = state
+        invalidateState()
+    }
+
+    /** 引擎监听驱动：更新进度并推送。 */
+    fun onEngineProgress(position: Long, duration: Long) {
+        positionMs = position
+        if (duration > 0) durationMs = duration
+        invalidateState()
+    }
+
+    @UnstableApi
+    override fun getState(): State {
+        val items = playlistController.snapshot()
+        val commands = buildCommands()
+
+        if (items.isEmpty()) {
+            // 列表为空时状态必须为 IDLE / ENDED，索引置为 UNSET。
+            return State.Builder()
+                .setAvailableCommands(commands)
+                .setPlayWhenReady(false, Player.PLAY_WHEN_READY_CHANGE_REASON_USER_REQUEST)
+                .setPlaybackState(Player.STATE_IDLE)
+                .setCurrentMediaItemIndex(C.INDEX_UNSET)
+                .setContentPositionMs(0)
+                .setPlaylist(emptyList())
+                .build()
+        }
+
+        val current = playlistController.current()
+        val currentIndex = if (current != null) {
+            items.indexOfFirst { it.id == current.id }.coerceAtLeast(0)
+        } else {
+            0
+        }
+
+        val mediaItemData = items.map { item ->
+            MediaItemData.Builder(
+                MediaItem.Builder()
+                    .setMediaId(item.id)
+                    .setMediaMetadata(
+                        MediaMetadata.Builder().setTitle(item.name).build(),
+                    )
+                    .build(),
+                /* periodCount= */ 1,
+            ).setPeriods(
+                listOf(
+                    PeriodData.Builder(/* uid= */ 0)
+                        .setDurationUs(
+                            if (item.durationMs > 0) {
+                                item.durationMs * 1000
+                            } else if (durationMs > 0) {
+                                durationMs * 1000
+                            } else {
+                                C.TIME_UNSET
+                            },
+                        )
+                        .build(),
+                ),
+            ).build()
+        }
+
+        return State.Builder()
+            .setAvailableCommands(commands)
+            .setPlayWhenReady(
+                engineState == PlaybackState.PLAYING,
+                Player.PLAY_WHEN_READY_CHANGE_REASON_USER_REQUEST,
+            )
+            .setPlaybackState(mapState(engineState))
+            .setCurrentMediaItemIndex(currentIndex)
+            .setContentPositionMs(positionMs)
+            .setPlaylist(mediaItemData)
+            .build()
+    }
+
+    @UnstableApi
+    override fun handleSetPlayWhenReady(playWhenReady: Boolean, reason: Int): ListenableFuture<*> {
+        if (playWhenReady) playerRepository.play() else playerRepository.pause()
+        return Futures.immediateFuture(playWhenReady)
+    }
+
+    @UnstableApi
+    override fun handlePlay(): ListenableFuture<*> {
+        playerRepository.play()
+        return Futures.immediateVoidFuture()
+    }
+
+    @UnstableApi
+    override fun handlePause(): ListenableFuture<*> {
+        playerRepository.pause()
+        return Futures.immediateVoidFuture()
+    }
+
+    @UnstableApi
+    override fun handleSeek(mediaItemIndex: Int, positionMs: Long, seekCommand: Int): ListenableFuture<*> {
+        val items = playlistController.snapshot()
+        val target = items.getOrNull(mediaItemIndex)
+        if (target != null && target.id != playlistController.current()?.id) {
+            // 切换媒体项：播放该媒体。
+            scope.launch { playItem(target) }
+        } else {
+            // 当前项内拖动。
+            playerRepository.seekTo(positionMs)
+        }
+        return Futures.immediateVoidFuture()
+    }
+
+    @UnstableApi
+    override fun handleSeekToNextMediaItem(): ListenableFuture<*> {
+        playlistController.next()?.let { scope.launch { playItem(it) } }
+        return Futures.immediateVoidFuture()
+    }
+
+    @UnstableApi
+    override fun handleSeekToPreviousMediaItem(): ListenableFuture<*> {
+        playlistController.previous()?.let { scope.launch { playItem(it) } }
+        return Futures.immediateVoidFuture()
+    }
+
+    @UnstableApi
+    override fun handleStop(): ListenableFuture<*> {
+        playerRepository.pause()
+        return Futures.immediateVoidFuture()
+    }
+
+    @UnstableApi
+    override fun handleRelease(): ListenableFuture<*> {
+        scope.cancel()
+        return Futures.immediateVoidFuture()
+    }
+
+    /** 声明本代理支持的命令集合。 */
+    private fun buildCommands(): Player.Commands = Player.Commands.Builder()
+        .add(Player.COMMAND_PLAY_PAUSE)
+        .add(Player.COMMAND_PLAY)
+        .add(Player.COMMAND_PAUSE)
+        .add(Player.COMMAND_SEEK_IN_CURRENT_MEDIA_ITEM)
+        .add(Player.COMMAND_SEEK_TO_NEXT_MEDIA_ITEM)
+        .add(Player.COMMAND_SEEK_TO_PREVIOUS_MEDIA_ITEM)
+        .add(Player.COMMAND_GET_CURRENT_MEDIA_ITEM)
+        .add(Player.COMMAND_GET_TIMELINE)
+        .build()
+
+    /** 领域 [PlaybackState] → Media3 [Player] 状态。 */
+    private fun mapState(state: PlaybackState): Int = when (state) {
+        PlaybackState.IDLE -> Player.STATE_IDLE
+        PlaybackState.PREPARING -> Player.STATE_BUFFERING
+        PlaybackState.READY -> Player.STATE_READY
+        PlaybackState.PLAYING -> Player.STATE_READY
+        PlaybackState.PAUSED -> Player.STATE_READY
+        PlaybackState.ENDED -> Player.STATE_ENDED
+        PlaybackState.ERROR -> Player.STATE_IDLE
+    }
+}
