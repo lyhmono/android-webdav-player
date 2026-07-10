@@ -18,6 +18,7 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.animateItemPlacement
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.ArrowBack
 import androidx.compose.material.icons.filled.Delete
@@ -59,6 +60,7 @@ import com.example.webdavplayer.domain.model.RemoteFile
 import com.example.webdavplayer.ui.common.EmptyView
 import com.example.webdavplayer.ui.common.LoadingView
 import com.example.webdavplayer.ui.player.PlayerViewModel
+import com.example.webdavplayer.ui.theme.Spacing
 import com.example.webdavplayer.ui.playlist.PlaylistViewModel
 import kotlinx.coroutines.flow.first
 import okio.Okio
@@ -188,8 +190,8 @@ fun BrowseScreen(
                 else -> {
                     LazyColumn(
                         Modifier.fillMaxSize(),
-                        contentPadding = PaddingValues(8.dp),
-                        verticalArrangement = Arrangement.spacedBy(4.dp),
+                        contentPadding = PaddingValues(Spacing.md),
+                        verticalArrangement = Arrangement.spacedBy(Spacing.xs),
                     ) {
                         items(
                             count = lazyItems.itemCount,
@@ -199,6 +201,7 @@ fun BrowseScreen(
                             if (file != null) {
                                 FileRow(
                                     file = file,
+                                    modifier = Modifier.animateItemPlacement(),
                                     onClick = {
                                         if (file.isDirectory) {
                                             val child = viewModel.fullPath(file.name)
@@ -312,6 +315,7 @@ private fun FileRow(
     file: RemoteFile,
     onClick: () -> Unit,
     onLongClick: () -> Unit,
+    modifier: Modifier = Modifier,
 ) {
     ListItem(
         headlineContent = { Text(file.name) },
@@ -329,7 +333,7 @@ private fun FileRow(
                 contentDescription = null,
             )
         },
-        modifier = Modifier
+        modifier = modifier
             .fillMaxWidth()
             .combinedClickable(
                 onClick = onClick,

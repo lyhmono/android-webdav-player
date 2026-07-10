@@ -1,0 +1,78 @@
+# ============================================================
+# Build Debug APK — GitHub Actions CI 工作流
+# ============================================================
+# 用途：
+#   在 GitHub 云端（ubuntu-latest）自动构建本 WebDAV 播放器项目两个
+#   productFlavor 的 debug APK（lite / full），全程无需本地安装 Android SDK。
+#   构建产物可在仓库 Actions 页面对应运行记录中下载，下载后可直接
+#   `adb install xxx.apk` 部署，或在手机文件管理器中点击安装调试。
+#
+# 为何使用 gradle-version 而非 Gradle Wrapper：
+#   本仓库仅提交了 gradle-wrapper.properties（其中指定 gradle-8.6-bin.zip），
+#   但并未提交 gradle-wrapper.jar，因此本地 ./gradlew 不可用。
+#   故本工作流使用 gradle/gradle-build-action 并显式指定 gradle-version: "8.6"
+#   来完成构建，完全不依赖 wrapper，也不依赖本地 SDK。
+#
+# 产物说明（debug 包）：
+#   - debug 包由 Android Gradle Plugin 自动生成 debug 签名，无需任何密钥 / 签名配置。
+#   - 无需配置 signingConfig，无需任何 secrets，全程零密钥。
+#
+# lite 与 full 的区别：
+#   - lite：仅使用 Media3 / ExoPlayer 播放内核，体积更小。
+#   - full：Media3 + libVLC 双内核（依赖 org.videolan.android:libvlc-all:3.6.0），
+#     支持更多音视频格式，体积更大。
+# ============================================================
+
+name: Build Debug APK
+
+on:
+  push:
+    branches:
+      - main
+  workflow_dispatch:
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - name: 检出仓库代码
+        uses: actions/checkout@v4
+
+      - name: 配置 JDK 17 (Temurin)
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+
+      - name: 安装 Android SDK（cmdline-tools + platform-tools）
+        uses: android-actions/setup-android@v3
+
+      - name: 接受 Android SDK 许可协议
+        run: yes | sdkmanager --licenses >/dev/null || true
+
+      - name: 安装编译所需平台与构建工具
+        run: sdkmanager "platforms;android-34" "build-tools;34.0.0"
+
+      - name: 构建 lite flavor 的 debug APK
+        uses: gradle/gradle-build-action@v3
+        with:
+          gradle-version: "8.6"
+          arguments: ":app:assembleLiteDebug"
+
+      - name: 上传 lite debug APK 产物
+        uses: actions/upload-artifact@v4
+        with:
+          name: app-lite-debug
+          path: app/build/outputs/apk/lite/debug/*.apk
+
+      - name: 构建 full flavor 的 debug APK
+        uses: gradle/gradle-build-action@v3
+        with:
+          gradle-version: "8.6"
+          arguments: ":app:assembleFullDebug"
+
+      - name: 上传 full debug APK 产物
+        uses: actions/upload-artifact@v4
+        with:
+          name: app-full-debug
+          path: app/build/outputs/apk/full/debug/*.apk

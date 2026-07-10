@@ -7,7 +7,9 @@ import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.weight
 import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.animateItemPlacement
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.gestures.detectDragGestures
@@ -45,7 +47,9 @@ import androidx.navigation.NavHostController
 import com.example.webdavplayer.domain.model.MediaType
 import com.example.webdavplayer.domain.model.PlayMode
 import com.example.webdavplayer.domain.model.PlaylistItem
+import com.example.webdavplayer.ui.common.SectionHeader
 import com.example.webdavplayer.ui.player.PlayerViewModel
+import com.example.webdavplayer.ui.theme.Spacing
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -83,11 +87,11 @@ fun PlaylistScreen(
             Modifier
                 .fillMaxSize()
                 .padding(padding)
-                .padding(16.dp),
+                .padding(Spacing.lg),
             horizontalAlignment = Alignment.CenterHorizontally,
-            verticalArrangement = Arrangement.spacedBy(12.dp),
+            verticalArrangement = Arrangement.spacedBy(Spacing.md),
         ) {
-            Text("播放模式")
+            SectionHeader("播放模式")
             Row {
                 PlayMode.values().forEach { m ->
                     FilterChip(
@@ -119,7 +123,7 @@ fun PlaylistScreen(
                 LazyColumn(
                     state = listState,
                     Modifier.fillMaxWidth().weight(1f),
-                    verticalArrangement = Arrangement.spacedBy(4.dp),
+                    verticalArrangement = Arrangement.spacedBy(Spacing.xs),
                 ) {
                     items(items, key = { it.id }) { item ->
                         val index = items.indexOf(item)
@@ -127,6 +131,7 @@ fun PlaylistScreen(
                             item = item,
                             modifier = Modifier
                                 .fillMaxWidth()
+                                .animateItemPlacement()
                                 .pointerInput(Unit) {
                                     detectDragGestures(
                                         onDragStart = {

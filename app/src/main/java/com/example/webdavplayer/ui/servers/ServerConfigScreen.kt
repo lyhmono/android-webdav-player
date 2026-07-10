@@ -9,6 +9,7 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.weight
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.ArrowBack
@@ -40,6 +41,7 @@ import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.navigation.NavHostController
 import com.example.webdavplayer.domain.model.AuthType
 import com.example.webdavplayer.domain.model.ServerConfig
+import com.example.webdavplayer.ui.theme.Spacing
 import java.util.UUID
 
 private fun AuthType.label(): String = when (this) {
@@ -91,8 +93,8 @@ fun ServerConfigScreen(
         },
     ) { padding ->
         Column(
-            Modifier.fillMaxSize().padding(padding).padding(16.dp),
-            verticalArrangement = Arrangement.spacedBy(12.dp),
+            Modifier.fillMaxSize().padding(padding).padding(Spacing.lg),
+            verticalArrangement = Arrangement.spacedBy(Spacing.md),
         ) {
             OutlinedTextField(
                 value = name,
@@ -124,7 +126,7 @@ fun ServerConfigScreen(
             Text("鉴权方式")
             Row(
                 Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.spacedBy(8.dp),
+                horizontalArrangement = Arrangement.spacedBy(Spacing.sm),
             ) {
                 AuthType.values().forEach { type ->
                     FilterChip(
@@ -140,7 +142,6 @@ fun ServerConfigScreen(
                 verticalAlignment = Alignment.CenterVertically,
             ) {
                 Text("信任自签名证书")
-                Spacer(Modifier.height(0.dp).fillMaxWidth())
                 Box(Modifier.weight(1f), contentAlignment = Alignment.CenterEnd) {
                     Switch(checked = trustSelf, onCheckedChange = { trustSelf = it })
                 }
@@ -182,10 +183,10 @@ fun ServerConfigScreen(
             text = {
                 Column {
                     Text("该服务器使用了未被信任的证书。请核对以下指纹，确认无误后点击“信任并继续”。")
-                    Spacer(Modifier.height(8.dp))
+                    Spacer(Modifier.height(Spacing.sm))
                     Text("SHA-256 指纹", style = MaterialTheme.typography.labelMedium)
                     Text(dialog.fingerprint, style = MaterialTheme.typography.bodyMedium)
-                    Spacer(Modifier.height(8.dp))
+                    Spacer(Modifier.height(Spacing.sm))
                     Text("颁发者", style = MaterialTheme.typography.labelMedium)
                     Text(dialog.issuer, style = MaterialTheme.typography.bodyMedium)
                 }

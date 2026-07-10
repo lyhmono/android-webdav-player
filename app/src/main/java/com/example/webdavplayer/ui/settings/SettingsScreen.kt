@@ -8,6 +8,7 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.weight
 import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.animateItemPlacement
 import androidx.compose.foundation.lazy.items
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.ArrowBack
@@ -34,6 +35,8 @@ import com.example.webdavplayer.domain.model.EngineType
 import com.example.webdavplayer.domain.model.TrustedCert
 import com.example.webdavplayer.ui.player.PlayerViewModel
 import com.example.webdavplayer.ui.playlist.PlaylistViewModel
+import com.example.webdavplayer.ui.common.SectionHeader
+import com.example.webdavplayer.ui.theme.Spacing
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -63,10 +66,10 @@ fun SettingsScreen(
             Modifier
                 .fillMaxSize()
                 .padding(padding)
-                .padding(16.dp),
-            verticalArrangement = Arrangement.spacedBy(12.dp),
+                .padding(Spacing.lg),
+            verticalArrangement = Arrangement.spacedBy(Spacing.md),
         ) {
-            Text("播放内核")
+            SectionHeader("播放内核")
             Row(Modifier.fillMaxWidth()) {
                 EngineType.values().filter { it != EngineType.IJK }.forEach { t ->
                     FilterChip(
@@ -78,7 +81,7 @@ fun SettingsScreen(
                 }
             }
 
-            Text("已信任的自签证书")
+            SectionHeader("已信任的自签证书")
             if (certs.isEmpty()) {
                 Text(
                     "暂无",
@@ -88,10 +91,14 @@ fun SettingsScreen(
             } else {
                 LazyColumn(
                     Modifier.fillMaxWidth().weight(1f),
-                    verticalArrangement = Arrangement.spacedBy(4.dp),
+                    verticalArrangement = Arrangement.spacedBy(Spacing.xs),
                 ) {
                     items(certs, key = { it.id }) { cert ->
-                        CertRow(cert = cert, onRemove = { viewModel.removeCert(cert.id) })
+                        CertRow(
+                            cert = cert,
+                            onRemove = { viewModel.removeCert(cert.id) },
+                            modifier = Modifier.animateItemPlacement(),
+                        )
                     }
                 }
             }
@@ -100,7 +107,11 @@ fun SettingsScreen(
 }
 
 @Composable
-private fun CertRow(cert: TrustedCert, onRemove: () -> Unit) {
+private fun CertRow(
+    cert: TrustedCert,
+    onRemove: () -> Unit,
+    modifier: Modifier = Modifier,
+) {
     ListItem(
         headlineContent = { Text(cert.serverId) },
         supportingContent = { Text("颁发者：${cert.issuer}") },
@@ -109,7 +120,7 @@ private fun CertRow(cert: TrustedCert, onRemove: () -> Unit) {
                 Icon(Icons.Filled.Delete, "移除")
             }
         },
-        modifier = Modifier.fillMaxWidth(),
+        modifier = modifier.fillMaxWidth(),
     )
 }
 

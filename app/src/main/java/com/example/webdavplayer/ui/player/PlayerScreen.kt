@@ -10,8 +10,10 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.weight
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.animateItemPlacement
 import androidx.compose.foundation.lazy.items
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.ArrowBack
@@ -53,7 +55,9 @@ import com.example.webdavplayer.domain.model.EngineType
 import com.example.webdavplayer.domain.model.MediaType
 import com.example.webdavplayer.domain.model.PlayMode
 import com.example.webdavplayer.domain.model.PlaybackState
+import com.example.webdavplayer.ui.common.SectionHeader
 import com.example.webdavplayer.ui.playlist.PlaylistViewModel
+import com.example.webdavplayer.ui.theme.Spacing
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -126,11 +130,11 @@ fun PlayerScreen(
             Column(
                 Modifier
                     .fillMaxSize()
-                    .padding(16.dp),
+                    .padding(Spacing.lg),
                 horizontalAlignment = Alignment.CenterHorizontally,
-                verticalArrangement = Arrangement.spacedBy(12.dp),
+                verticalArrangement = Arrangement.spacedBy(Spacing.md),
             ) {
-                Spacer(Modifier.height(16.dp))
+                Spacer(Modifier.height(Spacing.lg))
                 Text(title.ifEmpty { "未选择媒体" }, style = MaterialTheme.typography.titleLarge)
                 Text(stateLabel(state), style = MaterialTheme.typography.bodyMedium)
 
@@ -140,27 +144,31 @@ fun PlayerScreen(
                     valueRange = 0f..duration.coerceAtLeast(1).toFloat(),
                     modifier = Modifier.fillMaxWidth(),
                 )
-                Text("${formatDuration(position)} / ${formatDuration(duration)}")
+                Text(
+                    "${formatDuration(position)} / ${formatDuration(duration)}",
+                    style = MaterialTheme.typography.labelLarge,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
 
                 Row(verticalAlignment = Alignment.CenterVertically) {
                     IconButton(onClick = { playerVm.previous() }) {
                         Icon(Icons.Filled.SkipPrevious, "上一首")
                     }
-                    Spacer(Modifier.width(16.dp))
+                    Spacer(Modifier.width(Spacing.lg))
                     IconButton(onClick = { playerVm.togglePlay() }) {
                         Icon(
                             if (isPlaying) Icons.Filled.Pause else Icons.Filled.PlayArrow,
                             "播放/暂停",
                         )
                     }
-                    Spacer(Modifier.width(16.dp))
+                    Spacer(Modifier.width(Spacing.lg))
                     IconButton(onClick = { playerVm.next() }) {
                         Icon(Icons.Filled.SkipNext, "下一首")
                     }
                 }
 
-                Spacer(Modifier.height(8.dp))
-                Text("播放模式")
+                Spacer(Modifier.height(Spacing.sm))
+                SectionHeader("播放模式")
                 Row {
                     PlayMode.values().forEach { m ->
                         FilterChip(
@@ -171,8 +179,8 @@ fun PlayerScreen(
                     }
                 }
 
-                Spacer(Modifier.height(8.dp))
-                Text("播放内核")
+                Spacer(Modifier.height(Spacing.sm))
+                SectionHeader("播放内核")
                 Row {
                     EngineType.values().filter { it != EngineType.IJK }.forEach { t ->
                         FilterChip(
@@ -184,11 +192,11 @@ fun PlayerScreen(
                     }
                 }
 
-                Spacer(Modifier.height(8.dp))
-                Text("播放列表")
+                Spacer(Modifier.height(Spacing.sm))
+                SectionHeader("播放列表")
                 LazyColumn(
                     Modifier.fillMaxWidth().weight(1f),
-                    verticalArrangement = Arrangement.spacedBy(4.dp),
+                    verticalArrangement = Arrangement.spacedBy(Spacing.xs),
                 ) {
                     items(items, key = { it.id }) { item ->
                         ListItem(
@@ -205,6 +213,7 @@ fun PlayerScreen(
                             },
                             modifier = Modifier
                                 .fillMaxWidth()
+                                .animateItemPlacement()
                                 .combinedClickable(
                                     onClick = { playerVm.playItem(item) },
                                     onLongClick = { playlistVm.removeItem(item.id) },

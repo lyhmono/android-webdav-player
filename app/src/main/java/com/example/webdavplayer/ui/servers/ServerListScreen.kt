@@ -8,12 +8,14 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.animateItemPlacement
 import androidx.compose.foundation.lazy.items
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.Check
 import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.VideoLibrary
+import androidx.compose.material.icons.filled.CloudOff
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.FloatingActionButton
@@ -39,6 +41,7 @@ import androidx.navigation.NavHostController
 import com.example.webdavplayer.ui.common.EmptyView
 import com.example.webdavplayer.ui.player.PlayerViewModel
 import com.example.webdavplayer.ui.playlist.PlaylistViewModel
+import com.example.webdavplayer.ui.theme.Spacing
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -64,14 +67,14 @@ fun ServerListScreen(
             Box(
                 Modifier.fillMaxSize().padding(padding),
                 contentAlignment = Alignment.Center,
-            ) { EmptyView("还没有服务器，点击右下角添加") }
+            ) { EmptyView("还没有服务器，点击右下角添加", icon = Icons.Filled.CloudOff) }
         } else {
             LazyColumn(
                 Modifier
                     .fillMaxSize()
                     .padding(padding)
-                    .padding(8.dp),
-                verticalArrangement = Arrangement.spacedBy(4.dp),
+                    .padding(Spacing.md),
+                verticalArrangement = Arrangement.spacedBy(Spacing.xs),
             ) {
                 items(servers, key = { it.id }) { server ->
                     val isCurrent = server.id == currentId
@@ -89,6 +92,7 @@ fun ServerListScreen(
                             }
                         },
                         modifier = Modifier
+                            .animateItemPlacement()
                             .fillMaxWidth()
                             .clickable {
                                 // C5：记住当前服务器，导航按 serverId 隔离（§7）
