@@ -122,7 +122,7 @@ dependencies {
     implementation("com.squareup.okio:okio:3.9.0")
 
     // ===== Sardine-Android（WebDAV 客户端） =====
-    implementation("com.thegrizzlylabs:sardine-android:0.10.0")
+    implementation("com.github.thegrizzlylabs:sardine-android:v0.9")
 
     // ===== Media3（ExoPlayer 默认内核 + 后台媒体会话） =====
     implementation("androidx.media3:media3-exoplayer:1.2.0")

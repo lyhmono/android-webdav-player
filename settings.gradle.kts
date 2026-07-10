@@ -13,6 +13,7 @@ dependencyResolutionManagement {
         mavenCentral()
         // libVLC（full 风味）所需仓库
         maven { url = uri("https://maven.videolan.org") }
+        maven { url = uri("https://jitpack.io") }
     }
 }
 
