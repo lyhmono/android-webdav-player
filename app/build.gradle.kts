@@ -131,7 +131,7 @@ dependencies {
     implementation("androidx.media3:media3-datasource-okhttp:1.2.0")
 
     // ===== libVLC（备选内核，仅 full 风味） =====
-    fullImplementation("org.videolan.android:libvlc-all:3.6.0")
+    "fullImplementation"("org.videolan.android:libvlc-all:3.6.0")
 
     // ===== Coil（P2 缩略图预留） =====
     implementation("io.coil-kt:coil-compose:2.5.0")
