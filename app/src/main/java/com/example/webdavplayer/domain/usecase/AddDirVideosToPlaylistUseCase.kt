@@ -10,7 +10,7 @@ import javax.inject.Inject
 /**
  * 长按目录 → 自动识别视频 → 加入播放列表（§1.5 / §6 T08）。
  *
- * 过滤规则（双重保险）：contentType 命中 `video/*`，或扩展名命中视频白名单。
+ * 过滤规则（双重保险）：contentType 以 video/ 开头（含其下任意子类型），或扩展名命中视频白名单。
  * [replace]=false 时追加；UI 可提供“替换/追加”开关。
  */
 class AddDirVideosToPlaylistUseCase @Inject constructor(

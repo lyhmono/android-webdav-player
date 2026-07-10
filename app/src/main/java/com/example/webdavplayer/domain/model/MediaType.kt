@@ -14,7 +14,7 @@ enum class MediaType {
 
 /** 媒体类型识别工具（contentType 优先，扩展名兜底）。 */
 object MediaTypeClassifier {
-    /** 仅由 contentType 推断（video/* 或 audio/*）。 */
+    /** 仅由 contentType 推断（以 video/ 或 audio/ 开头）。 */
     fun fromContentType(contentType: String?): MediaType? {
         if (contentType.isNullOrBlank()) return null
         return when {
