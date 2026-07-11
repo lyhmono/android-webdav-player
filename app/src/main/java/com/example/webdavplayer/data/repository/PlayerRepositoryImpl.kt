@@ -1,6 +1,7 @@
 package com.example.webdavplayer.data.repository
 
 import android.content.Context
+import dagger.hilt.android.qualifiers.ApplicationContext
 import com.example.webdavplayer.data.player.ExoPlayerEngine
 import com.example.webdavplayer.data.player.PlayerEngineFactory
 import com.example.webdavplayer.data.remote.WebDavClient
@@ -28,6 +29,7 @@ class PlayerRepositoryImpl @Inject constructor(
     private val webDavClient: WebDavClient,
     private val serverRepository: ServerRepository,
     private val settingsRepository: SettingsRepository,
+    private val playerEngineFactory: PlayerEngineFactory,
     @ApplicationContext private val context: Context,
 ) : PlayerRepository {
 
@@ -38,12 +40,12 @@ class PlayerRepositoryImpl @Inject constructor(
     override fun getEngineType(): EngineType = settingsRepository.getEngineType()
 
     override suspend fun setEngineType(type: EngineType) = withContext(Dispatchers.Main) {
-        if (engine != null && settingsRepository.getEngineType() == type) return
+        if (engine != null && settingsRepository.getEngineType() == type) return@withContext
         settingsRepository.setEngineType(type)
-        val media = currentMedia ?: return
+        val media = currentMedia ?: return@withContext
         val wasPlaying = engine?.getState() == PlaybackState.PLAYING
         engine?.release()
-        engine = PlayerEngineFactory.create(type, context)
+        engine = playerEngineFactory.create(type, context)
         listener?.let { engine!!.setListener(it) }
         connectFor(media)
         (engine as? ExoPlayerEngine)?.setOkHttpClient(webDavClient.getOkHttpClient())
@@ -54,7 +56,7 @@ class PlayerRepositoryImpl @Inject constructor(
     override suspend fun prepare(media: PlayableMedia) = withContext(Dispatchers.Main) {
         currentMedia = media
         if (engine == null) {
-            engine = PlayerEngineFactory.create(settingsRepository.getEngineType(), context)
+            engine = playerEngineFactory.create(settingsRepository.getEngineType(), context)
         }
         listener?.let { engine!!.setListener(it) }
         connectFor(media)

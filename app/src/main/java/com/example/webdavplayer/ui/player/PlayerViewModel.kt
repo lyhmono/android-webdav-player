@@ -117,7 +117,7 @@ class PlayerViewModel @Inject constructor(
     }
 
     /** 将 MediaController 的播放状态/进度映射到本 VM 的 StateFlow。 */
-    private fun syncFromController(controller: MediaController = mediaController ?: return) {
+    private fun syncFromController(controller: MediaController) {
         val pos = controller.currentPosition.coerceAtLeast(0L)
         val dur = if (controller.duration != C.TIME_UNSET) {
             controller.duration.coerceAtLeast(0L)

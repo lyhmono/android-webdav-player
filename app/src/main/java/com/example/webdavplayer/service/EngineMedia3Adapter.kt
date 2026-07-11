@@ -12,12 +12,33 @@ import com.example.webdavplayer.domain.model.PlaybackState
 import com.example.webdavplayer.domain.model.PlaylistItem
 import com.example.webdavplayer.domain.player.PlaylistController
 import com.example.webdavplayer.domain.repository.PlayerRepository
-import com.google.common.base.Futures
 import com.google.common.util.concurrent.ListenableFuture
+import java.util.concurrent.Executor
+import java.util.concurrent.TimeUnit
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
+import kotlinx.coroutines.cancel
 import kotlinx.coroutines.launch
+
+/**
+ * 立即完成的 [ListenableFuture] 实现。
+ *
+ * classpath 上仅有 `com.google.common.util.concurrent.ListenableFuture` 接口
+ * （Guava listenablefuture 桩），并无 `com.google.common.base.Futures` 工具类。
+ * 为避免引入完整 Guava 依赖，这里提供最小实现，供 SimpleBasePlayer 各 handler
+ * 返回“已就绪”的结果。
+ */
+private class ImmediateFuture<V>(private val value: V?) : ListenableFuture<V> {
+    override fun cancel(mayInterruptIfRunning: Boolean): Boolean = false
+    override fun isCancelled(): Boolean = false
+    override fun isDone(): Boolean = true
+    override fun get(): V? = value
+    override fun get(timeout: Long, unit: TimeUnit): V? = value
+    override fun addListener(listener: Runnable, executor: Executor) {
+        executor.execute(listener)
+    }
+}
 
 /**
  * 将 [PlayerRepository]（双内核抽象）适配为 Media3 [Player]（C1 / §7）。
@@ -85,7 +106,7 @@ class EngineMedia3Adapter(
                 .setPlaybackState(Player.STATE_IDLE)
                 .setCurrentMediaItemIndex(C.INDEX_UNSET)
                 .setContentPositionMs(0)
-                .setPlaylist(emptyList())
+                .setPlaylist(emptyList<MediaItemData>())
                 .build()
         }
 
@@ -97,29 +118,27 @@ class EngineMedia3Adapter(
         }
 
         val mediaItemData = items.map { item ->
-            MediaItemData.Builder(
-                MediaItem.Builder()
-                    .setMediaId(item.id)
-                    .setMediaMetadata(
-                        MediaMetadata.Builder().setTitle(item.name).build(),
-                    )
-                    .build(),
-                /* periodCount= */ 1,
-            ).setPeriods(
-                listOf(
-                    PeriodData.Builder(/* uid= */ 0)
-                        .setDurationUs(
-                            if (item.durationMs > 0) {
-                                item.durationMs * 1000
-                            } else if (durationMs > 0) {
-                                durationMs * 1000
-                            } else {
-                                C.TIME_UNSET
-                            },
-                        )
-                        .build(),
-                ),
-            ).build()
+            val mediaItem = MediaItem.Builder()
+                .setMediaId(item.id)
+                .setMediaMetadata(
+                    MediaMetadata.Builder().setTitle(item.name).build(),
+                )
+                .build()
+            val period = PeriodData.Builder(item.id)
+                .setDurationUs(
+                    if (item.durationMs > 0) {
+                        item.durationMs * 1000
+                    } else if (durationMs > 0) {
+                        durationMs * 1000
+                    } else {
+                        C.TIME_UNSET
+                    },
+                )
+                .build()
+            MediaItemData.Builder(item.id)
+                .setMediaItem(mediaItem)
+                .setPeriods(listOf(period))
+                .build()
         }
 
         return State.Builder()
@@ -136,21 +155,9 @@ class EngineMedia3Adapter(
     }
 
     @UnstableApi
-    override fun handleSetPlayWhenReady(playWhenReady: Boolean, reason: Int): ListenableFuture<*> {
+    override fun handleSetPlayWhenReady(playWhenReady: Boolean): ListenableFuture<*> {
         if (playWhenReady) playerRepository.play() else playerRepository.pause()
-        return Futures.immediateFuture(playWhenReady)
-    }
-
-    @UnstableApi
-    override fun handlePlay(): ListenableFuture<*> {
-        playerRepository.play()
-        return Futures.immediateVoidFuture()
-    }
-
-    @UnstableApi
-    override fun handlePause(): ListenableFuture<*> {
-        playerRepository.pause()
-        return Futures.immediateVoidFuture()
+        return ImmediateFuture(playWhenReady)
     }
 
     @UnstableApi
@@ -158,44 +165,30 @@ class EngineMedia3Adapter(
         val items = playlistController.snapshot()
         val target = items.getOrNull(mediaItemIndex)
         if (target != null && target.id != playlistController.current()?.id) {
-            // 切换媒体项：播放该媒体。
+            // 切换媒体项（上一首 / 下一首经 Media3 基础实现路由到此处）：播放该媒体。
             scope.launch { playItem(target) }
         } else {
             // 当前项内拖动。
             playerRepository.seekTo(positionMs)
         }
-        return Futures.immediateVoidFuture()
-    }
-
-    @UnstableApi
-    override fun handleSeekToNextMediaItem(): ListenableFuture<*> {
-        playlistController.next()?.let { scope.launch { playItem(it) } }
-        return Futures.immediateVoidFuture()
-    }
-
-    @UnstableApi
-    override fun handleSeekToPreviousMediaItem(): ListenableFuture<*> {
-        playlistController.previous()?.let { scope.launch { playItem(it) } }
-        return Futures.immediateVoidFuture()
+        return ImmediateFuture(Unit)
     }
 
     @UnstableApi
     override fun handleStop(): ListenableFuture<*> {
         playerRepository.pause()
-        return Futures.immediateVoidFuture()
+        return ImmediateFuture(Unit)
     }
 
     @UnstableApi
     override fun handleRelease(): ListenableFuture<*> {
         scope.cancel()
-        return Futures.immediateVoidFuture()
+        return ImmediateFuture(Unit)
     }
 
     /** 声明本代理支持的命令集合。 */
     private fun buildCommands(): Player.Commands = Player.Commands.Builder()
         .add(Player.COMMAND_PLAY_PAUSE)
-        .add(Player.COMMAND_PLAY)
-        .add(Player.COMMAND_PAUSE)
         .add(Player.COMMAND_SEEK_IN_CURRENT_MEDIA_ITEM)
         .add(Player.COMMAND_SEEK_TO_NEXT_MEDIA_ITEM)
         .add(Player.COMMAND_SEEK_TO_PREVIOUS_MEDIA_ITEM)

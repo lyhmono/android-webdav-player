@@ -1,3 +1,5 @@
+@file:OptIn(ExperimentalFoundationApi::class)
+
 package com.example.webdavplayer.ui.browse
 
 import android.content.ContentResolver
@@ -6,7 +8,8 @@ import android.provider.OpenableColumns
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.ExperimentalFoundationApi
-import androidx.compose.foundation.clickable.combinedClickable
+import androidx.compose.foundation.clickable
+import androidx.compose.foundation.combinedClickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -18,7 +21,8 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.lazy.LazyColumn
-import androidx.compose.foundation.lazy.animateItemPlacement
+import androidx.paging.compose.itemKey
+import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.ArrowBack
 import androidx.compose.material.icons.filled.Delete
@@ -63,7 +67,7 @@ import com.example.webdavplayer.ui.player.PlayerViewModel
 import com.example.webdavplayer.ui.theme.Spacing
 import com.example.webdavplayer.ui.playlist.PlaylistViewModel
 import kotlinx.coroutines.flow.first
-import okio.Okio
+import okio.source
 import java.net.URLDecoder
 import java.net.URLEncoder
 
@@ -104,7 +108,7 @@ fun BrowseScreen(
             }
             val input = contentResolver.openInputStream(uri)
             if (input != null) {
-                val source = Okio.source(input)
+                val source = input.source()
                 viewModel.upload(path, fileName, source, size)
             }
         }

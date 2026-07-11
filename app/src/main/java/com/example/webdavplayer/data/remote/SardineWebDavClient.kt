@@ -7,13 +7,14 @@ import com.example.webdavplayer.domain.model.RemoteFile
 import com.example.webdavplayer.domain.model.ServerConfig
 import com.example.webdavplayer.domain.repository.TrustedCertRepository
 import com.thegrizzlylabs.sardineandroid.impl.OkHttpSardine
-import com.thegrizzlylabs.sardineandroid.model.DavResource
+import com.thegrizzlylabs.sardineandroid.DavResource
+import com.example.webdavplayer.domain.model.MediaTypeClassifier
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import okhttp3.OkHttpClient
 import okio.Buffer
-import okio.Okio
 import okio.Source
+import okio.source
 import java.net.URLConnection
 import java.util.concurrent.TimeUnit
 import javax.inject.Inject
@@ -105,7 +106,7 @@ class SardineWebDavClient @Inject constructor(
         val cfg = requireConfig()
         val sardine = OkHttpSardine(requireClient())
         val input = sardine.get(WebDavPath.join(cfg.baseUrl, path))
-        Okio.source(input)
+        input.source()
     }
 
     override suspend fun upload(path: String, source: Source, size: Long?) =
@@ -114,8 +115,8 @@ class SardineWebDavClient @Inject constructor(
             val sardine = OkHttpSardine(requireClient())
             val url = WebDavPath.join(cfg.baseUrl, path)
             val contentType = guessContentType(path)
-            val input = Buffer().readFrom(source).inputStream()
-            sardine.put(url, input, contentType)
+            val bytes = Buffer().apply { writeAll(source) }.readByteArray()
+            sardine.put(url, bytes, contentType)
         }
 
     override suspend fun rename(from: String, to: String) = withContext(Dispatchers.IO) {
@@ -145,7 +146,7 @@ class SardineWebDavClient @Inject constructor(
     override fun getOkHttpClient(): OkHttpClient = requireClient()
 
     private fun mapResource(res: DavResource, serverId: String, parentPath: String): RemoteFile {
-        val href = res.href ?: ""
+        val href = res.href?.toString() ?: ""
         val name = href.substringAfterLast('/').ifEmpty { href }
         val contentType = res.contentType ?: ""
         return RemoteFile(

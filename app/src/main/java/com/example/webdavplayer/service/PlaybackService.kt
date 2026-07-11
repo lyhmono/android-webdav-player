@@ -26,6 +26,7 @@ import dagger.hilt.android.AndroidEntryPoint
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
+import kotlinx.coroutines.cancel
 import kotlinx.coroutines.launch
 import javax.inject.Inject
 
@@ -77,12 +78,10 @@ class PlaybackService : MediaSessionService() {
     private val engineListener = object : EngineListener {
         override fun onStateChange(state: PlaybackState) {
             adapter.onEngineState(state)
-            adapter.invalidateState()
         }
 
         override fun onProgress(positionMs: Long, durationMs: Long) {
             adapter.onEngineProgress(positionMs, durationMs)
-            adapter.invalidateState()
             // 节流保存当前项断点（C3）。
             playlistController.current()?.let { item ->
                 progressSaver.onProgress(item.serverId, item.path, positionMs)
@@ -102,7 +101,7 @@ class PlaybackService : MediaSessionService() {
         }
 
         override fun onError(throwable: Throwable) {
-            adapter.invalidateState()
+            // 错误状态已由 onEngineState(ERROR) 经 adapter.onEngineState 推送，无需额外刷新。
         }
     }
 
@@ -122,10 +121,13 @@ class PlaybackService : MediaSessionService() {
         super.onCreate()
         createNotificationChannel()
 
-        val provider = DefaultMediaNotificationProvider.Builder()
+        val provider = DefaultMediaNotificationProvider.Builder(this)
             .setChannelId(channelId)
             .setChannelName(R.string.playback_channel_name)
             .build()
+        // Media3 1.5.1：通知提供方通过 MediaSessionService 的 protected 方法设置
+        //（MediaSession.Builder 已无 setMediaNotificationProvider）。
+        setMediaNotificationProvider(provider)
 
         adapter = EngineMedia3Adapter(
             looper = Looper.getMainLooper(),
@@ -135,8 +137,7 @@ class PlaybackService : MediaSessionService() {
         )
 
         mediaSession = MediaSession.Builder(this, adapter)
-            .setSessionCallback(PlaybackSessionCallback(playlistController, ::launchPlayItem))
-            .setMediaNotificationProvider(provider)
+            .setCallback(PlaybackSessionCallback())
             .build()
 
         // 服务成为引擎监听的唯一拥有者（UI 已降级为 MediaController 客户端）。

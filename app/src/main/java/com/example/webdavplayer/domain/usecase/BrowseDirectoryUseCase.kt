@@ -1,6 +1,7 @@
 package com.example.webdavplayer.domain.usecase
 
 import androidx.paging.PagingData
+import com.example.webdavplayer.common.Result
 import com.example.webdavplayer.domain.model.RemoteFile
 import com.example.webdavplayer.domain.repository.BrowseRepository
 import kotlinx.coroutines.flow.Flow

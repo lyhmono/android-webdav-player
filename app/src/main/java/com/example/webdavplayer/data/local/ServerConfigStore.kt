@@ -1,6 +1,7 @@
 package com.example.webdavplayer.data.local
 
 import android.content.Context
+import dagger.hilt.android.qualifiers.ApplicationContext
 import android.content.SharedPreferences
 import androidx.core.content.edit
 import androidx.security.crypto.EncryptedSharedPreferences
@@ -26,8 +27,9 @@ class ServerConfigStore @Inject constructor(
     @ApplicationContext private val context: Context,
 ) {
     private val prefs = EncryptedSharedPreferences.create(
+        context,
         "webdav_servers",
-        MasterKey(context),
+        MasterKey.Builder(context).build(),
         EncryptedSharedPreferences.PrefKeyEncryptionScheme.AES256_SIV,
         EncryptedSharedPreferences.PrefValueEncryptionScheme.AES256_GCM,
     )

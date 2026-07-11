@@ -3,6 +3,8 @@ package com.example.webdavplayer.data.repository
 import com.example.webdavplayer.data.local.dao.PlaylistDao
 import com.example.webdavplayer.data.local.dao.PlaylistMetaDao
 import com.example.webdavplayer.data.local.entity.PlaylistMetaEntity
+import com.example.webdavplayer.data.local.entity.toDomain
+import com.example.webdavplayer.data.local.entity.toEntity
 import com.example.webdavplayer.domain.model.PlayMode
 import com.example.webdavplayer.domain.model.PlaylistItem
 import com.example.webdavplayer.domain.repository.PlaylistRepository

@@ -1,18 +1,21 @@
+@file:OptIn(ExperimentalFoundationApi::class)
+
 package com.example.webdavplayer.ui.playlist
 
-import androidx.compose.foundation.clickable.combinedClickable
+import androidx.compose.foundation.clickable
+import androidx.compose.foundation.combinedClickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.layout.weight
 import androidx.compose.foundation.lazy.LazyColumn
-import androidx.compose.foundation.lazy.animateItemPlacement
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.gestures.detectDragGestures
+import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.input.pointer.pointerInput
 import kotlin.math.roundToInt
@@ -51,7 +54,7 @@ import com.example.webdavplayer.ui.common.SectionHeader
 import com.example.webdavplayer.ui.player.PlayerViewModel
 import com.example.webdavplayer.ui.theme.Spacing
 
-@OptIn(ExperimentalMaterial3Api::class)
+@OptIn(ExperimentalMaterial3Api::class, ExperimentalFoundationApi::class)
 @Composable
 fun PlaylistScreen(
     navController: NavHostController,
@@ -120,11 +123,12 @@ fun PlaylistScreen(
                 var dragFrom by remember { mutableStateOf<Int?>(null) }
                 var dragAccumulator by remember { mutableStateOf(0f) }
 
-                LazyColumn(
-                    state = listState,
-                    Modifier.fillMaxWidth().weight(1f),
-                    verticalArrangement = Arrangement.spacedBy(Spacing.xs),
-                ) {
+                Box(Modifier.fillMaxWidth().weight(1f)) {
+                    LazyColumn(
+                        state = listState,
+                        modifier = Modifier.fillMaxSize(),
+                        verticalArrangement = Arrangement.spacedBy(Spacing.xs),
+                    ) {
                     items(items, key = { it.id }) { item ->
                         val index = items.indexOf(item)
                         PlaylistRow(
@@ -165,6 +169,7 @@ fun PlaylistScreen(
                             onLongClick = { playlistVm.removeItem(item.id) },
                         )
                     }
+                }
                 }
             }
         }

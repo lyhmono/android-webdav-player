@@ -1,6 +1,7 @@
 package com.example.webdavplayer.ui.servers
 
 import androidx.lifecycle.ViewModel
+import dagger.hilt.android.lifecycle.HiltViewModel
 import androidx.lifecycle.viewModelScope
 import com.example.webdavplayer.common.Result
 import com.example.webdavplayer.domain.exception.CertUntrustedException

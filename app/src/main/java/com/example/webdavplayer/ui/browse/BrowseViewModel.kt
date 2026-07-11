@@ -2,6 +2,7 @@ package com.example.webdavplayer.ui.browse
 
 import androidx.lifecycle.SavedStateHandle
 import androidx.lifecycle.ViewModel
+import dagger.hilt.android.lifecycle.HiltViewModel
 import androidx.lifecycle.viewModelScope
 import androidx.paging.PagingData
 import com.example.webdavplayer.common.Result
@@ -138,9 +139,10 @@ class BrowseViewModel @Inject constructor(
             addedAt = System.currentTimeMillis(),
         )
         viewModelScope.launch {
-            when (playMedia(item)) {
+            val r = playMedia(item)
+            when (r) {
                 is Result.Success -> { /* 跳转由界面处理 */ }
-                is Result.Error -> _error.value = "播放失败：${it.throwable.message}"
+                is Result.Error -> _error.value = "播放失败：${r.throwable.message}"
             }
         }
     }

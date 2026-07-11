@@ -3,7 +3,9 @@ package com.example.webdavplayer.data.repository
 import androidx.paging.Pager
 import androidx.paging.PagingConfig
 import androidx.paging.PagingData
+import androidx.paging.map
 import com.example.webdavplayer.data.local.dao.RemoteFileDao
+import com.example.webdavplayer.data.local.entity.toDomain
 import com.example.webdavplayer.data.local.entity.toEntity
 import com.example.webdavplayer.data.remote.WebDavClient
 import com.example.webdavplayer.data.remote.WebDavPath

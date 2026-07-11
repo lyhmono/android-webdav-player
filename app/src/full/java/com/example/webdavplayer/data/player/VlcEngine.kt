@@ -65,10 +65,10 @@ class VlcEngine @Inject constructor(
             mediaPlayer = MediaPlayer(libVlc).apply { setEventListener(eventListener) }
         }
         val m = Media(libVlc, Uri.parse(media.uri))
-        media.headers.forEach { (k, v) -> m.setHttpHeader(k, v) }
+        // libVLC 3.6.0 has no setHttpHeader(); pass custom headers as media options.
+        media.headers.forEach { (k, v) -> m.addOption(":http-header=$k: $v") }
         if (media.trustSelfSigned) m.addOption(":no-tls-check")
         mediaPlayer!!.media = m
-        mediaPlayer!!.prepare()
         updateState(PlaybackState.PREPARING)
     }
 

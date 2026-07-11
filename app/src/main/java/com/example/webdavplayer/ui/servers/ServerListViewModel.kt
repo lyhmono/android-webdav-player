@@ -1,6 +1,7 @@
 package com.example.webdavplayer.ui.servers
 
 import androidx.lifecycle.ViewModel
+import dagger.hilt.android.lifecycle.HiltViewModel
 import androidx.lifecycle.viewModelScope
 import com.example.webdavplayer.domain.model.ServerConfig
 import com.example.webdavplayer.domain.usecase.ManageServerUseCase

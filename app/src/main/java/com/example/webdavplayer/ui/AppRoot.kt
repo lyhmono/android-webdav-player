@@ -14,7 +14,9 @@ import androidx.navigation.compose.rememberNavController
 import androidx.navigation.navArgument
 import com.example.webdavplayer.ui.browse.BrowseScreen
 import com.example.webdavplayer.ui.player.PlayerScreen
+import com.example.webdavplayer.ui.player.PlayerViewModel
 import com.example.webdavplayer.ui.playlist.PlaylistScreen
+import com.example.webdavplayer.ui.playlist.PlaylistViewModel
 import com.example.webdavplayer.ui.servers.ServerConfigScreen
 import com.example.webdavplayer.ui.servers.ServerListScreen
 import com.example.webdavplayer.ui.settings.SettingsScreen
