@@ -120,7 +120,10 @@ dependencies {
     implementation("androidx.datastore:datastore-preferences:1.0.0")
 
     // ===== Security-Crypto（冷启动加密凭据） =====
-    implementation("androidx.security:security-crypto:1.1.0-alpha06")
+    // 升级到稳定版 1.1.0：1.1.0-alpha06 在部分 ROM/API 上构造 MasterKey 时会抛
+    // KeyStoreException / InvalidAlgorithmParameterException，且该调用位于 ServerConfigStore
+    // 构造期（首屏 hiltViewModel 同步触发），会直接导致冷启动闪退。1.1.0 已修复该问题。
+    implementation("androidx.security:security-crypto:1.1.0")
 
     // ===== OkHttp（自签 SSL / 鉴权拦截 / 流式） =====
     implementation("com.squareup.okhttp3:okhttp:4.12.0")

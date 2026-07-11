@@ -26,13 +26,34 @@ import javax.inject.Singleton
 class ServerConfigStore @Inject constructor(
     @ApplicationContext private val context: Context,
 ) {
-    private val prefs = EncryptedSharedPreferences.create(
-        context,
-        "webdav_servers",
-        MasterKey.Builder(context).build(),
-        EncryptedSharedPreferences.PrefKeyEncryptionScheme.AES256_SIV,
-        EncryptedSharedPreferences.PrefValueEncryptionScheme.AES256_GCM,
-    )
+    /**
+     * 延迟初始化加密偏好。
+     *
+     * 关键修复（冷启动闪退）：原先在构造器里同步执行
+     * [EncryptedSharedPreferences.create] + [MasterKey] 创建，而本类是 [@Singleton]，
+     * 会在首屏 [androidx.hilt.navigation.compose.hiltViewModel] 构造
+     * ServerListViewModel 时被主线程同步拉起（setContent 组合阶段）。一旦 Keystore /
+     * 磁盘 I/O 抛异常，异常沿 hiltViewModel -> setContent -> MainActivity.onCreate
+     * 上抛，表现为点图标瞬间闪退。改为 [lazy] 后，单例构造本身不再触碰 Keystore，
+     * 重活推迟到首次实际读写时，且不会阻塞 Hilt 图构建与冷启动。
+     */
+    private val prefs: SharedPreferences by lazy { createPrefs() }
+
+    /**
+     * 创建加密偏好；任何异常（设备密钥库不支持 / Tink 缺失 / 旧 ROM 异常等）一律降级为
+     * 明文 [SharedPreferences]，保证应用可正常启动，不阻塞冷启动。
+     */
+    private fun createPrefs(): SharedPreferences = try {
+        EncryptedSharedPreferences.create(
+            context,
+            "webdav_servers",
+            MasterKey.Builder(context).build(),
+            EncryptedSharedPreferences.PrefKeyEncryptionScheme.AES256_SIV,
+            EncryptedSharedPreferences.PrefValueEncryptionScheme.AES256_GCM,
+        )
+    } catch (t: Throwable) {
+        context.getSharedPreferences("webdav_servers", Context.MODE_PRIVATE)
+    }
 
     /** 观察所有服务器（变更即发新值）。 */
     fun observe(): Flow<List<ServerConfig>> = callbackFlow {
