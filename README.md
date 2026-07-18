@@ -46,10 +46,6 @@ Kotlin · Jetpack Compose · Material 3 · Hilt · Room · DataStore · Security
 ./gradlew assembleFullDebug     # 双内核（含 libVLC）的 full 包
 ```
 
-> 注：本仓库在受限环境中初始化，未包含 Gradle Wrapper 的 `gradle-wrapper.jar`。
-> 克隆后请在本地执行 `gradle wrapper --gradle-version 8.6` 生成 wrapper，
-> 或直接使用已安装的 Gradle 8.6+ 构建（命令中的 `./gradlew` 替换为 `gradle`）。
-
 ## 测试
 
 12 个测试文件、84 个单元测试（P0 基线 60 + P1 新增 24），覆盖媒体类型识别、路径编码、播放列表顺序/循环/随机、断点续播、多账户切换、长按目录自动识别视频等。

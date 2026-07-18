@@ -1,0 +1,62 @@
+# ============================================================
+# Release APK — 打 tag 时触发自动构建 + 发布 Release
+# ============================================================
+# 触发条件：推送 v 开头的 tag（如 v1.0.0、v1.0.0-beta1）
+# 产物：lite + full 两个 debug APK 自动上传到 GitHub Release
+# ============================================================
+
+name: Release APK
+
+on:
+  push:
+    tags:
+      - 'v*'
+
+jobs:
+  release:
+    runs-on: ubuntu-latest
+    steps:
+      - name: 检出仓库代码
+        uses: actions/checkout@v4
+
+      - name: 配置 JDK 17 (Temurin)
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+
+      - name: 安装 Android SDK（cmdline-tools + platform-tools）
+        uses: android-actions/setup-android@v3
+
+      - name: 接受 Android SDK 许可协议
+        run: yes | sdkmanager --licenses >/dev/null || true
+
+      - name: 安装编译所需平台与构建工具
+        run: sdkmanager "platforms;android-34" "build-tools;34.0.0"
+
+      - name: 运行单元测试
+        uses: gradle/gradle-build-action@v3
+        with:
+          gradle-version: "8.6"
+          arguments: ":app:testLiteDebugUnitTest"
+
+      - name: 构建 lite debug APK
+        uses: gradle/gradle-build-action@v3
+        with:
+          gradle-version: "8.6"
+          arguments: ":app:assembleLiteDebug"
+
+      - name: 构建 full debug APK
+        uses: gradle/gradle-build-action@v3
+        with:
+          gradle-version: "8.6"
+          arguments: ":app:assembleFullDebug"
+
+      - name: 创建 GitHub Release 并上传 APK
+        uses: softprops/action-gh-release@v2
+        with:
+          name: "${{ github.ref_name }}"
+          files: |
+            app/build/outputs/apk/lite/debug/*.apk
+            app/build/outputs/apk/full/debug/*.apk
+          generate_release_notes: true
