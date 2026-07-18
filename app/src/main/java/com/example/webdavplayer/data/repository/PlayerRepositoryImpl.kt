@@ -48,6 +48,8 @@ class PlayerRepositoryImpl @Inject constructor(
         engine = playerEngineFactory.create(type, context)
         listener?.let { engine!!.setListener(it) }
         connectFor(media)
+        // ExoPlayer 内核需要注入共享 OkHttp（含自签信任 + 鉴权）；
+        // VLC 内核使用 libVLC 自建网络栈，不需要也不支持此注入。
         (engine as? ExoPlayerEngine)?.setOkHttpClient(webDavClient.getOkHttpClient())
         engine!!.prepare(media)
         if (wasPlaying) engine!!.play()
@@ -60,6 +62,7 @@ class PlayerRepositoryImpl @Inject constructor(
         }
         listener?.let { engine!!.setListener(it) }
         connectFor(media)
+        // ExoPlayer 内核需要注入共享 OkHttp；VLC 自建网络栈无需此注入。
         (engine as? ExoPlayerEngine)?.setOkHttpClient(webDavClient.getOkHttpClient())
         engine!!.prepare(media)
     }

@@ -228,6 +228,7 @@ class PlayerViewModel @Inject constructor(
 
     override fun onCleared() {
         super.onCleared()
+        controllerFuture.cancel(true)
         // 注意：不再释放 playerRepository 引擎（后台播放依赖其存活）。
         mediaController?.removeListener(playerListener)
         mediaController?.release()

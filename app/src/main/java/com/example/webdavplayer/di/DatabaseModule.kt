@@ -25,7 +25,10 @@ object DatabaseModule {
     @Singleton
     fun provideAppDatabase(@ApplicationContext context: Context): AppDatabase =
         Room.databaseBuilder(context, AppDatabase::class.java, "webdav_player.db")
-            .fallbackToDestructiveMigration() // P0 无持久列表/进度数据，首次升级无需迁移（C2 AC5）
+            // ⚠️ fallbackToDestructiveMigration：数据库版本升级时直接删库重建。
+            // 所有数据（播放列表、断点进度、信任证书、目录缓存）会丢失。
+            // P0 阶段无不可丢失的持久数据，可接受；P1 后需改为 Migration 路径。
+            .fallbackToDestructiveMigration()
             .build()
 
     @Provides

@@ -21,7 +21,6 @@ class PlayerEngineFactory @Inject constructor(
     fun create(type: EngineType, context: Context): PlayerEngine = when (type) {
         EngineType.MEDIA3 -> ExoPlayerEngine(context, streamingSource)
         EngineType.VLC -> createVlc(context)
-        EngineType.IJK -> throw UnsupportedOperationException("IJK 内核为 P2 扩展点，尚未实现")
     }
 
     private fun createVlc(context: Context): PlayerEngine = try {

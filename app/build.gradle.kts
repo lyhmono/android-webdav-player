@@ -20,12 +20,6 @@ android {
         vectorDrawables { useSupportLibrary = true }
     }
 
-    signingConfigs {
-        create("release") {
-            // 由开发者自行配置签名文件（不纳入版本库）
-        }
-    }
-
     buildTypes {
         release {
             isMinifyEnabled = false
@@ -140,13 +134,6 @@ dependencies {
 
     // ===== libVLC（备选内核，仅 full 风味） =====
     "fullImplementation"("org.videolan.android:libvlc-all:3.6.0")
-
-    // ===== Coil（P2 缩略图预留） =====
-    implementation("io.coil-kt:coil-compose:2.5.0")
-
-    // ===== 冷启动优化 =====
-    implementation("androidx.startup:startup-runtime:1.1.1")
-    implementation("androidx.profileinstaller:profileinstaller:1.3.1")
 
     // ===== 协程 =====
     implementation("org.jetbrains.kotlinx:kotlinx-coroutines-android:1.7.3")
