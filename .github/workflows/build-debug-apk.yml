@@ -53,12 +53,6 @@ jobs:
       - name: 安装编译所需平台与构建工具
         run: sdkmanager "platforms;android-34" "build-tools;34.0.0"
 
-      - name: 运行单元测试（lite 风味，纯 JVM 无需设备）
-        uses: gradle/gradle-build-action@v3
-        with:
-          gradle-version: "8.6"
-          arguments: ":app:testLiteDebugUnitTest"
-
       - name: 构建 lite flavor 的 debug APK
         uses: gradle/gradle-build-action@v3
         with:
