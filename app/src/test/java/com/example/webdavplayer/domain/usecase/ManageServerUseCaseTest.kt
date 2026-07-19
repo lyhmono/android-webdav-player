@@ -37,7 +37,7 @@ class ManageServerUseCaseTest {
 
     private class FakeServers : ServerRepository {
         override fun observeAll() = emptyFlow<List<ServerConfig>>()
-        override suspend fun getAll() = emptyList()
+        override suspend fun getAll() = emptyList<ServerConfig>()
         override suspend fun getById(id: String) = null
         override suspend fun save(config: ServerConfig) {}
         override suspend fun delete(id: String) {}
@@ -46,8 +46,8 @@ class ManageServerUseCaseTest {
 
     private class FakeCerts : TrustedCertRepository {
         override fun observeAll() = emptyFlow<List<TrustedCert>>()
-        override suspend fun getByServer(serverId: String) = emptyList()
-        override suspend fun getFingerprints(serverId: String) = emptyList()
+        override suspend fun getByServer(serverId: String) = emptyList<TrustedCert>()
+        override suspend fun getFingerprints(serverId: String) = emptyList<String>()
         override suspend fun add(cert: TrustedCert) {}
         override suspend fun remove(id: String) {}
         override suspend fun removeByServer(serverId: String) {}
