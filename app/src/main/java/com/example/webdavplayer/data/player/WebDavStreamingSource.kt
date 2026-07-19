@@ -1,6 +1,7 @@
 package com.example.webdavplayer.data.player
 
 import androidx.media3.common.MediaItem
+import androidx.media3.common.util.UnstableApi
 import androidx.media3.exoplayer.source.MediaSource
 import androidx.media3.datasource.okhttp.OkHttpDataSource
 import androidx.media3.exoplayer.source.ProgressiveMediaSource
@@ -16,6 +17,7 @@ import javax.inject.Singleton
  * 复用 [WebDavClient] 的 OkHttp（含自签信任 + Basic/Digest 鉴权）构建
  * ExoPlayer 的 [OkHttpDataSource]，实现「边下边播、不整文件下载」。
  */
+@UnstableApi
 @Singleton
 class WebDavStreamingSource @Inject constructor() {
     fun createExoMediaSource(client: OkHttpClient, media: PlayableMedia): MediaSource {

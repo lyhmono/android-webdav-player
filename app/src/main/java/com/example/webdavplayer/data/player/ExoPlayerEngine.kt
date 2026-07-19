@@ -3,6 +3,7 @@ package com.example.webdavplayer.data.player
 import android.content.Context
 import androidx.media3.common.PlaybackException
 import androidx.media3.common.Player
+import androidx.media3.common.util.UnstableApi
 import androidx.media3.exoplayer.ExoPlayer
 import com.example.webdavplayer.domain.model.EngineListener
 import com.example.webdavplayer.domain.model.PlayableMedia
@@ -21,6 +22,7 @@ import okhttp3.OkHttpClient
  * Media3 / ExoPlayer 内核实现（§1.2 默认内核）。
  * 仅负责「当前这一条媒体的解码渲染」，进度/列表由上层持有。
  */
+@UnstableApi
 class ExoPlayerEngine(
     private val context: Context,
     private val streamingSource: WebDavStreamingSource,

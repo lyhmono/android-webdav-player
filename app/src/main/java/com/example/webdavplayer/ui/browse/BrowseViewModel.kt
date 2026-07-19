@@ -155,9 +155,7 @@ class BrowseViewModel @Inject constructor(
         _error.value = null
     }
 
-    fun consumeVideosAdded(): Int? {
-        val v = _videosAdded.value
+    fun consumeVideosAdded() {
         _videosAdded.value = null
-        return v
     }
 }

@@ -72,7 +72,7 @@ fun SettingsScreen(
         ) {
             SectionHeader("播放内核")
             Row(Modifier.fillMaxWidth()) {
-                EngineType.values().filter { it != EngineType.IJK }.forEach { t ->
+                EngineType.values().forEach { t ->
                     FilterChip(
                         selected = engineType == t,
                         onClick = { playerVm.switchEngine(t) },
@@ -128,5 +128,4 @@ private fun CertRow(
 private fun engineLabel(type: EngineType): String = when (type) {
     EngineType.MEDIA3 -> "Media3 / ExoPlayer"
     EngineType.VLC -> "libVLC"
-    EngineType.IJK -> "IJK"
 }
