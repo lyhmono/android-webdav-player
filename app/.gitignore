@@ -1,0 +1,6 @@
+# Keystore files — do not commit
+*.keystore
+*.jks
+*.p12
+*.pem
+keystore/
