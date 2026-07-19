@@ -26,13 +26,6 @@ interface PlayerRepository {
     fun play()
     fun pause()
     fun seekTo(positionMs: Long)
-
-    /**
-     * 设置播放倍速（1.0 = 正常）。倍速作为播放偏好由本仓库持有，
-     * 在 [prepare] / [setEngineType] 重建内核后自动重放，保证跨曲目 / 跨内核持续生效。
-     */
-    fun setSpeed(speed: Float)
-
     fun setListener(listener: EngineListener?)
     fun getState(): PlaybackState
     fun release()

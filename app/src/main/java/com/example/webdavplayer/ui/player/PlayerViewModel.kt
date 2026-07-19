@@ -72,10 +72,6 @@ class PlayerViewModel @Inject constructor(
     private val _engineType = MutableStateFlow<EngineType>(EngineType.MEDIA3)
     val engineType: StateFlow<EngineType> = _engineType.asStateFlow()
 
-    /** 当前播放倍速（1.0 = 正常）。 */
-    private val _speed = MutableStateFlow(1.0f)
-    val speed: StateFlow<Float> = _speed.asStateFlow()
-
     /** 当前媒体类型（用于视频手势层门控，C4）。 */
     private val _currentMediaType = MutableStateFlow(MediaType.OTHER)
     val currentMediaType: StateFlow<MediaType> = _currentMediaType.asStateFlow()
@@ -131,7 +127,6 @@ class PlayerViewModel @Inject constructor(
         _position.value = pos
         _duration.value = dur
         _state.value = mapControllerState(controller)
-        _speed.value = controller.playbackParameters.speed
         _currentMediaType.value = playlistController.current()?.mediaType ?: MediaType.OTHER
     }
 
@@ -174,12 +169,6 @@ class PlayerViewModel @Inject constructor(
 
     fun togglePlay() {
         if (_state.value == PlaybackState.PLAYING) pause() else play()
-    }
-
-    /** 设置播放倍速（优先经 MediaController 统一通道，无控制器时回退直连引擎）。 */
-    fun setSpeed(speed: Float) {
-        _speed.value = speed
-        mediaController?.setPlaybackSpeed(speed) ?: playerRepository.setSpeed(speed)
     }
 
     fun next() {

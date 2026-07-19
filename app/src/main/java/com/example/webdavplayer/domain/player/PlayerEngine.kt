@@ -24,13 +24,6 @@ interface PlayerEngine {
     /** 拖动到指定位置（毫秒）。 */
     fun seekTo(positionMs: Long)
 
-    /**
-     * 设置播放倍速（1.0 = 正常速度）。
-     * 内核负责把倍速作用到当前正在解码的媒体；切换媒体 / 内核时应由上层的
-     * [com.example.webdavplayer.domain.repository.PlayerRepository] 重放，保证倍速持续生效。
-     */
-    fun setSpeed(speed: Float)
-
     /** 设置事件监听（可传 null 清除监听，用于后台服务销毁时解绑）。 */
     fun setListener(listener: EngineListener?)
 
