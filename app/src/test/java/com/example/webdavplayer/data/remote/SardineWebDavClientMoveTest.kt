@@ -13,8 +13,10 @@ import org.junit.Test
  *   - 完整目标 = `to`（目标目录）+ "/" + 文件名
  * 随后 move 会调用 WebDavPath.join(baseUrl, dest) 拼出绝对请求地址。
  *
- * 该测试避免使用 WebDavPath.join（其内部 Uri.encode 为 Android 框架，纯 JVM 下不可用），
- * 因此本用例可在纯 JVM 环境稳定通过，并精确覆盖修复 #4 的核心契约。
+ * 注：本用例刻意只验证 move 的目标路径推导契约（与 SardineWebDavClient.move 内部一致），
+ * 不直接调用 WebDavPath.join —— join 的编码语义（含 T1 将 android.net.Uri.encode 替换为
+ * java.net.URLEncoder 后的纯 JVM 可用性）由 [WebDavPathTest] 单独覆盖。如此拆分使本用例与
+ * WebDavPath 实现解耦，在纯 JVM 环境稳定通过，并精确覆盖修复 #4 的核心契约。
  */
 class SardineWebDavClientMoveTest {
 

@@ -10,7 +10,8 @@
 # 为何使用 gradle-version 而非 Gradle Wrapper：
 #   本仓库仅提交了 gradle-wrapper.properties（其中指定 gradle-8.6-bin.zip），
 #   但并未提交 gradle-wrapper.jar，因此本地 ./gradlew 不可用。
-#   故本工作流使用 gradle/gradle-build-action 并显式指定 gradle-version: "8.6"
+#   故本工作流使用 gradle/actions/setup-gradle@v6 并显式指定 gradle-version: "8.6"，
+#   随后以独立 run: 步骤执行 gradle 任务（v4 起已移除 arguments 参数）。
 #   来完成构建，完全不依赖 wrapper，也不依赖本地 SDK。
 #
 # 产物说明（debug 包）：
@@ -27,6 +28,9 @@ name: Build Debug APK
 
 on:
   push:
+    branches:
+      - main
+  pull_request:
     branches:
       - main
   workflow_dispatch:
@@ -53,11 +57,16 @@ jobs:
       - name: 安装编译所需平台与构建工具
         run: sdkmanager "platforms;android-34" "build-tools;34.0.0"
 
-      - name: 构建 lite flavor 的 debug APK
-        uses: gradle/gradle-build-action@v3
+      - name: 配置 Gradle 8.6（无 wrapper，显式指定版本）
+        uses: gradle/actions/setup-gradle@v6
         with:
           gradle-version: "8.6"
-          arguments: ":app:assembleLiteDebug"
+
+      - name: 运行 lite flavor 单元测试（纯 JVM，无需设备）
+        run: gradle :app:testLiteDebugUnitTest
+
+      - name: 构建 lite flavor 的 debug APK
+        run: gradle :app:assembleLiteDebug
 
       - name: 上传 lite debug APK 产物
         uses: actions/upload-artifact@v4
@@ -66,10 +75,7 @@ jobs:
           path: app/build/outputs/apk/lite/debug/*.apk
 
       - name: 构建 full flavor 的 debug APK
-        uses: gradle/gradle-build-action@v3
-        with:
-          gradle-version: "8.6"
-          arguments: ":app:assembleFullDebug"
+        run: gradle :app:assembleFullDebug
 
       - name: 上传 full debug APK 产物
         uses: actions/upload-artifact@v4

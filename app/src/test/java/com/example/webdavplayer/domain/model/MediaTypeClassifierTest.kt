@@ -8,7 +8,7 @@ import org.junit.Test
  * [MediaTypeClassifier] 表驱动单元测试（§8：contentType 优先，扩展名兜底）。
  *
  * 覆盖：
- * - [MediaTypeClassifier.fromContentType]：video/* / audio/* 与未知/null
+ * - [MediaTypeClassifier.fromContentType]：video/audio 子类型 与 未知/null
  * - [MediaTypeClassifier.fromExtension]：视频/音频/其它扩展名白名单
  * - [MediaTypeClassifier.classify]：综合识别（contentType 优先）
  */

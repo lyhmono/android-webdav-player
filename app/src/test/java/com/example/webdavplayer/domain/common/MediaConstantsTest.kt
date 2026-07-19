@@ -31,7 +31,9 @@ class MediaConstantsTest {
 
     @Test
     fun extensionOf_handles_multiple_dots() {
-        assertEquals("tar.gz", MediaConstants.extensionOf("backup.tar.gz"))
+        // 取最后一个点之后的段（与 MediaTypeClassifier.fromExtension 的白名单精确匹配语义一致）：
+        // backup.tar.gz -> gz（tar.gz 并非媒体扩展名，故按末段归类，clip.v1.mp4 -> mp4 仍可被识别）。
+        assertEquals("gz", MediaConstants.extensionOf("backup.tar.gz"))
     }
 
     @Test
