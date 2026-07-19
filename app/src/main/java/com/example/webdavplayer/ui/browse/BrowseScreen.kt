@@ -12,6 +12,7 @@ import androidx.compose.foundation.clickable
 import androidx.compose.foundation.combinedClickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
@@ -24,8 +25,10 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.ArrowBack
 import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.Folder
+import androidx.compose.material.icons.filled.Clear
 import androidx.compose.material.icons.filled.InsertDriveFile
 import androidx.compose.material.icons.filled.QueueMusic
+import androidx.compose.material.icons.filled.Search
 import androidx.compose.material.icons.filled.Settings
 import androidx.compose.material.icons.filled.Upload
 import androidx.compose.material3.AlertDialog
@@ -142,6 +145,10 @@ fun BrowseScreen(
         }
     }
 
+    // 搜索/过滤栏状态
+    var searchQuery by remember { mutableStateOf("") }
+    val isSearching = searchQuery.isNotBlank()
+
     Scaffold(
         topBar = {
             TopAppBar(
@@ -162,9 +169,6 @@ fun BrowseScreen(
                     }) { Icon(Icons.Filled.ArrowBack, "返回") }
                 },
                 actions = {
-                    IconButton(onClick = { uploadLauncher.launch("*/*") }) {
-                        Icon(Icons.Filled.Upload, "上传")
-                    }
                     IconButton(onClick = { navController.navigate("playlist") }) {
                         Icon(Icons.Filled.QueueMusic, "播放列表")
                     }
@@ -181,47 +185,112 @@ fun BrowseScreen(
         },
         snackbarHost = { SnackbarHost(snackbarHostState) },
     ) { padding ->
-        Box(
+        Column(
             Modifier.fillMaxSize().padding(padding),
         ) {
-            when {
-                isLoading && lazyItems.itemCount == 0 -> LoadingView()
-                !isLoading && lazyItems.itemCount == 0 -> EmptyView("此目录为空")
-                else -> {
-                    LazyColumn(
-                        Modifier.fillMaxSize(),
-                        contentPadding = PaddingValues(Spacing.md),
-                        verticalArrangement = Arrangement.spacedBy(Spacing.xs),
-                    ) {
-                        items(
-                            count = lazyItems.itemCount,
-                            key = lazyItems.itemKey { it.id },
-                        ) { index ->
-                            val file = lazyItems[index]
-                            if (file != null) {
-                                FileRow(
-                                    file = file,
-                                    modifier = Modifier.animateItemPlacement(),
-                                    onClick = {
-                                        if (file.isDirectory) {
-                                            val child = viewModel.fullPath(file.name)
-                                            navController.navigate(
-                                                "browse/${viewModel.serverId}?path=" +
-                                                    URLEncoder.encode(child, "UTF-8"),
-                                            )
-                                        } else {
-                                            viewModel.playFile(file)
-                                            navController.navigate("player")
-                                        }
-                                    },
-                                    onLongClick = {
-                                        if (file.isDirectory) {
-                                            viewModel.onDirLongClick(file)
-                                        } else {
-                                            fileAction = file
-                                        }
-                                    },
-                                )
+            // 搜索/过滤栏
+            OutlinedTextField(
+                value = searchQuery,
+                onValueChange = { searchQuery = it },
+                placeholder = { Text("搜索文件…") },
+                leadingIcon = { Icon(Icons.Filled.Search, contentDescription = null) },
+                trailingIcon = {
+                    if (isSearching) {
+                        IconButton(onClick = { searchQuery = "" }) {
+                            Icon(Icons.Filled.Clear, contentDescription = "清除")
+                        }
+                    }
+                },
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(horizontal = Spacing.md, vertical = Spacing.sm),
+                singleLine = true,
+            )
+
+            Box(Modifier.fillMaxSize()) {
+                when {
+                    isLoading && lazyItems.itemCount == 0 -> LoadingView()
+                    !isLoading && lazyItems.itemCount == 0 -> EmptyView("此目录为空")
+                    isSearching && lazyItems.itemCount > 0 -> {
+                        // 本地过滤分页项
+                        val filtered = (0 until lazyItems.itemCount).mapNotNull { lazyItems[it] }
+                            .filter { it.name.contains(searchQuery, ignoreCase = true) }
+                        if (filtered.isEmpty()) {
+                            EmptyView("未找到匹配文件")
+                        } else {
+                            LazyColumn(
+                                Modifier.fillMaxSize(),
+                                contentPadding = PaddingValues(Spacing.md),
+                                verticalArrangement = Arrangement.spacedBy(Spacing.xs),
+                            ) {
+                                items(
+                                    count = filtered.size,
+                                    key = { filtered[it].id },
+                                ) { index ->
+                                    val file = filtered[index]
+                                    FileRow(
+                                        file = file,
+                                        modifier = Modifier.animateItemPlacement(),
+                                        onClick = {
+                                            if (file.isDirectory) {
+                                                val child = viewModel.fullPath(file.name)
+                                                navController.navigate(
+                                                    "browse/${viewModel.serverId}?path=" +
+                                                        URLEncoder.encode(child, "UTF-8"),
+                                                )
+                                            } else {
+                                                viewModel.playFile(file)
+                                                navController.navigate("player")
+                                            }
+                                        },
+                                        onLongClick = {
+                                            if (file.isDirectory) {
+                                                viewModel.onDirLongClick(file)
+                                            } else {
+                                                fileAction = file
+                                            }
+                                        },
+                                    )
+                                }
+                            }
+                        }
+                    }
+                    else -> {
+                        LazyColumn(
+                            Modifier.fillMaxSize(),
+                            contentPadding = PaddingValues(Spacing.md),
+                            verticalArrangement = Arrangement.spacedBy(Spacing.xs),
+                        ) {
+                            items(
+                                count = lazyItems.itemCount,
+                                key = lazyItems.itemKey { it.id },
+                            ) { index ->
+                                val file = lazyItems[index]
+                                if (file != null) {
+                                    FileRow(
+                                        file = file,
+                                        modifier = Modifier.animateItemPlacement(),
+                                        onClick = {
+                                            if (file.isDirectory) {
+                                                val child = viewModel.fullPath(file.name)
+                                                navController.navigate(
+                                                    "browse/${viewModel.serverId}?path=" +
+                                                        URLEncoder.encode(child, "UTF-8"),
+                                                )
+                                            } else {
+                                                viewModel.playFile(file)
+                                                navController.navigate("player")
+                                            }
+                                        },
+                                        onLongClick = {
+                                            if (file.isDirectory) {
+                                                viewModel.onDirLongClick(file)
+                                            } else {
+                                                fileAction = file
+                                            }
+                                        },
+                                    )
+                                }
                             }
                         }
                     }

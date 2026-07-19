@@ -44,9 +44,16 @@ class PlaybackProgressSaver @Inject constructor(
     }
 
     /** 立即落库当前进度（暂停 / onPause 时调用，绕过节流）。 */
-    fun flush(serverId: String, path: String, positionMs: Long) {
+    suspend fun flush(serverId: String, path: String, positionMs: Long) {
         lastSavedAt = System.currentTimeMillis()
-        persist(serverId, path, positionMs)
+        repository.save(
+            PlaybackProgress(
+                serverId = serverId,
+                path = path,
+                positionMs = positionMs,
+                updatedAt = System.currentTimeMillis(),
+            ),
+        )
     }
 
     /**

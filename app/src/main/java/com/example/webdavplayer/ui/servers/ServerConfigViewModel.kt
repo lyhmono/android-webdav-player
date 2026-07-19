@@ -104,4 +104,9 @@ class ServerConfigViewModel @Inject constructor(
     fun consumeError() {
         _lastError.value = null
     }
+
+    /** 编辑模式：加载已有服务器配置填充表单。 */
+    suspend fun loadServerForEdit(id: String): ServerConfig? {
+        return manageServer.getServer(id)
+    }
 }

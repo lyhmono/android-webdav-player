@@ -68,6 +68,20 @@ fun ServerConfigScreen(
     var authType by remember { mutableStateOf(AuthType.BASIC) }
     var trustSelf by remember { mutableStateOf(false) }
 
+    // 编辑模式：加载已有配置填充表单
+    LaunchedEffect(serverId) {
+        if (serverId != null) {
+            viewModel.loadServerForEdit(serverId)?.let { config ->
+                name = config.name
+                url = config.baseUrl
+                username = config.username
+                password = config.encryptedPassword
+                authType = config.authType
+                trustSelf = config.trustSelfSigned
+            }
+        }
+    }
+
     LaunchedEffect(savedId) {
         if (savedId != null) {
             val id = viewModel.consumeSaved()
