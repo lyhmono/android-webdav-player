@@ -43,6 +43,9 @@ class AddDirVideosToPlaylistUseCaseTest {
     private class FakeBrowseRepository(private val files: List<RemoteFile>) : BrowseRepository {
         override fun getDirectory(serverId: String, path: String): Flow<PagingData<RemoteFile>> = emptyFlow()
         override suspend fun refreshDirectory(serverId: String, path: String) = Unit
+        override suspend fun refreshIfStale(serverId: String, path: String, maxAgeMs: Long) = Unit
+        override suspend fun isCacheFresh(serverId: String, path: String, maxAgeMs: Long): Boolean = false
+        override suspend fun getLastRefreshedAt(serverId: String, path: String): Long? = null
         override suspend fun listDirectory(serverId: String, path: String): List<RemoteFile> = files
         override suspend fun rename(serverId: String, fromPath: String, toName: String) = Unit
         override suspend fun move(serverId: String, fromPath: String, toPath: String) = Unit
@@ -53,6 +56,9 @@ class AddDirVideosToPlaylistUseCaseTest {
     private class FakeBrowseRepositoryThatThrows(private val error: Throwable) : BrowseRepository {
         override fun getDirectory(serverId: String, path: String): Flow<PagingData<RemoteFile>> = emptyFlow()
         override suspend fun refreshDirectory(serverId: String, path: String) = Unit
+        override suspend fun refreshIfStale(serverId: String, path: String, maxAgeMs: Long) = Unit
+        override suspend fun isCacheFresh(serverId: String, path: String, maxAgeMs: Long): Boolean = false
+        override suspend fun getLastRefreshedAt(serverId: String, path: String): Long? = null
         override suspend fun listDirectory(serverId: String, path: String): List<RemoteFile> = throw error
         override suspend fun rename(serverId: String, fromPath: String, toName: String) = Unit
         override suspend fun move(serverId: String, fromPath: String, toPath: String) = Unit

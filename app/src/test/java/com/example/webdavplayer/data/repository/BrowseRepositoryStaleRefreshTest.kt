@@ -1,7 +1,5 @@
 package com.example.webdavplayer.data.repository
 
-import androidx.paging.LoadParams
-import androidx.paging.LoadResult
 import androidx.paging.PagingSource
 import androidx.paging.PagingState
 import com.example.webdavplayer.common.Result
@@ -66,8 +64,9 @@ class BrowseRepositoryStaleRefreshTest {
             serverId: String,
             parentPath: String,
         ): PagingSource<Int, RemoteFileEntity> = object : PagingSource<Int, RemoteFileEntity>() {
-            override suspend fun load(params: LoadParams<Int>): LoadResult<Int, RemoteFileEntity> =
-                LoadResult.Page(emptyList(), null, null)
+            // 本测试不经过 getDirectory/pagingSource 路径，仅满足接口契约。
+            override suspend fun load(params: PagingSource.LoadParams<Int>): PagingSource.LoadResult<Int, RemoteFileEntity> =
+                PagingSource.LoadResult.Page(emptyList(), null, null)
 
             override fun getRefreshKey(state: PagingState<Int, RemoteFileEntity>): Int? = null
         }
