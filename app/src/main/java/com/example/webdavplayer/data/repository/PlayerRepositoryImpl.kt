@@ -39,7 +39,8 @@ class PlayerRepositoryImpl @Inject constructor(
     private var currentMedia: PlayableMedia? = null
     @Volatile
     private var listener: EngineListener? = null
-    /** 当前倍速（播放偏好，跨曲目 / 跨内核重建后重放）。 */
+    /** 当前倍速（播放偏好，跨曲目 / 跨内核重建后重放）。可能从非主线程设置，需保证可见性。 */
+    @Volatile
     private var currentSpeed: Float = 1.0f
 
     override fun getEngineType(): EngineType = settingsRepository.getEngineType()

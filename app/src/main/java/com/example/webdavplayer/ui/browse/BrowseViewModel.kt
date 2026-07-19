@@ -14,6 +14,7 @@ import com.example.webdavplayer.domain.usecase.BrowseDirectoryUseCase
 import com.example.webdavplayer.domain.usecase.PlayMediaUseCase
 import com.example.webdavplayer.domain.usecase.RenameMoveDeleteUseCase
 import com.example.webdavplayer.domain.usecase.UploadFileUseCase
+import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
@@ -27,6 +28,7 @@ import javax.inject.Inject
  * 浏览页 ViewModel（§6 T06 / T07）。
  * 目录分页流来自 Room；刷新/增删改走对应 UseCase。
  */
+@OptIn(ExperimentalCoroutinesApi::class)
 @HiltViewModel
 class BrowseViewModel @Inject constructor(
     savedStateHandle: SavedStateHandle,

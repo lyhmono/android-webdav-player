@@ -49,6 +49,7 @@ import androidx.compose.material3.TopAppBar
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableLongStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
@@ -67,6 +68,7 @@ import com.example.webdavplayer.ui.common.LoadingView
 import com.example.webdavplayer.ui.player.PlayerViewModel
 import com.example.webdavplayer.ui.theme.Spacing
 import com.example.webdavplayer.ui.playlist.PlaylistViewModel
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.first
 import okio.source
 import java.net.URLDecoder
@@ -158,7 +160,17 @@ fun BrowseScreen(
                 title = {
                     Column {
                         Text(path)
+                        // 每秒驱动一次重组，让"更新于 Xs 前"随时间自动刷新。
+                        var nowTick by remember { mutableLongStateOf(0L) }
+                        LaunchedEffect(Unit) {
+                            while (true) {
+                                delay(1000)
+                                nowTick++
+                            }
+                        }
                         val agoSecs = lastRefreshedAt?.let { (System.currentTimeMillis() - it) / 1000 }
+                        // nowTick 仅用于触发重组；读取保证 recomposition 发生。
+                        @Suppress("UNUSED_VARIABLE") val tick = nowTick
                         if (agoSecs != null) {
                             val agoText = when {
                                 agoSecs < 60 -> "${agoSecs}s"
