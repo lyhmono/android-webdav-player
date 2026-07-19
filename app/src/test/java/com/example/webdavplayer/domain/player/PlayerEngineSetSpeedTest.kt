@@ -6,6 +6,7 @@ import com.example.webdavplayer.domain.model.MediaType
 import com.example.webdavplayer.domain.model.PlayableMedia
 import com.example.webdavplayer.domain.model.PlaybackState
 import com.example.webdavplayer.domain.repository.PlayerRepository
+import kotlinx.coroutines.runBlocking
 import org.junit.Assert.assertEquals
 import org.junit.Test
 
@@ -42,7 +43,7 @@ class PlayerEngineSetSpeedTest {
     }
 
     @Test
-    fun repository_reappliesSpeedOnPrepare_afterSetSpeed() {
+    fun repository_reappliesSpeedOnPrepare_afterSetSpeed() = runBlocking {
         val repo = SpeedRecordingPlayerRepository()
         repo.setSpeed(2.0f)
         repo.prepare(sampleMedia())
@@ -51,7 +52,7 @@ class PlayerEngineSetSpeedTest {
     }
 
     @Test
-    fun repository_defaultSpeedReappliedOnPrepare() {
+    fun repository_defaultSpeedReappliedOnPrepare() = runBlocking {
         val repo = SpeedRecordingPlayerRepository()
         repo.prepare(sampleMedia())
         assertEquals(1.0f, repo.engine.lastSpeed)
