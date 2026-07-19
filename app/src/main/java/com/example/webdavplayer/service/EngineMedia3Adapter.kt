@@ -3,7 +3,6 @@ package com.example.webdavplayer.service
 import androidx.media3.common.C
 import androidx.media3.common.MediaItem
 import androidx.media3.common.MediaMetadata
-import androidx.media3.common.PlaybackParameters
 import androidx.media3.common.Player
 import androidx.media3.common.SimpleBasePlayer
 import androidx.media3.common.SimpleBasePlayer.MediaItemData
@@ -81,10 +80,6 @@ class EngineMedia3Adapter(
     @Volatile
     private var durationMs: Long = 0L
 
-    /** 当前播放倍速（1.0 = 正常），由 [handleSetPlaybackParameters] 更新并经 State 回报。 */
-    @Volatile
-    private var currentSpeed: Float = 1.0f
-
     /** 供外部读取当前播放位置（用于暂停/结束时 flush 进度）。 */
     val currentPositionMs: Long get() = positionMs
 
@@ -158,7 +153,6 @@ class EngineMedia3Adapter(
             .setPlaybackState(mapState(engineState))
             .setCurrentMediaItemIndex(currentIndex)
             .setContentPositionMs(positionMs)
-            .setPlaybackParameters(PlaybackParameters(currentSpeed))
             .setPlaylist(mediaItemData)
             .build()
     }
@@ -167,13 +161,6 @@ class EngineMedia3Adapter(
     override fun handleSetPlayWhenReady(playWhenReady: Boolean): ListenableFuture<*> {
         if (playWhenReady) playerRepository.play() else playerRepository.pause()
         return ImmediateFuture(playWhenReady)
-    }
-
-    @UnstableApi
-    override fun handleSetPlaybackParameters(playbackParameters: PlaybackParameters): ListenableFuture<*> {
-        currentSpeed = playbackParameters.speed
-        playerRepository.setSpeed(playbackParameters.speed)
-        return ImmediateFuture(Unit)
     }
 
     @UnstableApi
@@ -210,7 +197,6 @@ class EngineMedia3Adapter(
         .add(Player.COMMAND_SEEK_TO_PREVIOUS_MEDIA_ITEM)
         .add(Player.COMMAND_GET_CURRENT_MEDIA_ITEM)
         .add(Player.COMMAND_GET_TIMELINE)
-        .add(Player.COMMAND_SET_SPEED_AND_PITCH)
         .build()
 
     /** 领域 [PlaybackState] → Media3 [Player] 状态。 */
