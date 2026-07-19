@@ -2,7 +2,6 @@
 
 package com.example.webdavplayer.ui.playlist
 
-import androidx.compose.foundation.clickable
 import androidx.compose.foundation.combinedClickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
@@ -16,7 +15,6 @@ import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.gestures.detectDragGestures
 import androidx.compose.foundation.ExperimentalFoundationApi
-import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.input.pointer.pointerInput
 import kotlin.math.roundToInt
 import androidx.compose.material.icons.Icons
@@ -24,6 +22,7 @@ import androidx.compose.material.icons.filled.ArrowBack
 import androidx.compose.material.icons.filled.AudioFile
 import androidx.compose.material.icons.filled.ClearAll
 import androidx.compose.material.icons.filled.Delete
+import androidx.compose.material.icons.filled.DragHandle
 import androidx.compose.material.icons.filled.PlayArrow
 import androidx.compose.material.icons.filled.VideoLibrary
 import androidx.compose.material3.AlertDialog
@@ -135,38 +134,38 @@ fun PlaylistScreen(
                             item = item,
                             modifier = Modifier
                                 .fillMaxWidth()
-                                .animateItemPlacement()
-                                .pointerInput(Unit) {
-                                    detectDragGestures(
-                                        onDragStart = {
-                                            dragFrom = index
-                                            dragAccumulator = 0f
-                                        },
-                                        onDragEnd = {
-                                            val from = dragFrom ?: return@detectDragGestures
-                                            val avg = listState.layoutInfo.visibleItemsInfo
-                                                .firstOrNull()?.size?.toFloat() ?: 80f
-                                            val to = (from + (dragAccumulator / avg).roundToInt())
-                                                .coerceIn(0, items.lastIndex)
-                                            if (to != from) playlistVm.reorder(from, to)
-                                            dragFrom = null
-                                            dragAccumulator = 0f
-                                        },
-                                        onDragCancel = {
-                                            dragFrom = null
-                                            dragAccumulator = 0f
-                                        },
-                                        onDrag = { change, dragAmount ->
-                                            change.consume()
-                                            dragAccumulator += dragAmount.y
-                                        },
-                                    )
-                                },
+                                .animateItemPlacement(),
                             onClick = {
                                 playlistVm.playItem(item)
                                 navController.navigate("player")
                             },
                             onLongClick = { playlistVm.removeItem(item.id) },
+                            dragModifier = Modifier.pointerInput(Unit) {
+                                detectDragGestures(
+                                    onDragStart = {
+                                        dragFrom = index
+                                        dragAccumulator = 0f
+                                    },
+                                    onDragEnd = {
+                                        val from = dragFrom ?: return@detectDragGestures
+                                        val avg = listState.layoutInfo.visibleItemsInfo
+                                            .firstOrNull()?.size?.toFloat() ?: 80f
+                                        val to = (from + (dragAccumulator / avg).roundToInt())
+                                            .coerceIn(0, items.lastIndex)
+                                        if (to != from) playlistVm.reorder(from, to)
+                                        dragFrom = null
+                                        dragAccumulator = 0f
+                                    },
+                                    onDragCancel = {
+                                        dragFrom = null
+                                        dragAccumulator = 0f
+                                    },
+                                    onDrag = { change, dragAmount ->
+                                        change.consume()
+                                        dragAccumulator += dragAmount.y
+                                    },
+                                )
+                            },
                         )
                     }
                 }
@@ -199,6 +198,7 @@ private fun PlaylistRow(
     modifier: Modifier = Modifier,
     onClick: () -> Unit,
     onLongClick: () -> Unit,
+    dragModifier: Modifier = Modifier,
 ) {
     ListItem(
         headlineContent = { Text(item.name) },
@@ -222,8 +222,15 @@ private fun PlaylistRow(
             )
         },
         trailingContent = {
-            IconButton(onClick = onClick) {
-                Icon(Icons.Filled.PlayArrow, "播放")
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Icon(
+                    Icons.Filled.DragHandle,
+                    contentDescription = "拖拽排序",
+                    modifier = dragModifier,
+                )
+                IconButton(onClick = onClick) {
+                    Icon(Icons.Filled.PlayArrow, "播放")
+                }
             }
         },
         modifier = modifier

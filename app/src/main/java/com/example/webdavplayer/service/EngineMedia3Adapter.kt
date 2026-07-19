@@ -80,6 +80,9 @@ class EngineMedia3Adapter(
     @Volatile
     private var durationMs: Long = 0L
 
+    /** 供外部读取当前播放位置（用于暂停/结束时 flush 进度）。 */
+    val currentPositionMs: Long get() = positionMs
+
     /** 引擎监听驱动：更新状态并推送。 */
     fun onEngineState(state: PlaybackState) {
         engineState = state

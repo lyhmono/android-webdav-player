@@ -2,10 +2,11 @@
 
 package com.example.webdavplayer.ui.servers
 
-import androidx.compose.foundation.clickable
+import androidx.compose.foundation.combinedClickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
@@ -16,6 +17,7 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.Check
 import androidx.compose.material.icons.filled.Delete
+import androidx.compose.material.icons.filled.Edit
 import androidx.compose.material.icons.filled.VideoLibrary
 import androidx.compose.material.icons.filled.CloudOff
 import androidx.compose.material3.AlertDialog
@@ -85,9 +87,19 @@ fun ServerListScreen(
                         supportingContent = { Text(server.baseUrl) },
                         leadingContent = { Icon(Icons.Filled.VideoLibrary, contentDescription = null) },
                         trailingContent = {
-                            if (isCurrent) {
-                                Icon(Icons.Filled.Check, contentDescription = "当前", tint = MaterialTheme.colorScheme.primary)
-                            } else {
+                            Row(verticalAlignment = Alignment.CenterVertically) {
+                                if (isCurrent) {
+                                    Icon(
+                                        Icons.Filled.Check,
+                                        contentDescription = "当前",
+                                        tint = MaterialTheme.colorScheme.primary,
+                                    )
+                                }
+                                IconButton(onClick = {
+                                    navController.navigate("server_config?serverId=${server.id}")
+                                }) {
+                                    Icon(Icons.Filled.Edit, contentDescription = "编辑")
+                                }
                                 IconButton(onClick = { toDelete = server.id }) {
                                     Icon(Icons.Filled.Delete, contentDescription = "删除")
                                 }
@@ -96,11 +108,16 @@ fun ServerListScreen(
                         modifier = Modifier
                             .animateItemPlacement()
                             .fillMaxWidth()
-                            .clickable {
-                                // C5：记住当前服务器，导航按 serverId 隔离（§7）
-                                viewModel.selectServer(server.id)
-                                navController.navigate("browse/${server.id}")
-                            },
+                            .combinedClickable(
+                                onClick = {
+                                    // C5：记住当前服务器，导航按 serverId 隔离（§7）
+                                    viewModel.selectServer(server.id)
+                                    navController.navigate("browse/${server.id}")
+                                },
+                                onLongClick = {
+                                    navController.navigate("server_config?serverId=${server.id}")
+                                },
+                            ),
                     )
                 }
             }

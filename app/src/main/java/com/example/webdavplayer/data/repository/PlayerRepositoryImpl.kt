@@ -33,8 +33,11 @@ class PlayerRepositoryImpl @Inject constructor(
     @ApplicationContext private val context: Context,
 ) : PlayerRepository {
 
+    @Volatile
     private var engine: PlayerEngine? = null
+    @Volatile
     private var currentMedia: PlayableMedia? = null
+    @Volatile
     private var listener: EngineListener? = null
 
     override fun getEngineType(): EngineType = settingsRepository.getEngineType()
