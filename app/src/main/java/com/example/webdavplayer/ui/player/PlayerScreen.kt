@@ -65,6 +65,9 @@ import com.example.webdavplayer.ui.common.stateLabel
 import com.example.webdavplayer.ui.playlist.PlaylistViewModel
 import com.example.webdavplayer.ui.theme.Spacing
 
+/** 播放倍速档位（1.0 = 正常速度）。 */
+private val playbackSpeeds = listOf(0.5f, 0.75f, 1.0f, 1.25f, 1.5f, 2.0f)
+
 @OptIn(ExperimentalMaterial3Api::class, ExperimentalFoundationApi::class)
 @Composable
 fun PlayerScreen(
@@ -80,6 +83,7 @@ fun PlayerScreen(
     val items by playerVm.items.collectAsStateWithLifecycle()
     val mode by playerVm.mode.collectAsStateWithLifecycle()
     val mediaType by playerVm.currentMediaType.collectAsStateWithLifecycle()
+    val speed by playerVm.speed.collectAsStateWithLifecycle()
 
     val isVlcAvailable = BuildConfig.FLAVOR == "full"
     val isPlaying = state == PlaybackState.PLAYING
@@ -203,6 +207,18 @@ fun PlayerScreen(
                             onClick = { playerVm.switchEngine(t) },
                             label = { Text(engineLabel(t)) },
                             enabled = if (t == EngineType.VLC) isVlcAvailable else true,
+                        )
+                    }
+                }
+
+                Spacer(Modifier.height(Spacing.sm))
+                SectionHeader("播放倍速")
+                Row(horizontalArrangement = Arrangement.spacedBy(Spacing.xs)) {
+                    playbackSpeeds.forEach { s ->
+                        FilterChip(
+                            selected = speed == s,
+                            onClick = { playerVm.setSpeed(s) },
+                            label = { Text("${if (s % 1f == 0f) s.toInt() else s}x") },
                         )
                     }
                 }

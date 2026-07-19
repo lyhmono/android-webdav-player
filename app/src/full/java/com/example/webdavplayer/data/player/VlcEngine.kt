@@ -84,6 +84,11 @@ class VlcEngine @Inject constructor(
         mediaPlayer?.time = positionMs
     }
 
+    override fun setSpeed(speed: Float) {
+        // libVLC 通过 MediaPlayer.setRate 表达倍速（与播放/暂停状态无关，可随时设置）。
+        mediaPlayer?.setRate(speed)
+    }
+
     override fun setListener(listener: EngineListener?) {
         this.listener = listener
     }
