@@ -73,9 +73,11 @@ class BrowseViewModel @Inject constructor(
             _isLoading.value = true
             _error.value = null
             when (val r = browseUseCase.refreshIfStale(serverId, p)) {
-                is Result.Success -> _lastRefreshedAt.value = browseUseCase.lastRefreshedAt(serverId, p)
+                is Result.Success -> { /* 缓存已更新 */ }
                 is Result.Error -> _error.value = r.throwable.message ?: "加载失败"
             }
+            // 无论是否触发了网络刷新，都同步一次“最后刷新时间”（秒显缓存时也应有值）。
+            _lastRefreshedAt.value = browseUseCase.lastRefreshedAt(serverId, p)
             _isLoading.value = false
         }
     }
