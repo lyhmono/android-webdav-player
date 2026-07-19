@@ -28,6 +28,8 @@ import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.Folder
 import androidx.compose.material.icons.filled.Clear
 import androidx.compose.material.icons.filled.InsertDriveFile
+import androidx.compose.material.icons.filled.Movie
+import androidx.compose.material.icons.filled.MusicNote
 import androidx.compose.material.icons.filled.QueueMusic
 import androidx.compose.material.icons.filled.Search
 import androidx.compose.material.icons.filled.Settings
@@ -62,6 +64,7 @@ import androidx.navigation.NavBackStackEntry
 import androidx.navigation.NavHostController
 import androidx.paging.compose.collectAsLazyPagingItems
 import com.example.webdavplayer.data.remote.WebDavPath
+import com.example.webdavplayer.domain.common.FileFormatter
 import com.example.webdavplayer.domain.model.RemoteFile
 import com.example.webdavplayer.ui.common.EmptyView
 import com.example.webdavplayer.ui.common.LoadingView
@@ -453,15 +456,21 @@ private fun FileRow(
             val sub = if (file.isDirectory) {
                 "目录"
             } else {
-                "${file.mediaType} · ${file.size} 字节"
+                "${FileFormatter.mediaTypeLabel(file.mediaType)} · ${FileFormatter.formatSize(file.size)}"
             }
             Text(sub)
         },
         leadingContent = {
-            Icon(
-                if (file.isDirectory) Icons.Filled.Folder else Icons.Filled.InsertDriveFile,
-                contentDescription = null,
-            )
+            val icon = if (file.isDirectory) {
+                Icons.Filled.Folder
+            } else {
+                when (file.mediaType) {
+                    com.example.webdavplayer.domain.model.MediaType.VIDEO -> Icons.Filled.Movie
+                    com.example.webdavplayer.domain.model.MediaType.AUDIO -> Icons.Filled.MusicNote
+                    com.example.webdavplayer.domain.model.MediaType.OTHER -> Icons.Filled.InsertDriveFile
+                }
+            }
+            Icon(icon, contentDescription = null)
         },
         modifier = modifier
             .fillMaxWidth()
