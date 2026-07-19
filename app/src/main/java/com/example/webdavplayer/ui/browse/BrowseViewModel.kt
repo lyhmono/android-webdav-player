@@ -54,21 +54,26 @@ class BrowseViewModel @Inject constructor(
     private val _videosAdded = MutableStateFlow<Int?>(null)
     val videosAdded: StateFlow<Int?> = _videosAdded.asStateFlow()
 
+    /** 目录缓存最后刷新时间戳（毫秒），供 UI 显示“更新于 Xs 前”（§1.3 优化）。 */
+    private val _lastRefreshedAt = MutableStateFlow<Long?>(null)
+    val lastRefreshedAt: StateFlow<Long?> = _lastRefreshedAt.asStateFlow()
+
     /** 当前目录分页流（来自 Room 缓存，§1.3）。 */
     val directoryFlow: Flow<PagingData<RemoteFile>> =
         _path.flatMapLatest { p -> browseUseCase(serverId, p) }
 
     fun loadDirectory(p: String) {
         _path.value = WebDavPath.normalize(p)
-        refresh(_path.value)
+        refreshStale(_path.value)
     }
 
-    private fun refresh(p: String) {
+    /** 缓存优先刷新（§1.3 优化）：秒显 Room 缓存，仅超龄/为空才打 PROPFIND。 */
+    private fun refreshStale(p: String) {
         viewModelScope.launch {
             _isLoading.value = true
             _error.value = null
-            when (val r = browseUseCase.refresh(serverId, p)) {
-                is Result.Success -> { /* 缓存已更新 */ }
+            when (val r = browseUseCase.refreshIfStale(serverId, p)) {
+                is Result.Success -> _lastRefreshedAt.value = browseUseCase.lastRefreshedAt(serverId, p)
                 is Result.Error -> _error.value = r.throwable.message ?: "加载失败"
             }
             _isLoading.value = false

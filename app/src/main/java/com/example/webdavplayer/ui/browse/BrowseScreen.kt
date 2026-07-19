@@ -38,6 +38,7 @@ import androidx.compose.material3.FloatingActionButton
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.ListItem
+import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.SnackbarHost
@@ -85,6 +86,7 @@ fun BrowseScreen(
     val error by viewModel.error.collectAsStateWithLifecycle()
     val message by viewModel.message.collectAsStateWithLifecycle()
     val videosAdded by viewModel.videosAdded.collectAsStateWithLifecycle()
+    val lastRefreshedAt by viewModel.lastRefreshedAt.collectAsStateWithLifecycle()
 
     val lazyItems = viewModel.directoryFlow.collectAsLazyPagingItems()
 
@@ -153,7 +155,23 @@ fun BrowseScreen(
     Scaffold(
         topBar = {
             TopAppBar(
-                title = { Text(path) },
+                title = {
+                    Column {
+                        Text(path)
+                        val agoSecs = lastRefreshedAt?.let { (System.currentTimeMillis() - it) / 1000 }
+                        if (agoSecs != null) {
+                            val agoText = when {
+                                agoSecs < 60 -> "${agoSecs}s"
+                                agoSecs < 3600 -> "${agoSecs / 60}m"
+                                else -> "${agoSecs / 3600}h"
+                            }
+                            Text(
+                                text = "缓存 · 更新于 $agoText 前",
+                                style = MaterialTheme.typography.labelSmall,
+                            )
+                        }
+                    }
+                },
                 navigationIcon = {
                     IconButton(onClick = {
                         if (path == "/") {
