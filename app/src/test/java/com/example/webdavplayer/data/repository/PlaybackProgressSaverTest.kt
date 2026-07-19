@@ -52,7 +52,6 @@ class PlaybackProgressSaverTest {
         saver.onProgress("s1", "/a.mp4", 1000L)
         delay(50)
         saver.flush("s1", "/a.mp4", 5000L) // 绕过节流
-        delay(200)
         assertEquals(2, repo.savedCount)
         assertEquals(5000L, repo.store[Pair("s1", "/a.mp4")]?.positionMs)
     }

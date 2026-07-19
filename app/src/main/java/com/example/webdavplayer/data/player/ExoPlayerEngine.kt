@@ -35,6 +35,11 @@ class ExoPlayerEngine(
     private val scope = CoroutineScope(Dispatchers.Main + SupervisorJob())
     private var progressJob: Job? = null
 
+    private companion object {
+        /** 进度回调间隔（毫秒）：200ms 保证进度条流畅。 */
+        const val PROGRESS_INTERVAL_MS = 200L
+    }
+
     private val playerListener = object : Player.Listener {
         override fun onPlaybackStateChanged(playbackState: Int) {
             when (playbackState) {
@@ -119,7 +124,7 @@ class ExoPlayerEngine(
                 val position = player?.currentPosition ?: 0L
                 val duration = player?.duration ?: 0L
                 listener?.onProgress(position, duration)
-                delay(500)
+                delay(PROGRESS_INTERVAL_MS)
             }
         }
     }

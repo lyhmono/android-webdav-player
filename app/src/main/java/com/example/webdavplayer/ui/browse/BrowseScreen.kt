@@ -12,20 +12,24 @@ import androidx.compose.foundation.clickable
 import androidx.compose.foundation.combinedClickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.items
 import androidx.paging.compose.itemKey
 import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.ArrowBack
 import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.Folder
+import androidx.compose.material.icons.filled.Clear
 import androidx.compose.material.icons.filled.InsertDriveFile
 import androidx.compose.material.icons.filled.QueueMusic
+import androidx.compose.material.icons.filled.Search
 import androidx.compose.material.icons.filled.Settings
 import androidx.compose.material.icons.filled.Upload
 import androidx.compose.material3.AlertDialog
@@ -142,6 +146,10 @@ fun BrowseScreen(
         }
     }
 
+    // 搜索/过滤栏状态
+    var searchQuery by remember { mutableStateOf("") }
+    val isSearching = searchQuery.isNotBlank()
+
     Scaffold(
         topBar = {
             TopAppBar(
@@ -162,9 +170,6 @@ fun BrowseScreen(
                     }) { Icon(Icons.Filled.ArrowBack, "返回") }
                 },
                 actions = {
-                    IconButton(onClick = { uploadLauncher.launch("*/*") }) {
-                        Icon(Icons.Filled.Upload, "上传")
-                    }
                     IconButton(onClick = { navController.navigate("playlist") }) {
                         Icon(Icons.Filled.QueueMusic, "播放列表")
                     }
@@ -181,49 +186,88 @@ fun BrowseScreen(
         },
         snackbarHost = { SnackbarHost(snackbarHostState) },
     ) { padding ->
-        Box(
+        Column(
             Modifier.fillMaxSize().padding(padding),
         ) {
-            when {
-                isLoading && lazyItems.itemCount == 0 -> LoadingView()
-                !isLoading && lazyItems.itemCount == 0 -> EmptyView("此目录为空")
-                else -> {
-                    LazyColumn(
-                        Modifier.fillMaxSize(),
-                        contentPadding = PaddingValues(Spacing.md),
-                        verticalArrangement = Arrangement.spacedBy(Spacing.xs),
-                    ) {
-                        items(
+            // 搜索/过滤栏
+            OutlinedTextField(
+                value = searchQuery,
+                onValueChange = { searchQuery = it },
+                placeholder = { Text("搜索文件…") },
+                leadingIcon = { Icon(Icons.Filled.Search, contentDescription = null) },
+                trailingIcon = {
+                    if (isSearching) {
+                        IconButton(onClick = { searchQuery = "" }) {
+                            Icon(Icons.Filled.Clear, contentDescription = "清除")
+                        }
+                    }
+                },
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(horizontal = Spacing.md, vertical = Spacing.sm),
+                singleLine = true,
+            )
+
+            Box(Modifier.fillMaxSize()) {
+                when {
+                    isLoading && lazyItems.itemCount == 0 -> LoadingView()
+                    !isLoading && lazyItems.itemCount == 0 -> EmptyView("此目录为空")
+                    isSearching && lazyItems.itemCount > 0 -> {
+                        // 本地过滤已加载的分页项（仅遍历已加载页，避免全量加载导致 OOM）
+                        val filtered = (0 until lazyItems.itemCount).mapNotNull { lazyItems[it] }
+                            .filter { it.name.contains(searchQuery, ignoreCase = true) }
+                        if (filtered.isEmpty()) {
+                            EmptyView("未找到匹配文件")
+                        } else {
+                            FileList(
+                                files = filtered,
+                                onItemClick = { file ->
+                                    if (file.isDirectory) {
+                                        val child = viewModel.fullPath(file.name)
+                                        navController.navigate(
+                                            "browse/${viewModel.serverId}?path=" +
+                                                URLEncoder.encode(child, "UTF-8"),
+                                        )
+                                    } else {
+                                        viewModel.playFile(file)
+                                        navController.navigate("player")
+                                    }
+                                },
+                                onItemLongClick = { file ->
+                                    if (file.isDirectory) {
+                                        viewModel.onDirLongClick(file)
+                                    } else {
+                                        fileAction = file
+                                    }
+                                },
+                            )
+                        }
+                    }
+                    else -> {
+                        FileList(
                             count = lazyItems.itemCount,
                             key = lazyItems.itemKey { it.id },
-                        ) { index ->
-                            val file = lazyItems[index]
-                            if (file != null) {
-                                FileRow(
-                                    file = file,
-                                    modifier = Modifier.animateItemPlacement(),
-                                    onClick = {
-                                        if (file.isDirectory) {
-                                            val child = viewModel.fullPath(file.name)
-                                            navController.navigate(
-                                                "browse/${viewModel.serverId}?path=" +
-                                                    URLEncoder.encode(child, "UTF-8"),
-                                            )
-                                        } else {
-                                            viewModel.playFile(file)
-                                            navController.navigate("player")
-                                        }
-                                    },
-                                    onLongClick = {
-                                        if (file.isDirectory) {
-                                            viewModel.onDirLongClick(file)
-                                        } else {
-                                            fileAction = file
-                                        }
-                                    },
-                                )
-                            }
-                        }
+                            getItem = { index -> lazyItems[index] },
+                            onItemClick = { file ->
+                                if (file.isDirectory) {
+                                    val child = viewModel.fullPath(file.name)
+                                    navController.navigate(
+                                        "browse/${viewModel.serverId}?path=" +
+                                            URLEncoder.encode(child, "UTF-8"),
+                                    )
+                                } else {
+                                    viewModel.playFile(file)
+                                    navController.navigate("player")
+                                }
+                            },
+                            onItemLongClick = { file ->
+                                if (file.isDirectory) {
+                                    viewModel.onDirLongClick(file)
+                                } else {
+                                    fileAction = file
+                                }
+                            },
+                        )
                     }
                 }
             }
@@ -304,6 +348,62 @@ fun BrowseScreen(
                             }) { Text("删除") }
                         }
                     },
+                )
+            }
+        }
+    }
+}
+
+/** 共享文件列表渲染（消除搜索/正常两分支的 LazyColumn 重复代码）。 */
+@Composable
+private fun FileList(
+    files: List<RemoteFile>,
+    onItemClick: (RemoteFile) -> Unit,
+    onItemLongClick: (RemoteFile) -> Unit,
+) {
+    LazyColumn(
+        Modifier.fillMaxSize(),
+        contentPadding = PaddingValues(Spacing.md),
+        verticalArrangement = Arrangement.spacedBy(Spacing.xs),
+    ) {
+        items(
+            count = files.size,
+            key = { files[it].id },
+        ) { index ->
+            FileRow(
+                file = files[index],
+                modifier = Modifier.animateItemPlacement(),
+                onClick = { onItemClick(files[index]) },
+                onLongClick = { onItemLongClick(files[index]) },
+            )
+        }
+    }
+}
+
+/** 分页源重载：直接从 LazyPagingItems 取值。 */
+@Composable
+private fun FileList(
+    count: Int,
+    key: (Int) -> Any,
+    getItem: (Int) -> RemoteFile?,
+    onItemClick: (RemoteFile) -> Unit,
+    onItemLongClick: (RemoteFile) -> Unit,
+) {
+    LazyColumn(
+        Modifier.fillMaxSize(),
+        contentPadding = PaddingValues(Spacing.md),
+        verticalArrangement = Arrangement.spacedBy(Spacing.xs),
+    ) {
+        items(
+            count = count,
+            key = key,
+        ) { index ->
+            getItem(index)?.let { file ->
+                FileRow(
+                    file = file,
+                    modifier = Modifier.animateItemPlacement(),
+                    onClick = { onItemClick(file) },
+                    onLongClick = { onItemLongClick(file) },
                 )
             }
         }

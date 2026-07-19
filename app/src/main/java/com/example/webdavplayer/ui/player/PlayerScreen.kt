@@ -144,9 +144,18 @@ fun PlayerScreen(
                 Text(title.ifEmpty { "未选择媒体" }, style = MaterialTheme.typography.titleLarge)
                 Text(stateLabel(state), style = MaterialTheme.typography.bodyMedium)
 
+                // 拖拽中保持本地值，释放时才 seek，避免频繁 seekTo 导致卡顿
+                var sliderValue by remember { mutableStateOf<Float?>(null) }
+                val sliderPos = sliderValue
+                    ?: position.toFloat().coerceIn(0f, duration.coerceAtLeast(1).toFloat())
+
                 Slider(
-                    value = position.toFloat().coerceIn(0f, duration.coerceAtLeast(1).toFloat()),
-                    onValueChange = { playerVm.seekTo(it.toLong()) },
+                    value = sliderPos,
+                    onValueChange = { sliderValue = it },
+                    onValueChangeFinished = {
+                        sliderValue?.let { playerVm.seekTo(it.toLong()) }
+                        sliderValue = null
+                    },
                     valueRange = 0f..duration.coerceAtLeast(1).toFloat(),
                     modifier = Modifier.fillMaxWidth(),
                 )

@@ -13,8 +13,11 @@ import javax.inject.Singleton
 @Singleton
 class PlaylistControllerImpl @Inject constructor() : PlaylistController {
 
+    @Volatile
     private var items: List<PlaylistItem> = emptyList()
+    @Volatile
     private var currentIndex = -1
+    @Volatile
     private var mode: PlayMode = PlayMode.SEQUENTIAL
 
     override fun sync(items: List<PlaylistItem>) {
@@ -58,12 +61,19 @@ class PlaylistControllerImpl @Inject constructor() : PlaylistController {
     private fun computeNext(): Int = when (mode) {
         PlayMode.SEQUENTIAL -> if (currentIndex + 1 < items.size) currentIndex + 1 else -1
         PlayMode.LOOP -> (currentIndex + 1).mod(items.size)
-        PlayMode.SHUFFLE -> items.indices.random()
+        PlayMode.SHUFFLE -> randomIndexExcludingCurrent()
     }
 
     private fun computePrev(): Int = when (mode) {
         PlayMode.SEQUENTIAL -> (currentIndex - 1).coerceAtLeast(0)
         PlayMode.LOOP -> (currentIndex - 1 + items.size).mod(items.size)
-        PlayMode.SHUFFLE -> items.indices.random()
+        PlayMode.SHUFFLE -> randomIndexExcludingCurrent()
+    }
+
+    /** 随机选取一个不同于当前索引的位置（列表 > 1 时保证不重复）。 */
+    private fun randomIndexExcludingCurrent(): Int {
+        if (items.size <= 1) return currentIndex.coerceAtLeast(0)
+        val candidates = items.indices.toMutableList().apply { remove(currentIndex) }
+        return candidates.random()
     }
 }
