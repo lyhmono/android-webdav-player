@@ -3,11 +3,13 @@ package com.example.webdavplayer.data.local
 import androidx.room.Database
 import androidx.room.RoomDatabase
 import androidx.room.TypeConverters
+import com.example.webdavplayer.data.local.dao.DirectoryMetaDao
 import com.example.webdavplayer.data.local.dao.PlaylistDao
 import com.example.webdavplayer.data.local.dao.PlaylistMetaDao
 import com.example.webdavplayer.data.local.dao.PlaybackProgressDao
 import com.example.webdavplayer.data.local.dao.RemoteFileDao
 import com.example.webdavplayer.data.local.dao.TrustedCertDao
+import com.example.webdavplayer.data.local.entity.DirectoryMetaEntity
 import com.example.webdavplayer.data.local.entity.PlaylistItemEntity
 import com.example.webdavplayer.data.local.entity.PlaylistMetaEntity
 import com.example.webdavplayer.data.local.entity.PlaybackProgressEntity
@@ -22,8 +24,9 @@ import com.example.webdavplayer.data.local.entity.TrustedCertEntity
         TrustedCertEntity::class,
         PlaylistMetaEntity::class,   // C2：播放模式单例行
         PlaybackProgressEntity::class, // C3：进度表
+        DirectoryMetaEntity::class,  // §1.3 优化：目录缓存 TTL 元数据
     ],
-    version = 2,
+    version = 3,
     exportSchema = false,
 )
 @TypeConverters(Converters::class)
@@ -33,4 +36,5 @@ abstract class AppDatabase : RoomDatabase() {
     abstract fun playlistMetaDao(): PlaylistMetaDao
     abstract fun playbackProgressDao(): PlaybackProgressDao
     abstract fun trustedCertDao(): TrustedCertDao
+    abstract fun directoryMetaDao(): DirectoryMetaDao
 }

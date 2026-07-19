@@ -4,7 +4,9 @@ import androidx.paging.Pager
 import androidx.paging.PagingConfig
 import androidx.paging.PagingData
 import androidx.paging.map
+import com.example.webdavplayer.data.local.dao.DirectoryMetaDao
 import com.example.webdavplayer.data.local.dao.RemoteFileDao
+import com.example.webdavplayer.data.local.entity.DirectoryMetaEntity
 import com.example.webdavplayer.data.local.entity.toDomain
 import com.example.webdavplayer.data.local.entity.toEntity
 import com.example.webdavplayer.data.remote.WebDavClient
@@ -28,6 +30,7 @@ import javax.inject.Singleton
 class BrowseRepositoryImpl @Inject constructor(
     private val webDavClient: WebDavClient,
     private val remoteFileDao: RemoteFileDao,
+    private val directoryMetaDao: DirectoryMetaDao,
     private val serverRepository: ServerRepository,
 ) : BrowseRepository {
 
@@ -46,7 +49,45 @@ class BrowseRepositoryImpl @Inject constructor(
         val files = webDavClient.listDirectory(norm, 1)
         remoteFileDao.clearDirectory(serverId, norm)
         remoteFileDao.upsertAll(files.map { it.toEntity() })
+        // 记录本次成功刷新的时间戳，供 TTL 条件刷新判断（§1.3 优化）。
+        directoryMetaDao.upsert(
+            DirectoryMetaEntity(
+                id = metaId(serverId, norm),
+                serverId = serverId,
+                parentPath = norm,
+                lastRefreshedAt = System.currentTimeMillis(),
+            ),
+        )
     }
+
+    override suspend fun refreshIfStale(
+        serverId: String,
+        path: String,
+        maxAgeMs: Long,
+    ) = withContext(Dispatchers.IO) {
+        if (isCacheFresh(serverId, path, maxAgeMs)) return@withContext
+        refreshDirectory(serverId, path)
+    }
+
+    override suspend fun isCacheFresh(
+        serverId: String,
+        path: String,
+        maxAgeMs: Long,
+    ): Boolean = withContext(Dispatchers.IO) {
+        val norm = WebDavPath.normalize(path)
+        val meta = directoryMetaDao.get(serverId, norm) ?: return@withContext false
+        if (System.currentTimeMillis() - meta.lastRefreshedAt > maxAgeMs) return@withContext false
+        // 已刷新且未超龄，还需缓存非空才视为可用。
+        remoteFileDao.countDirectory(serverId, norm) > 0
+    }
+
+    override suspend fun getLastRefreshedAt(serverId: String, path: String): Long? =
+        withContext(Dispatchers.IO) {
+            directoryMetaDao.get(serverId, WebDavPath.normalize(path))?.lastRefreshedAt
+        }
+
+    /** 目录元数据复合主键：`"$serverId::$parentPath"`。 */
+    private fun metaId(serverId: String, parentPath: String): String = "$serverId::$parentPath"
 
     override suspend fun listDirectory(serverId: String, path: String): List<RemoteFile> =
         withContext(Dispatchers.IO) {

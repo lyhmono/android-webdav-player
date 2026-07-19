@@ -4,6 +4,7 @@ import android.content.Context
 import androidx.room.Room
 import androidx.room.RoomDatabase
 import com.example.webdavplayer.data.local.AppDatabase
+import com.example.webdavplayer.data.local.dao.DirectoryMetaDao
 import com.example.webdavplayer.data.local.dao.PlaybackProgressDao
 import com.example.webdavplayer.data.local.dao.PlaylistDao
 import com.example.webdavplayer.data.local.dao.PlaylistMetaDao
@@ -33,6 +34,9 @@ object DatabaseModule {
 
     @Provides
     fun provideRemoteFileDao(db: AppDatabase): RemoteFileDao = db.remoteFileDao()
+
+    @Provides
+    fun provideDirectoryMetaDao(db: AppDatabase): DirectoryMetaDao = db.directoryMetaDao()
 
     @Provides
     fun providePlaylistDao(db: AppDatabase): PlaylistDao = db.playlistDao()
