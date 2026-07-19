@@ -39,6 +39,8 @@ class PlayerRepositoryImpl @Inject constructor(
     private var currentMedia: PlayableMedia? = null
     @Volatile
     private var listener: EngineListener? = null
+    /** 当前倍速（播放偏好，跨曲目 / 跨内核重建后重放）。 */
+    private var currentSpeed: Float = 1.0f
 
     override fun getEngineType(): EngineType = settingsRepository.getEngineType()
 
@@ -55,6 +57,7 @@ class PlayerRepositoryImpl @Inject constructor(
         // VLC 内核使用 libVLC 自建网络栈，不需要也不支持此注入。
         (engine as? ExoPlayerEngine)?.setOkHttpClient(webDavClient.getOkHttpClient())
         engine!!.prepare(media)
+        engine!!.setSpeed(currentSpeed)
         if (wasPlaying) engine!!.play()
     }
 
@@ -68,6 +71,7 @@ class PlayerRepositoryImpl @Inject constructor(
         // ExoPlayer 内核需要注入共享 OkHttp；VLC 自建网络栈无需此注入。
         (engine as? ExoPlayerEngine)?.setOkHttpClient(webDavClient.getOkHttpClient())
         engine!!.prepare(media)
+        engine!!.setSpeed(currentSpeed)
     }
 
     override fun play() {
@@ -80,6 +84,11 @@ class PlayerRepositoryImpl @Inject constructor(
 
     override fun seekTo(positionMs: Long) {
         engine?.seekTo(positionMs)
+    }
+
+    override fun setSpeed(speed: Float) {
+        currentSpeed = speed
+        engine?.setSpeed(speed)
     }
 
     override fun setListener(listener: EngineListener?) {

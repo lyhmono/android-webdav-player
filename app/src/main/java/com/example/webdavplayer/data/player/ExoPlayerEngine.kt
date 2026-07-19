@@ -94,6 +94,11 @@ class ExoPlayerEngine(
         player?.seekTo(positionMs)
     }
 
+    override fun setSpeed(speed: Float) {
+        // ExoPlayer 通过 playbackParameters 表达倍速（pitch 保持默认 1.0）。
+        player?.setPlaybackSpeed(speed)
+    }
+
     override fun setListener(listener: EngineListener?) {
         this.listener = listener
     }
