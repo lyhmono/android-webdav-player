@@ -139,7 +139,7 @@ fun PlaylistScreen(
                                 playlistVm.playItem(item)
                                 navController.navigate("player")
                             },
-                            onLongClick = { playlistVm.removeItem(item.id) },
+                            onRemove = { playlistVm.removeItem(item.id) },
                             dragModifier = Modifier.pointerInput(Unit) {
                                 detectDragGestures(
                                     onDragStart = {
@@ -197,7 +197,7 @@ private fun PlaylistRow(
     item: PlaylistItem,
     modifier: Modifier = Modifier,
     onClick: () -> Unit,
-    onLongClick: () -> Unit,
+    onRemove: () -> Unit,
     dragModifier: Modifier = Modifier,
 ) {
     ListItem(
@@ -231,11 +231,14 @@ private fun PlaylistRow(
                 IconButton(onClick = onClick) {
                     Icon(Icons.Filled.PlayArrow, "播放")
                 }
+                IconButton(onClick = onRemove) {
+                    Icon(Icons.Filled.Delete, "移除")
+                }
             }
         },
         modifier = modifier
             .fillMaxWidth()
-            .combinedClickable(onClick = onClick, onLongClick = onLongClick),
+            .combinedClickable(onClick = onClick),
     )
 }
 

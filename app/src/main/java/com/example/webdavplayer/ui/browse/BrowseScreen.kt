@@ -19,6 +19,7 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.items
 import androidx.paging.compose.itemKey
 import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.compose.material.icons.Icons
@@ -212,87 +213,61 @@ fun BrowseScreen(
                     isLoading && lazyItems.itemCount == 0 -> LoadingView()
                     !isLoading && lazyItems.itemCount == 0 -> EmptyView("此目录为空")
                     isSearching && lazyItems.itemCount > 0 -> {
-                        // 本地过滤分页项
+                        // 本地过滤已加载的分页项（仅遍历已加载页，避免全量加载导致 OOM）
                         val filtered = (0 until lazyItems.itemCount).mapNotNull { lazyItems[it] }
                             .filter { it.name.contains(searchQuery, ignoreCase = true) }
                         if (filtered.isEmpty()) {
                             EmptyView("未找到匹配文件")
                         } else {
-                            LazyColumn(
-                                Modifier.fillMaxSize(),
-                                contentPadding = PaddingValues(Spacing.md),
-                                verticalArrangement = Arrangement.spacedBy(Spacing.xs),
-                            ) {
-                                items(
-                                    count = filtered.size,
-                                    key = { filtered[it].id },
-                                ) { index ->
-                                    val file = filtered[index]
-                                    FileRow(
-                                        file = file,
-                                        modifier = Modifier.animateItemPlacement(),
-                                        onClick = {
-                                            if (file.isDirectory) {
-                                                val child = viewModel.fullPath(file.name)
-                                                navController.navigate(
-                                                    "browse/${viewModel.serverId}?path=" +
-                                                        URLEncoder.encode(child, "UTF-8"),
-                                                )
-                                            } else {
-                                                viewModel.playFile(file)
-                                                navController.navigate("player")
-                                            }
-                                        },
-                                        onLongClick = {
-                                            if (file.isDirectory) {
-                                                viewModel.onDirLongClick(file)
-                                            } else {
-                                                fileAction = file
-                                            }
-                                        },
-                                    )
-                                }
-                            }
+                            FileList(
+                                files = filtered,
+                                onItemClick = { file ->
+                                    if (file.isDirectory) {
+                                        val child = viewModel.fullPath(file.name)
+                                        navController.navigate(
+                                            "browse/${viewModel.serverId}?path=" +
+                                                URLEncoder.encode(child, "UTF-8"),
+                                        )
+                                    } else {
+                                        viewModel.playFile(file)
+                                        navController.navigate("player")
+                                    }
+                                },
+                                onItemLongClick = { file ->
+                                    if (file.isDirectory) {
+                                        viewModel.onDirLongClick(file)
+                                    } else {
+                                        fileAction = file
+                                    }
+                                },
+                            )
                         }
                     }
                     else -> {
-                        LazyColumn(
-                            Modifier.fillMaxSize(),
-                            contentPadding = PaddingValues(Spacing.md),
-                            verticalArrangement = Arrangement.spacedBy(Spacing.xs),
-                        ) {
-                            items(
-                                count = lazyItems.itemCount,
-                                key = lazyItems.itemKey { it.id },
-                            ) { index ->
-                                val file = lazyItems[index]
-                                if (file != null) {
-                                    FileRow(
-                                        file = file,
-                                        modifier = Modifier.animateItemPlacement(),
-                                        onClick = {
-                                            if (file.isDirectory) {
-                                                val child = viewModel.fullPath(file.name)
-                                                navController.navigate(
-                                                    "browse/${viewModel.serverId}?path=" +
-                                                        URLEncoder.encode(child, "UTF-8"),
-                                                )
-                                            } else {
-                                                viewModel.playFile(file)
-                                                navController.navigate("player")
-                                            }
-                                        },
-                                        onLongClick = {
-                                            if (file.isDirectory) {
-                                                viewModel.onDirLongClick(file)
-                                            } else {
-                                                fileAction = file
-                                            }
-                                        },
+                        FileList(
+                            count = lazyItems.itemCount,
+                            key = lazyItems.itemKey { it.id },
+                            getItem = { index -> lazyItems[index] },
+                            onItemClick = { file ->
+                                if (file.isDirectory) {
+                                    val child = viewModel.fullPath(file.name)
+                                    navController.navigate(
+                                        "browse/${viewModel.serverId}?path=" +
+                                            URLEncoder.encode(child, "UTF-8"),
                                     )
+                                } else {
+                                    viewModel.playFile(file)
+                                    navController.navigate("player")
                                 }
-                            }
-                        }
+                            },
+                            onItemLongClick = { file ->
+                                if (file.isDirectory) {
+                                    viewModel.onDirLongClick(file)
+                                } else {
+                                    fileAction = file
+                                }
+                            },
+                        )
                     }
                 }
             }
@@ -373,6 +348,62 @@ fun BrowseScreen(
                             }) { Text("删除") }
                         }
                     },
+                )
+            }
+        }
+    }
+}
+
+/** 共享文件列表渲染（消除搜索/正常两分支的 LazyColumn 重复代码）。 */
+@Composable
+private fun FileList(
+    files: List<RemoteFile>,
+    onItemClick: (RemoteFile) -> Unit,
+    onItemLongClick: (RemoteFile) -> Unit,
+) {
+    LazyColumn(
+        Modifier.fillMaxSize(),
+        contentPadding = PaddingValues(Spacing.md),
+        verticalArrangement = Arrangement.spacedBy(Spacing.xs),
+    ) {
+        items(
+            count = files.size,
+            key = { files[it].id },
+        ) { index ->
+            FileRow(
+                file = files[index],
+                modifier = Modifier.animateItemPlacement(),
+                onClick = { onItemClick(files[index]) },
+                onLongClick = { onItemLongClick(files[index]) },
+            )
+        }
+    }
+}
+
+/** 分页源重载：直接从 LazyPagingItems 取值。 */
+@Composable
+private fun FileList(
+    count: Int,
+    key: (Int) -> Any,
+    getItem: (Int) -> RemoteFile?,
+    onItemClick: (RemoteFile) -> Unit,
+    onItemLongClick: (RemoteFile) -> Unit,
+) {
+    LazyColumn(
+        Modifier.fillMaxSize(),
+        contentPadding = PaddingValues(Spacing.md),
+        verticalArrangement = Arrangement.spacedBy(Spacing.xs),
+    ) {
+        items(
+            count = count,
+            key = key,
+        ) { index ->
+            getItem(index)?.let { file ->
+                FileRow(
+                    file = file,
+                    modifier = Modifier.animateItemPlacement(),
+                    onClick = { onItemClick(file) },
+                    onLongClick = { onItemLongClick(file) },
                 )
             }
         }
