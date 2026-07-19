@@ -234,82 +234,82 @@ fun BrowseScreen(
         }
     }
 
-    // 文件操作菜单（重命名 / 移动 / 删除）
+    // 文件操作对话框（重命名 / 移动 / 删除）—— 单一 fileAction?.let 块，避免双重渲染
     fileAction?.let { file ->
-        AlertDialog(
-            onDismissRequest = { fileAction = null },
-            title = { Text(file.name) },
-            text = { Text("选择操作") },
-            confirmButton = {
-                TextButton(onClick = {
-                    renameText = file.name
-                    showRename = true
-                }) { Text("重命名") }
-            },
-            dismissButton = {
-                Row {
-                    TextButton(onClick = {
-                        moveText = file.parentPath
-                        showMove = true
-                    }) { Text("移动") }
-                    TextButton(onClick = {
-                        viewModel.delete(viewModel.fullPath(file.name))
-                        fileAction = null
-                    }) { Text("删除") }
-                }
-            },
-        )
-    }
-
-    fileAction?.let { file ->
-        if (showRename) {
-            AlertDialog(
-                onDismissRequest = { showRename = false },
-                title = { Text("重命名") },
-                text = {
-                    OutlinedTextField(
-                        value = renameText,
-                        onValueChange = { renameText = it },
-                        label = { Text("新名称") },
-                        modifier = Modifier.fillMaxWidth(),
-                    )
-                },
-                confirmButton = {
-                    TextButton(onClick = {
-                        viewModel.rename(viewModel.fullPath(file.name), renameText)
-                        showRename = false
-                        fileAction = null
-                    }) { Text("确定") }
-                },
-                dismissButton = {
-                    TextButton(onClick = { showRename = false; fileAction = null }) { Text("取消") }
-                },
-            )
-        }
-
-        if (showMove) {
-            AlertDialog(
-                onDismissRequest = { showMove = false },
-                title = { Text("移动到") },
-                text = {
-                    OutlinedTextField(
-                        value = moveText,
-                        onValueChange = { moveText = it },
-                        label = { Text("目标目录路径") },
-                        modifier = Modifier.fillMaxWidth(),
-                    )
-                },
-                confirmButton = {
-                    TextButton(onClick = {
-                        viewModel.move(viewModel.fullPath(file.name), moveText)
-                        showMove = false
-                        fileAction = null
-                    }) { Text("确定") }
-                },
-                dismissButton = {
-                    TextButton(onClick = { showMove = false; fileAction = null }) { Text("取消") }
-                },
-            )
+        when {
+            showRename -> {
+                AlertDialog(
+                    onDismissRequest = { showRename = false; fileAction = null },
+                    title = { Text("重命名") },
+                    text = {
+                        OutlinedTextField(
+                            value = renameText,
+                            onValueChange = { renameText = it },
+                            label = { Text("新名称") },
+                            modifier = Modifier.fillMaxWidth(),
+                        )
+                    },
+                    confirmButton = {
+                        TextButton(onClick = {
+                            viewModel.rename(viewModel.fullPath(file.name), renameText)
+                            showRename = false
+                            fileAction = null
+                        }) { Text("确定") }
+                    },
+                    dismissButton = {
+                        TextButton(onClick = { showRename = false; fileAction = null }) { Text("取消") }
+                    },
+                )
+            }
+            showMove -> {
+                AlertDialog(
+                    onDismissRequest = { showMove = false; fileAction = null },
+                    title = { Text("移动到") },
+                    text = {
+                        OutlinedTextField(
+                            value = moveText,
+                            onValueChange = { moveText = it },
+                            label = { Text("目标目录路径") },
+                            modifier = Modifier.fillMaxWidth(),
+                        )
+                    },
+                    confirmButton = {
+                        TextButton(onClick = {
+                            viewModel.move(viewModel.fullPath(file.name), moveText)
+                            showMove = false
+                            fileAction = null
+                        }) { Text("确定") }
+                    },
+                    dismissButton = {
+                        TextButton(onClick = { showMove = false; fileAction = null }) { Text("取消") }
+                    },
+                )
+            }
+            else -> {
+                AlertDialog(
+                    onDismissRequest = { fileAction = null },
+                    title = { Text(file.name) },
+                    text = { Text("选择操作") },
+                    confirmButton = {
+                        TextButton(onClick = {
+                            renameText = file.name
+                            showRename = true
+                        }) { Text("重命名") }
+                    },
+                    dismissButton = {
+                        Row {
+                            TextButton(onClick = {
+                                moveText = file.parentPath
+                                showMove = true
+                            }) { Text("移动") }
+                            TextButton(onClick = {
+                                viewModel.delete(viewModel.fullPath(file.name))
+                                fileAction = null
+                            }) { Text("删除") }
+                        }
+                    },
+                )
+            }
         }
     }
 }

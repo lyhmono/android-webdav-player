@@ -35,10 +35,14 @@ class ManageServerUseCase @Inject constructor(
     /** 建立连接（触发信任校验），以 [Result] 返回。 */
     suspend fun connect(config: ServerConfig): Result<Unit> = serverRepository.connect(config)
 
-    /** 删除服务器并清理其信任证书。 */
+    /** 删除服务器并清理其信任证书；若删除的是当前服务器，同时清除当前选择。 */
     suspend fun removeServer(id: String) {
         serverRepository.delete(id)
         trustedCertRepository.removeByServer(id)
+        // C5：若删除的恰是当前服务器，清除偏好中的 currentServerId，避免悬空引用。
+        if (settingsRepository.getCurrentServerId() == id) {
+            settingsRepository.setCurrentServerId(null)
+        }
     }
 
     /** C5：切换“当前服务器”并写入偏好（供播放列表按归属过滤）。 */

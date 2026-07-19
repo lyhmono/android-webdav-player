@@ -37,6 +37,7 @@ import com.example.webdavplayer.domain.model.TrustedCert
 import com.example.webdavplayer.ui.player.PlayerViewModel
 import com.example.webdavplayer.ui.playlist.PlaylistViewModel
 import com.example.webdavplayer.ui.common.SectionHeader
+import com.example.webdavplayer.ui.common.engineLabel
 import com.example.webdavplayer.ui.theme.Spacing
 
 @OptIn(ExperimentalMaterial3Api::class, ExperimentalFoundationApi::class)
@@ -71,7 +72,7 @@ fun SettingsScreen(
             verticalArrangement = Arrangement.spacedBy(Spacing.md),
         ) {
             SectionHeader("播放内核")
-            Row(Modifier.fillMaxWidth()) {
+            Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(Spacing.xs)) {
                 EngineType.values().forEach { t ->
                     FilterChip(
                         selected = engineType == t,
@@ -125,7 +126,4 @@ private fun CertRow(
     )
 }
 
-private fun engineLabel(type: EngineType): String = when (type) {
-    EngineType.MEDIA3 -> "Media3 / ExoPlayer"
-    EngineType.VLC -> "libVLC"
-}
+// engineLabel 已抽取到 ui.common.Labels

@@ -12,7 +12,7 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.lazy.LazyColumn
-import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.gestures.detectDragGestures
 import androidx.compose.foundation.ExperimentalFoundationApi
@@ -51,6 +51,7 @@ import com.example.webdavplayer.domain.model.MediaType
 import com.example.webdavplayer.domain.model.PlayMode
 import com.example.webdavplayer.domain.model.PlaylistItem
 import com.example.webdavplayer.ui.common.SectionHeader
+import com.example.webdavplayer.ui.common.modeLabel
 import com.example.webdavplayer.ui.player.PlayerViewModel
 import com.example.webdavplayer.ui.theme.Spacing
 
@@ -95,7 +96,7 @@ fun PlaylistScreen(
             verticalArrangement = Arrangement.spacedBy(Spacing.md),
         ) {
             SectionHeader("播放模式")
-            Row {
+            Row(horizontalArrangement = Arrangement.spacedBy(Spacing.xs)) {
                 PlayMode.values().forEach { m ->
                     FilterChip(
                         selected = mode == m,
@@ -129,8 +130,7 @@ fun PlaylistScreen(
                         modifier = Modifier.fillMaxSize(),
                         verticalArrangement = Arrangement.spacedBy(Spacing.xs),
                     ) {
-                    items(items, key = { it.id }) { item ->
-                        val index = items.indexOf(item)
+                    itemsIndexed(items, key = { _, item -> item.id }) { index, item ->
                         PlaylistRow(
                             item = item,
                             modifier = Modifier
@@ -222,13 +222,8 @@ private fun PlaylistRow(
             )
         },
         trailingContent = {
-            Row {
-                IconButton(onClick = onClick) {
-                    Icon(Icons.Filled.PlayArrow, "播放")
-                }
-                IconButton(onClick = onLongClick) {
-                    Icon(Icons.Filled.Delete, "移除")
-                }
+            IconButton(onClick = onClick) {
+                Icon(Icons.Filled.PlayArrow, "播放")
             }
         },
         modifier = modifier
@@ -237,8 +232,4 @@ private fun PlaylistRow(
     )
 }
 
-private fun modeLabel(mode: PlayMode): String = when (mode) {
-    PlayMode.SEQUENTIAL -> "顺序"
-    PlayMode.LOOP -> "循环"
-    PlayMode.SHUFFLE -> "随机"
-}
+// modeLabel 已抽取到 ui.common.Labels
