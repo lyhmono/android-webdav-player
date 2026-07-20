@@ -186,11 +186,21 @@ fun PlayerScreen(
                     valueRange = 0f..duration.coerceAtLeast(1).toFloat(),
                     modifier = Modifier.fillMaxWidth(),
                 )
-                Text(
-                    "${formatDuration(position)} / ${formatDuration(duration)}",
-                    style = MaterialTheme.typography.labelLarge,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                )
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                ) {
+                    Text(
+                        formatDuration(position),
+                        style = MaterialTheme.typography.labelMedium,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    )
+                    Text(
+                        formatDuration(duration),
+                        style = MaterialTheme.typography.labelMedium,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    )
+                }
 
                 Row(verticalAlignment = Alignment.CenterVertically) {
                     IconButton(onClick = { playerVm.previous() }) {

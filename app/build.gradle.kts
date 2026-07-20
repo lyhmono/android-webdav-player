@@ -129,6 +129,8 @@ dependencies {
     implementation("androidx.compose.foundation:foundation:1.6.8")
     implementation("androidx.compose.material3:material3:1.2.1")
     implementation("androidx.compose.material:material-icons-extended:1.6.8")
+    // PullToRefresh（Material 1.x pull-refresh API，material3 1.3.0 前）
+    implementation("androidx.compose.material:material:1.6.8")
     debugImplementation("androidx.compose.ui:ui-tooling:1.6.8")
 
     // ===== Navigation-Compose =====

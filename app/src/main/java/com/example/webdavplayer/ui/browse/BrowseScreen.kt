@@ -1,4 +1,4 @@
-@file:OptIn(ExperimentalFoundationApi::class)
+@file:OptIn(ExperimentalFoundationApi::class, ExperimentalMaterial3Api::class)
 
 package com.example.webdavplayer.ui.browse
 
@@ -8,6 +8,7 @@ import android.provider.OpenableColumns
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.ExperimentalFoundationApi
+import androidx.compose.material.ExperimentalMaterialApi
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.combinedClickable
 import androidx.compose.foundation.layout.Arrangement
@@ -51,6 +52,9 @@ import androidx.compose.material3.SnackbarHostState
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.material3.TopAppBar
+import androidx.compose.material.pullrefresh.PullRefreshIndicator
+import androidx.compose.material.pullrefresh.pullRefresh
+import androidx.compose.material.pullrefresh.rememberPullRefreshState
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
@@ -77,7 +81,7 @@ import okio.source
 import java.net.URLDecoder
 import java.net.URLEncoder
 
-@OptIn(ExperimentalMaterial3Api::class, ExperimentalFoundationApi::class)
+@OptIn(ExperimentalMaterial3Api::class, ExperimentalFoundationApi::class, ExperimentalMaterialApi::class)
 @Composable
 fun BrowseScreen(
     navController: NavHostController,
@@ -262,7 +266,17 @@ fun BrowseScreen(
                 }
             }
 
-            Box(Modifier.fillMaxSize()) {
+            // 下拉刷新状态
+            val pullRefreshState = rememberPullRefreshState(
+                refreshing = isLoading,
+                onRefresh = { viewModel.loadDirectory(path) },
+            )
+
+            Box(
+                Modifier
+                    .fillMaxSize()
+                    .pullRefresh(pullRefreshState),
+            ) {
                 when {
                     isLoading && lazyItems.itemCount == 0 -> LoadingView()
                     !isLoading && lazyItems.itemCount == 0 -> EmptyView("此目录为空")
@@ -325,6 +339,11 @@ fun BrowseScreen(
                         )
                     }
                 }
+                PullRefreshIndicator(
+                    refreshing = isLoading,
+                    state = pullRefreshState,
+                    modifier = Modifier.align(Alignment.TopCenter),
+                )
             }
         }
     }

@@ -12,6 +12,7 @@ import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.callbackFlow
+import kotlinx.coroutines.launch
 import javax.inject.Inject
 import javax.inject.Singleton
 
@@ -79,25 +80,37 @@ class NetworkMonitor @Inject constructor(
 
     /**
      * 以 Flow 形式观察网络状态（适合在 Composable 中 collectAsStateWithLifecycle）。
+     *
+     * 复用 [startMonitoring] 注册的全局回调，避免每次 collect 都注册/注销新回调
+     * 导致 Callback 泄漏。如果尚未调用 [startMonitoring]，则回退到 callbackFlow
+     * 自行注册。
      */
     fun observe(): Flow<Boolean> = callbackFlow {
-        val cm = connectivityManager
-        val cb = object : ConnectivityManager.NetworkCallback() {
-            override fun onAvailable(network: Network) { trySend(true) }
-            override fun onLost(network: Network) { trySend(checkOnline()) }
-            override fun onCapabilitiesChanged(
-                network: Network,
-                capabilities: NetworkCapabilities,
-            ) {
-                trySend(capabilities.hasCapability(NetworkCapabilities.NET_CAPABILITY_INTERNET))
+        // 如果全局回调已注册，直接用 StateFlow 驱动
+        if (callback != null) {
+            trySend(_isOnline.value)
+            val sub = launch { _isOnline.collect { trySend(it) } }
+            awaitClose { sub.cancel() }
+        } else {
+            // 回退：自行注册临时回调
+            val cm = connectivityManager
+            val cb = object : ConnectivityManager.NetworkCallback() {
+                override fun onAvailable(network: Network) { trySend(true) }
+                override fun onLost(network: Network) { trySend(checkOnline()) }
+                override fun onCapabilitiesChanged(
+                    network: Network,
+                    capabilities: NetworkCapabilities,
+                ) {
+                    trySend(capabilities.hasCapability(NetworkCapabilities.NET_CAPABILITY_INTERNET))
+                }
             }
+            val request = NetworkRequest.Builder()
+                .addCapability(NetworkCapabilities.NET_CAPABILITY_INTERNET)
+                .build()
+            cm.registerNetworkCallback(request, cb)
+            trySend(checkOnline())
+            awaitClose { cm.unregisterNetworkCallback(cb) }
         }
-        val request = NetworkRequest.Builder()
-            .addCapability(NetworkCapabilities.NET_CAPABILITY_INTERNET)
-            .build()
-        cm.registerNetworkCallback(request, cb)
-        trySend(checkOnline())
-        awaitClose { cm.unregisterNetworkCallback(cb) }
     }
 
     private fun checkOnline(): Boolean {
