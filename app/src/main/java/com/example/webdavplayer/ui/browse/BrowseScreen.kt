@@ -1,4 +1,4 @@
-@file:OptIn(ExperimentalFoundationApi::class)
+@file:OptIn(ExperimentalFoundationApi::class, ExperimentalMaterial3Api::class)
 
 package com.example.webdavplayer.ui.browse
 
@@ -51,6 +51,12 @@ import androidx.compose.material3.SnackbarHostState
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.material3.TopAppBar
+import androidx.compose.material3.pullrefresh.PullRefreshIndicator
+import androidx.compose.material3.pullrefresh.pullRefresh
+import androidx.compose.material3.pullrefresh.rememberPullRefreshState
+import androidx.compose.material3.pullrefresh.PullRefreshIndicator
+import androidx.compose.material3.pullrefresh.pullRefresh
+import androidx.compose.material3.pullrefresh.rememberPullRefreshState
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
@@ -262,7 +268,17 @@ fun BrowseScreen(
                 }
             }
 
-            Box(Modifier.fillMaxSize()) {
+            // 下拉刷新状态
+            val pullRefreshState = rememberPullRefreshState(
+                refreshing = isLoading,
+                onRefresh = { viewModel.loadDirectory(path) },
+            )
+
+            Box(
+                Modifier
+                    .fillMaxSize()
+                    .pullRefresh(pullRefreshState),
+            ) {
                 when {
                     isLoading && lazyItems.itemCount == 0 -> LoadingView()
                     !isLoading && lazyItems.itemCount == 0 -> EmptyView("此目录为空")
@@ -325,6 +341,11 @@ fun BrowseScreen(
                         )
                     }
                 }
+                PullRefreshIndicator(
+                    refreshing = isLoading,
+                    state = pullRefreshState,
+                    modifier = Modifier.align(Alignment.TopCenter),
+                )
             }
         }
     }
