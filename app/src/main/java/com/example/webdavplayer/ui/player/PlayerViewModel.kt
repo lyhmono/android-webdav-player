@@ -160,8 +160,8 @@ class PlayerViewModel @Inject constructor(
     val resumedPosition: StateFlow<Long?> = _resumedPosition.asStateFlow()
 
     /** 当前正在播放的列表项 ID（用于 UI 高亮当前播放项）。 */
-    private val _currentItemId = MutableStateFlow<Long?>(null)
-    val currentItemId: StateFlow<Long?> = _currentItemId.asStateFlow()
+    private val _currentItemId = MutableStateFlow<String?>(null)
+    val currentItemId: StateFlow<String?> = _currentItemId.asStateFlow()
 
     /** 播放某一列表项（直连共享单例引擎；服务侧监听会回灌状态到 MediaController）。 */
     fun playItem(item: PlaylistItem) {
