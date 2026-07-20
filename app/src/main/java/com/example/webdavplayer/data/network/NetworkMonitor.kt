@@ -12,6 +12,7 @@ import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.callbackFlow
+import kotlinx.coroutines.launch
 import javax.inject.Inject
 import javax.inject.Singleton
 
@@ -88,7 +89,7 @@ class NetworkMonitor @Inject constructor(
         // 如果全局回调已注册，直接用 StateFlow 驱动
         if (callback != null) {
             trySend(_isOnline.value)
-            val sub = _isOnline.collect { trySend(it) }
+            val sub = launch { _isOnline.collect { trySend(it) } }
             awaitClose { sub.cancel() }
         } else {
             // 回退：自行注册临时回调
