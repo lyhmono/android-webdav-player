@@ -2,6 +2,7 @@
 
 package com.example.webdavplayer.ui.playlist
 
+import androidx.compose.foundation.background
 import androidx.compose.foundation.combinedClickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
@@ -23,6 +24,7 @@ import androidx.compose.material.icons.filled.AudioFile
 import androidx.compose.material.icons.filled.ClearAll
 import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.DragHandle
+import androidx.compose.material.icons.filled.Equalizer
 import androidx.compose.material.icons.filled.PlayArrow
 import androidx.compose.material.icons.filled.VideoLibrary
 import androidx.compose.material3.AlertDialog
@@ -48,6 +50,7 @@ import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.navigation.NavHostController
 import com.example.webdavplayer.domain.model.MediaType
 import com.example.webdavplayer.domain.model.PlayMode
+import com.example.webdavplayer.domain.model.PlaybackState
 import com.example.webdavplayer.domain.model.PlaylistItem
 import com.example.webdavplayer.ui.common.SectionHeader
 import com.example.webdavplayer.ui.common.modeLabel
@@ -63,6 +66,8 @@ fun PlaylistScreen(
 ) {
     val items by playlistVm.items.collectAsStateWithLifecycle()
     val mode by playlistVm.mode.collectAsStateWithLifecycle()
+    val currentItemId by playerVm.currentItemId.collectAsStateWithLifecycle()
+    val playerState by playerVm.state.collectAsStateWithLifecycle()
 
     var showClearConfirm by remember { mutableStateOf(false) }
 
@@ -130,8 +135,13 @@ fun PlaylistScreen(
                         verticalArrangement = Arrangement.spacedBy(Spacing.xs),
                     ) {
                     itemsIndexed(items, key = { _, item -> item.id }) { index, item ->
+                        val isCurrent = item.id == currentItemId
+                        val isDragging = dragFrom == index
                         PlaylistRow(
                             item = item,
+                            isCurrent = isCurrent,
+                            isPlaying = isCurrent && playerState == PlaybackState.PLAYING,
+                            isDragging = isDragging,
                             modifier = Modifier
                                 .fillMaxWidth()
                                 .animateItemPlacement(),
@@ -196,12 +206,30 @@ fun PlaylistScreen(
 private fun PlaylistRow(
     item: PlaylistItem,
     modifier: Modifier = Modifier,
+    isCurrent: Boolean = false,
+    isPlaying: Boolean = false,
+    isDragging: Boolean = false,
     onClick: () -> Unit,
     onRemove: () -> Unit,
     dragModifier: Modifier = Modifier,
 ) {
+    val bgColor = if (isDragging) {
+        MaterialTheme.colorScheme.surfaceVariant
+    } else if (isCurrent) {
+        MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.3f)
+    } else {
+        MaterialTheme.colorScheme.surface
+    }
     ListItem(
-        headlineContent = { Text(item.name) },
+        headlineContent = {
+            Text(
+                item.name,
+                color = if (isCurrent) MaterialTheme.colorScheme.primary
+                    else MaterialTheme.colorScheme.onSurface,
+                fontWeight = if (isCurrent) androidx.compose.ui.text.font.FontWeight.Bold
+                    else null,
+            )
+        },
         supportingContent = {
             Text(
                 when (item.mediaType) {
@@ -212,14 +240,24 @@ private fun PlaylistRow(
             )
         },
         leadingContent = {
-            Icon(
-                if (item.mediaType == MediaType.VIDEO) {
-                    Icons.Filled.VideoLibrary
-                } else {
-                    Icons.Filled.AudioFile
-                },
-                contentDescription = null,
-            )
+            if (isPlaying) {
+                Icon(
+                    Icons.Filled.Equalizer,
+                    contentDescription = "正在播放",
+                    tint = MaterialTheme.colorScheme.primary,
+                )
+            } else {
+                Icon(
+                    if (item.mediaType == MediaType.VIDEO) {
+                        Icons.Filled.VideoLibrary
+                    } else {
+                        Icons.Filled.AudioFile
+                    },
+                    contentDescription = null,
+                    tint = if (isCurrent) MaterialTheme.colorScheme.primary
+                        else MaterialTheme.colorScheme.onSurfaceVariant,
+                )
+            }
         },
         trailingContent = {
             Row(verticalAlignment = Alignment.CenterVertically) {
@@ -238,6 +276,7 @@ private fun PlaylistRow(
         },
         modifier = modifier
             .fillMaxWidth()
+            .background(bgColor)
             .combinedClickable(onClick = onClick),
     )
 }
