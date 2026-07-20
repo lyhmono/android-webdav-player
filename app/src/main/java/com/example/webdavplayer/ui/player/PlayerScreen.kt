@@ -86,6 +86,7 @@ fun PlayerScreen(
     val mediaType by playerVm.currentMediaType.collectAsStateWithLifecycle()
     val isOnline by playerVm.isOnline.collectAsStateWithLifecycle()
     val resumedPosition by playerVm.resumedPosition.collectAsStateWithLifecycle()
+    val currentItemId by playerVm.currentItemId.collectAsStateWithLifecycle()
 
     val isVlcAvailable = BuildConfig.FLAVOR == "full"
     val isPlaying = state == PlaybackState.PLAYING
@@ -240,8 +241,17 @@ fun PlayerScreen(
                     verticalArrangement = Arrangement.spacedBy(Spacing.xs),
                 ) {
                     items(items, key = { it.id }) { item ->
+                        val isCurrent = item.id == currentItemId
                         ListItem(
-                            headlineContent = { Text(item.name) },
+                            headlineContent = {
+                                Text(
+                                    item.name,
+                                    color = if (isCurrent) MaterialTheme.colorScheme.primary
+                                        else MaterialTheme.colorScheme.onSurface,
+                                    fontWeight = if (isCurrent) androidx.compose.ui.text.font.FontWeight.Bold
+                                        else null,
+                                )
+                            },
                             leadingContent = {
                                 Icon(
                                     if (item.mediaType == MediaType.VIDEO) {
@@ -250,7 +260,18 @@ fun PlayerScreen(
                                         Icons.Filled.AudioFile
                                     },
                                     null,
+                                    tint = if (isCurrent) MaterialTheme.colorScheme.primary
+                                        else MaterialTheme.colorScheme.onSurfaceVariant,
                                 )
+                            },
+                            trailingContent = {
+                                if (isCurrent && state == PlaybackState.PLAYING) {
+                                    Icon(
+                                        Icons.Filled.PlayArrow,
+                                        contentDescription = "正在播放",
+                                        tint = MaterialTheme.colorScheme.primary,
+                                    )
+                                }
                             },
                             modifier = Modifier
                                 .fillMaxWidth()

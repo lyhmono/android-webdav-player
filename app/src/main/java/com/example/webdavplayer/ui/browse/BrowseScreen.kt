@@ -25,6 +25,8 @@ import androidx.paging.compose.itemKey
 import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.ArrowBack
+import androidx.compose.material.icons.filled.ArrowDownward
+import androidx.compose.material.icons.filled.ArrowUpward
 import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.Folder
 import androidx.compose.material.icons.filled.Clear
@@ -249,6 +251,14 @@ fun BrowseScreen(
                     }
                 }) {
                     Icon(Icons.Filled.Sort, contentDescription = "排序：${sortMode.label}")
+                }
+                // 升降序切换按钮
+                IconButton(onClick = { sortAscending = !sortAscending }) {
+                    Icon(
+                        if (sortAscending) Icons.Filled.ArrowUpward
+                        else Icons.Filled.ArrowDownward,
+                        contentDescription = if (sortAscending) "升序" else "降序",
+                    )
                 }
             }
 
