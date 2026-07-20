@@ -1,3 +1,5 @@
+import java.util.Properties
+
 plugins {
     id("com.android.application")
     id("org.jetbrains.kotlin.android")
@@ -20,10 +22,46 @@ android {
         vectorDrawables { useSupportLibrary = true }
     }
 
+    // ===== 签名配置 =====
+    // 密码从 local.properties 或环境变量读取，不硬编码到版本控制中
+    // local.properties 示例:
+    //   keystore.file=app/keystore/webdav-player.p12
+    //   keystore.storePassword=your_password
+    //   keystore.keyAlias=webdav-player
+    //   keystore.keyPassword=your_password
+    val localProps = rootProject.file("local.properties")
+        .takeIf { it.exists() }
+        ?.let { Properties().apply { it.inputStream().use { s -> load(s) } } }
+
+    val keystoreFilePath = localProps?.getProperty("keystore.file")
+        ?: System.getenv("KEYSTORE_FILE")
+    val keystoreStorePassword = localProps?.getProperty("keystore.storePassword")
+        ?: System.getenv("KEYSTORE_STORE_PASSWORD")
+    val keystoreKeyAlias = localProps?.getProperty("keystore.keyAlias")
+        ?: System.getenv("KEYSTORE_KEY_ALIAS")
+    val keystoreKeyPassword = localProps?.getProperty("keystore.keyPassword")
+        ?: System.getenv("KEYSTORE_KEY_PASSWORD")
+
+    val hasKeystoreConfig = keystoreFilePath != null && keystoreStorePassword != null
+
+    signingConfigs {
+        create("release") {
+            if (hasKeystoreConfig) {
+                storeFile = file(keystoreFilePath!!)
+                storePassword = keystoreStorePassword
+                keyAlias = keystoreKeyAlias ?: "webdav-player"
+                keyPassword = keystoreKeyPassword ?: keystoreStorePassword
+            }
+        }
+    }
+
     buildTypes {
         release {
             isMinifyEnabled = true
             isShrinkResources = true
+            if (hasKeystoreConfig) {
+                signingConfig = signingConfigs.getByName("release")
+            }
             proguardFiles(
                 getDefaultProguardFile("proguard-android-optimize.txt"),
                 "proguard-rules.pro"
