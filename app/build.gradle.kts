@@ -1,3 +1,5 @@
+import java.util.Properties
+
 plugins {
     id("com.android.application")
     id("org.jetbrains.kotlin.android")
@@ -29,7 +31,7 @@ android {
     //   keystore.keyPassword=your_password
     val localProps = rootProject.file("local.properties")
         .takeIf { it.exists() }
-        ?.let { java.util.Properties().apply { it.inputStream().use { s -> load(s) } } }
+        ?.let { Properties().apply { it.inputStream().use { s -> load(s) } } }
 
     val keystoreFilePath = localProps?.getProperty("keystore.file")
         ?: System.getenv("KEYSTORE_FILE")
