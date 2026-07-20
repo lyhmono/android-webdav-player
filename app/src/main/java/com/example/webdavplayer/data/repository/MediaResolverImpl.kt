@@ -1,12 +1,17 @@
 package com.example.webdavplayer.data.repository
 
+import com.example.webdavplayer.data.remote.WebDavClient
 import com.example.webdavplayer.data.remote.WebDavPath
+import com.example.webdavplayer.domain.common.MediaConstants
 import com.example.webdavplayer.domain.model.AuthType
 import com.example.webdavplayer.domain.model.PlayableMedia
 import com.example.webdavplayer.domain.model.PlaylistItem
+import com.example.webdavplayer.domain.model.SubtitleTrack
 import com.example.webdavplayer.domain.repository.CacheRepository
 import com.example.webdavplayer.domain.repository.MediaResolver
 import com.example.webdavplayer.domain.repository.ServerRepository
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.withContext
 import okhttp3.Credentials
 import java.io.File
 import javax.inject.Inject
@@ -24,6 +29,7 @@ import javax.inject.Singleton
 class MediaResolverImpl @Inject constructor(
     private val serverRepository: ServerRepository,
     private val cacheRepository: CacheRepository,
+    private val webDavClient: WebDavClient,
 ) : MediaResolver {
 
     override suspend fun resolve(item: PlaylistItem): PlayableMedia {
@@ -56,4 +62,24 @@ class MediaResolverImpl @Inject constructor(
             trustSelfSigned = cfg.trustSelfSigned,
         )
     }
+
+    override suspend fun discoverSubtitles(item: PlaylistItem): List<SubtitleTrack> =
+        withContext(Dispatchers.IO) {
+            val cfg = serverRepository.getById(item.serverId) ?: return@withContext emptyList()
+            webDavClient.connect(cfg)
+            val parent = WebDavPath.parentOf(item.path)
+            val dir = webDavClient.listDirectory(parent)
+            val mediaName = WebDavPath.nameOf(item.path)
+            val baseName = mediaName.substringBeforeLast('.')
+            dir.filter { !it.isDirectory && MediaConstants.isSiblingSubtitle(it.name, baseName) }
+                .map { sub ->
+                    val fullPath = if (sub.parentPath == "/") "/${sub.name}" else "${sub.parentPath}/${sub.name}"
+                    SubtitleTrack(
+                        uri = WebDavPath.join(cfg.baseUrl, fullPath),
+                        mimeType = MediaConstants.subtitleMimeType(sub.name),
+                        language = MediaConstants.subtitleLanguageFromName(sub.name),
+                        label = sub.name,
+                    )
+                }
+        }
 }

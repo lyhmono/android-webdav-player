@@ -1,6 +1,8 @@
 package com.example.webdavplayer.data.player
 
 import android.content.Context
+import android.net.Uri
+import androidx.media3.common.C
 import androidx.media3.common.MediaItem
 import androidx.media3.common.PlaybackException
 import androidx.media3.common.Player
@@ -86,10 +88,28 @@ class ExoPlayerEngine(
             val source = streamingSource.createExoMediaSource(client, media)
             player!!.setMediaSource(source)
         } else {
-            // 本地文件（离线缓存）：直接设置 URI，不走流式数据源。
-            player!!.setMediaItem(MediaItem.fromUri(media.uri))
+            // 本地文件（离线缓存）：直接设置 URI；字幕以外部文本轨附带，不走流式数据源。
+            val item = MediaItem.Builder()
+                .setUri(media.uri)
+                .setSubtitleConfigurations(
+                    media.subtitles.map { sub ->
+                        MediaItem.SubtitleConfiguration.Builder(Uri.parse(sub.uri))
+                            .setMimeType(sub.mimeType)
+                            .setLanguage(sub.language)
+                            .setLabel(sub.label)
+                            .build()
+                    },
+                )
+                .build()
+            player!!.setMediaItem(item)
         }
         player!!.prepare()
+        // 字幕默认关闭：避免主媒体带字幕时自动显示，由用户经「字幕」菜单显式开启。
+        player!!.setTrackSelectionParameters(
+            player!!.trackSelectionParameters.buildUpon()
+                .setTrackTypeDisabled(C.TRACK_TYPE_TEXT, true)
+                .build(),
+        )
         updateState(PlaybackState.PREPARING)
     }
 
@@ -108,6 +128,20 @@ class ExoPlayerEngine(
     override fun setSpeed(speed: Float) {
         // ExoPlayer 通过 playbackParameters 表达倍速（pitch 保持默认 1.0）。
         player?.setPlaybackSpeed(speed)
+    }
+
+    override fun selectSubtitle(language: String?) {
+        val p = player ?: return
+        val params = p.trackSelectionParameters.buildUpon()
+        if (language == null) {
+            // 关闭字幕：禁用文本轨。
+            params.setTrackTypeDisabled(C.TRACK_TYPE_TEXT, true)
+        } else {
+            // 按语言选择文本轨；若无可匹配语言则保持禁用状态由播放器择一。
+            params.setPreferredTextLanguage(language)
+                .setTrackTypeDisabled(C.TRACK_TYPE_TEXT, false)
+        }
+        p.setTrackSelectionParameters(params.build())
     }
 
     override fun setListener(listener: EngineListener?) {

@@ -34,6 +34,12 @@ interface PlayerEngine {
     /** 设置事件监听（可传 null 清除监听，用于后台服务销毁时解绑）。 */
     fun setListener(listener: EngineListener?)
 
+    /**
+     * 选择字幕语言（null = 关闭字幕）。
+     * 默认空实现：不支持字幕的内核（如 libVLC）无需实现，自动忽略。
+     */
+    fun selectSubtitle(language: String?) { /* no-op by default */ }
+
     /** 当前状态快照。 */
     fun getState(): PlaybackState
 

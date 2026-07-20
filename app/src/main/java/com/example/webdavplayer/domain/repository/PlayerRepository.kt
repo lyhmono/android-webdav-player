@@ -34,6 +34,13 @@ interface PlayerRepository {
     fun setSpeed(speed: Float)
 
     fun setListener(listener: EngineListener?)
+
+    /**
+     * 选择字幕语言（null = 关闭字幕）。
+     * 默认空实现，由 [com.example.webdavplayer.data.repository.PlayerRepositoryImpl] 覆写为真实逻辑。
+     */
+    fun selectSubtitle(language: String?) { /* no-op by default */ }
+
     fun getState(): PlaybackState
     fun release()
 }

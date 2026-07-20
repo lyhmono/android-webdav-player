@@ -17,6 +17,7 @@ import com.example.webdavplayer.domain.model.MediaType
 import com.example.webdavplayer.domain.model.PlayMode
 import com.example.webdavplayer.domain.model.PlaybackState
 import com.example.webdavplayer.domain.model.PlaylistItem
+import com.example.webdavplayer.domain.model.SubtitleTrack
 import com.example.webdavplayer.domain.player.PlaylistController
 import com.example.webdavplayer.domain.repository.PlayerRepository
 import com.example.webdavplayer.domain.repository.PlaylistRepository
@@ -79,6 +80,10 @@ class PlayerViewModel @Inject constructor(
     /** 当前媒体类型（用于视频手势层门控，C4）。 */
     private val _currentMediaType = MutableStateFlow(MediaType.OTHER)
     val currentMediaType: StateFlow<MediaType> = _currentMediaType.asStateFlow()
+
+    /** 当前媒体的可选字幕轨列表（P2，来自 [PlayMediaUseCase] 发现结果）。 */
+    private val _subtitles = MutableStateFlow<List<SubtitleTrack>>(emptyList())
+    val subtitles: StateFlow<List<SubtitleTrack>> = _subtitles.asStateFlow()
 
     val items: StateFlow<List<PlaylistItem>> = playlistRepository.observeItems()
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
@@ -159,8 +164,8 @@ class PlayerViewModel @Inject constructor(
     fun playItem(item: PlaylistItem) {
         _title.value = item.name
         viewModelScope.launch {
-            when (playMedia(item)) {
-                is Result.Success -> { /* 状态由 MediaController 监听驱动 */ }
+            when (val r = playMedia(item)) {
+                is Result.Success -> _subtitles.value = r.data.subtitles
                 is Result.Error -> _state.value = PlaybackState.ERROR
             }
         }
@@ -180,6 +185,26 @@ class PlayerViewModel @Inject constructor(
     fun setSpeed(speed: Float) {
         _speed.value = speed
         mediaController?.setPlaybackSpeed(speed) ?: playerRepository.setSpeed(speed)
+    }
+
+    /**
+     * 选择字幕语言（null = 关闭）。优先经 MediaController 统一通道，
+     * 无控制器时回退直连仓库（再转发到内核）。
+     */
+    fun selectSubtitle(language: String?) {
+        val controller = mediaController
+        if (controller != null) {
+            val params = controller.trackSelectionParameters.buildUpon()
+            if (language == null) {
+                params.setTrackTypeDisabled(C.TRACK_TYPE_TEXT, true)
+            } else {
+                params.setPreferredTextLanguage(language)
+                    .setTrackTypeDisabled(C.TRACK_TYPE_TEXT, false)
+            }
+            controller.setTrackSelectionParameters(params.build())
+        } else {
+            playerRepository.selectSubtitle(language)
+        }
     }
 
     fun next() {

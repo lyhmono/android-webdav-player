@@ -40,6 +40,8 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Slider
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
+import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.TopAppBar
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
@@ -84,6 +86,7 @@ fun PlayerScreen(
     val mode by playerVm.mode.collectAsStateWithLifecycle()
     val mediaType by playerVm.currentMediaType.collectAsStateWithLifecycle()
     val speed by playerVm.speed.collectAsStateWithLifecycle()
+    val subtitles by playerVm.subtitles.collectAsStateWithLifecycle()
 
     val isVlcAvailable = BuildConfig.FLAVOR == "full"
     val isPlaying = state == PlaybackState.PLAYING
@@ -97,6 +100,7 @@ fun PlayerScreen(
     val showGesture = isVideo && (isFullScreen || isLandscape)
 
     var menuExpanded by remember { mutableStateOf(false) }
+    var showSubtitleDialog by remember { mutableStateOf(false) }
 
     Scaffold(
         topBar = {
@@ -124,6 +128,13 @@ fun PlayerScreen(
                         expanded = menuExpanded,
                         onDismissRequest = { menuExpanded = false },
                     ) {
+                        DropdownMenuItem(
+                            text = { Text("字幕") },
+                            onClick = {
+                                menuExpanded = false
+                                showSubtitleDialog = true
+                            },
+                        )
                         DropdownMenuItem(
                             text = { Text("清除进度/从头播放") },
                             onClick = {
@@ -267,6 +278,59 @@ fun PlayerScreen(
             }
         }
     }
+
+    // 字幕选择对话框（P2）：列出当前媒体的可选字幕轨，或关闭。
+    if (showSubtitleDialog) {
+        AlertDialog(
+            onDismissRequest = { showSubtitleDialog = false },
+            title = { Text("字幕") },
+            text = {
+                Column(verticalArrangement = Arrangement.spacedBy(Spacing.xs)) {
+                    SubtitleChoiceRow(
+                        label = "关闭",
+                        onClick = {
+                            playerVm.selectSubtitle(null)
+                            showSubtitleDialog = false
+                        },
+                    )
+                    if (subtitles.isEmpty()) {
+                        Text(
+                            "当前目录下未找到字幕文件（.srt / .vtt / .ass）",
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        )
+                    } else {
+                        subtitles.forEach { sub ->
+                            SubtitleChoiceRow(
+                                label = buildString {
+                                    append(sub.label)
+                                    sub.language?.let { append(" · $it") }
+                                },
+                                onClick = {
+                                    playerVm.selectSubtitle(sub.language)
+                                    showSubtitleDialog = false
+                                },
+                            )
+                        }
+                    }
+                }
+            },
+            confirmButton = {
+                TextButton(onClick = { showSubtitleDialog = false }) { Text("完成") }
+            },
+        )
+    }
+}
+
+/** 字幕选择项（点击即应用）。 */
+@Composable
+private fun SubtitleChoiceRow(label: String, onClick: () -> Unit) {
+    ListItem(
+        headlineContent = { Text(label) },
+        modifier = Modifier
+            .fillMaxWidth()
+            .clickable(onClick = onClick),
+    )
 }
 
 // modeLabel / engineLabel / stateLabel / formatDuration 已抽取到 ui.common.Labels

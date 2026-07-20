@@ -92,6 +92,10 @@ class PlayerRepositoryImpl @Inject constructor(
         engine?.setSpeed(speed)
     }
 
+    override fun selectSubtitle(language: String?) {
+        engine?.selectSubtitle(language)
+    }
+
     override fun setListener(listener: EngineListener?) {
         this.listener = listener
         engine?.setListener(listener)
