@@ -6,6 +6,7 @@ import dagger.hilt.android.lifecycle.HiltViewModel
 import androidx.lifecycle.viewModelScope
 import androidx.paging.PagingData
 import com.example.webdavplayer.common.Result
+import com.example.webdavplayer.data.network.NetworkMonitor
 import com.example.webdavplayer.data.remote.WebDavPath
 import com.example.webdavplayer.domain.model.PlaylistItem
 import com.example.webdavplayer.domain.model.RemoteFile
@@ -35,9 +36,13 @@ class BrowseViewModel @Inject constructor(
     private val uploadUseCase: UploadFileUseCase,
     private val fileOps: RenameMoveDeleteUseCase,
     private val playMedia: PlayMediaUseCase,
+    private val networkMonitor: NetworkMonitor,
 ) : ViewModel() {
 
     val serverId: String = savedStateHandle.get<String>("serverId") ?: ""
+
+    /** 网络连接状态（UI 用来显示离线横幅）。 */
+    val isOnline = networkMonitor.isOnline
 
     private val _path = MutableStateFlow("/")
     val path: StateFlow<String> = _path.asStateFlow()

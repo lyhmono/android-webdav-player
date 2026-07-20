@@ -18,6 +18,7 @@ import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.paging.compose.itemKey
@@ -31,6 +32,7 @@ import androidx.compose.material.icons.filled.InsertDriveFile
 import androidx.compose.material.icons.filled.QueueMusic
 import androidx.compose.material.icons.filled.Search
 import androidx.compose.material.icons.filled.Settings
+import androidx.compose.material.icons.filled.Sort
 import androidx.compose.material.icons.filled.Upload
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.ExperimentalMaterial3Api
@@ -38,6 +40,7 @@ import androidx.compose.material3.FloatingActionButton
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.ListItem
+import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.SnackbarHost
@@ -85,6 +88,7 @@ fun BrowseScreen(
     val error by viewModel.error.collectAsStateWithLifecycle()
     val message by viewModel.message.collectAsStateWithLifecycle()
     val videosAdded by viewModel.videosAdded.collectAsStateWithLifecycle()
+    val isOnline by viewModel.isOnline.collectAsStateWithLifecycle()
 
     val lazyItems = viewModel.directoryFlow.collectAsLazyPagingItems()
 
@@ -148,6 +152,9 @@ fun BrowseScreen(
 
     // 搜索/过滤栏状态
     var searchQuery by remember { mutableStateOf("") }
+    // 排序模式
+    var sortMode by remember { mutableStateOf(SortMode.NAME) }
+    var sortAscending by remember { mutableStateOf(true) }
     val isSearching = searchQuery.isNotBlank()
 
     Scaffold(
@@ -189,33 +196,70 @@ fun BrowseScreen(
         Column(
             Modifier.fillMaxSize().padding(padding),
         ) {
-            // 搜索/过滤栏
-            OutlinedTextField(
-                value = searchQuery,
-                onValueChange = { searchQuery = it },
-                placeholder = { Text("搜索文件…") },
-                leadingIcon = { Icon(Icons.Filled.Search, contentDescription = null) },
-                trailingIcon = {
-                    if (isSearching) {
-                        IconButton(onClick = { searchQuery = "" }) {
-                            Icon(Icons.Filled.Clear, contentDescription = "清除")
-                        }
-                    }
-                },
+            // 离线提示横幅
+            if (!isOnline) {
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(horizontal = Spacing.md, vertical = Spacing.xs),
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(Spacing.sm),
+                ) {
+                    Icon(
+                        Icons.Filled.WifiOff,
+                        contentDescription = null,
+                        tint = MaterialTheme.colorScheme.error,
+                        modifier = Modifier.size(20.dp),
+                    )
+                    Text(
+                        "网络已断开，显示的是缓存内容",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.error,
+                    )
+                }
+            }
+            // 搜索/排序栏
+            Row(
                 modifier = Modifier
                     .fillMaxWidth()
                     .padding(horizontal = Spacing.md, vertical = Spacing.sm),
-                singleLine = true,
-            )
+                verticalAlignment = Alignment.CenterVertically,
+            ) {
+                OutlinedTextField(
+                    value = searchQuery,
+                    onValueChange = { searchQuery = it },
+                    placeholder = { Text("搜索文件…") },
+                    leadingIcon = { Icon(Icons.Filled.Search, contentDescription = null) },
+                    trailingIcon = {
+                        if (isSearching) {
+                            IconButton(onClick = { searchQuery = "" }) {
+                                Icon(Icons.Filled.Clear, contentDescription = "清除")
+                            }
+                        }
+                    },
+                    modifier = Modifier.weight(1f),
+                    singleLine = true,
+                )
+                IconButton(onClick = {
+                    sortMode = when (sortMode) {
+                        SortMode.NAME -> SortMode.SIZE
+                        SortMode.SIZE -> SortMode.MODIFIED
+                        SortMode.MODIFIED -> SortMode.NAME
+                    }
+                }) {
+                    Icon(Icons.Filled.Sort, contentDescription = "排序：${sortMode.label}")
+                }
+            }
 
             Box(Modifier.fillMaxSize()) {
                 when {
                     isLoading && lazyItems.itemCount == 0 -> LoadingView()
                     !isLoading && lazyItems.itemCount == 0 -> EmptyView("此目录为空")
                     isSearching && lazyItems.itemCount > 0 -> {
-                        // 本地过滤已加载的分页项（仅遍历已加载页，避免全量加载导致 OOM）
+                        // 本地过滤已加载的分页项并排序
                         val filtered = (0 until lazyItems.itemCount).mapNotNull { lazyItems[it] }
                             .filter { it.name.contains(searchQuery, ignoreCase = true) }
+                            .sortedBy(sortMode, sortAscending)
                         if (filtered.isEmpty()) {
                             EmptyView("未找到匹配文件")
                         } else {
@@ -352,6 +396,26 @@ fun BrowseScreen(
             }
         }
     }
+}
+
+/** 排序模式。 */
+enum class SortMode(val label: String) {
+    NAME("名称"),
+    SIZE("大小"),
+    MODIFIED("修改时间"),
+}
+
+/** 对文件列表排序：目录优先 + 按选定模式 + 升降序。 */
+private fun List<RemoteFile>.sortedBy(mode: SortMode, ascending: Boolean): List<RemoteFile> {
+    val cmp = when (mode) {
+        SortMode.NAME -> compareByDescending<RemoteFile> { it.isDirectory }
+            .let { if (ascending) it.thenBy { it.name.lowercase() } else it.thenByDescending { it.name.lowercase() } }
+        SortMode.SIZE -> compareByDescending<RemoteFile> { it.isDirectory }
+            .let { if (ascending) it.thenBy { it.size } else it.thenByDescending { it.size } }
+        SortMode.MODIFIED -> compareByDescending<RemoteFile> { it.isDirectory }
+            .let { if (ascending) it.thenBy { it.lastModified } else it.thenByDescending { it.lastModified } }
+    }
+    return sortedWith(cmp)
 }
 
 /** 共享文件列表渲染（消除搜索/正常两分支的 LazyColumn 重复代码）。 */

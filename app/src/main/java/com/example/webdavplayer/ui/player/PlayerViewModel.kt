@@ -12,6 +12,7 @@ import androidx.media3.common.util.UnstableApi
 import androidx.media3.session.MediaController
 import androidx.media3.session.SessionToken
 import com.example.webdavplayer.common.Result
+import com.example.webdavplayer.data.network.NetworkMonitor
 import com.example.webdavplayer.domain.model.EngineType
 import com.example.webdavplayer.domain.model.MediaType
 import com.example.webdavplayer.domain.model.PlayMode
@@ -54,6 +55,7 @@ class PlayerViewModel @Inject constructor(
     private val playlistController: PlaylistController,
     private val playMedia: PlayMediaUseCase,
     private val clearProgress: ClearProgressUseCase,
+    private val networkMonitor: NetworkMonitor,
     @ApplicationContext private val context: Context,
 ) : ViewModel() {
 
@@ -81,6 +83,9 @@ class PlayerViewModel @Inject constructor(
 
     val mode: StateFlow<PlayMode> = playlistRepository.observeMode()
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), PlayMode.SEQUENTIAL)
+
+    /** 网络连接状态（UI 用来显示离线提示）。 */
+    val isOnline: StateFlow<Boolean> = networkMonitor.isOnline
 
     /** 连接到后台 [PlaybackService] 的 MediaSession 的 MediaController。 */
     private var mediaController: MediaController? = null
@@ -150,15 +155,27 @@ class PlayerViewModel @Inject constructor(
         }
     }
 
+    /** 最近一次播放恢复的断点位置（ms），null 表示无断点或从头播放。 */
+    private val _resumedPosition = MutableStateFlow<Long?>(null)
+    val resumedPosition: StateFlow<Long?> = _resumedPosition.asStateFlow()
+
     /** 播放某一列表项（直连共享单例引擎；服务侧监听会回灌状态到 MediaController）。 */
     fun playItem(item: PlaylistItem) {
         _title.value = item.name
         viewModelScope.launch {
-            when (playMedia(item)) {
-                is Result.Success -> { /* 状态由 MediaController 监听驱动 */ }
+            when (val r = playMedia(item)) {
+                is Result.Success -> {
+                    _resumedPosition.value = r.data
+                    /* 状态由 MediaController 监听驱动 */
+                }
                 is Result.Error -> _state.value = PlaybackState.ERROR
             }
         }
+    }
+
+    /** UI 消费完恢复提示后调用。 */
+    fun consumeResumedPosition() {
+        _resumedPosition.value = null
     }
 
     fun play() = mediaController?.play() ?: playerRepository.play()
