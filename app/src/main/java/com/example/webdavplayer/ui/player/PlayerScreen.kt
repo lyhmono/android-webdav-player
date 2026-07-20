@@ -29,6 +29,7 @@ import androidx.compose.material.icons.filled.QueueMusic
 import androidx.compose.material.icons.filled.SkipNext
 import androidx.compose.material.icons.filled.SkipPrevious
 import androidx.compose.material.icons.filled.VideoLibrary
+import androidx.compose.material.icons.filled.WifiOff
 import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.ExperimentalMaterial3Api
@@ -39,9 +40,12 @@ import androidx.compose.material3.ListItem
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Slider
+import androidx.compose.material3.SnackbarHost
+import androidx.compose.material3.SnackbarHostState
 import androidx.compose.material3.Text
 import androidx.compose.material3.TopAppBar
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -80,6 +84,8 @@ fun PlayerScreen(
     val items by playerVm.items.collectAsStateWithLifecycle()
     val mode by playerVm.mode.collectAsStateWithLifecycle()
     val mediaType by playerVm.currentMediaType.collectAsStateWithLifecycle()
+    val isOnline by playerVm.isOnline.collectAsStateWithLifecycle()
+    val resumedPosition by playerVm.resumedPosition.collectAsStateWithLifecycle()
 
     val isVlcAvailable = BuildConfig.FLAVOR == "full"
     val isPlaying = state == PlaybackState.PLAYING
@@ -93,6 +99,25 @@ fun PlayerScreen(
     val showGesture = isVideo && (isFullScreen || isLandscape)
 
     var menuExpanded by remember { mutableStateOf(false) }
+
+    val snackbarHostState = remember { SnackbarHostState() }
+
+    // 网络断开提示
+    LaunchedEffect(isOnline) {
+        if (!isOnline) {
+            snackbarHostState.showSnackbar("网络已断开，播放可能受到影响")
+        }
+    }
+
+    // 播放进度恢复提示
+    LaunchedEffect(resumedPosition) {
+        resumedPosition?.let { pos ->
+            if (pos > 0) {
+                snackbarHostState.showSnackbar("已从 ${formatDuration(pos)} 续播")
+                playerVm.consumeResumedPosition()
+            }
+        }
+    }
 
     Scaffold(
         topBar = {
@@ -131,6 +156,7 @@ fun PlayerScreen(
                 },
             )
         },
+        snackbarHost = { SnackbarHost(snackbarHostState) },
     ) { padding ->
         Box(Modifier.fillMaxSize().padding(padding)) {
             Column(
