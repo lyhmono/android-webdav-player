@@ -3,6 +3,7 @@ package com.example.webdavplayer.di
 import com.example.webdavplayer.data.player.PlayerEngineFactory
 import com.example.webdavplayer.data.remote.SardineWebDavClient
 import com.example.webdavplayer.data.repository.BrowseRepositoryImpl
+import com.example.webdavplayer.data.repository.CacheRepositoryImpl
 import com.example.webdavplayer.data.repository.MediaResolverImpl
 import com.example.webdavplayer.data.repository.PlaylistControllerImpl
 import com.example.webdavplayer.data.repository.PlaylistRepositoryImpl
@@ -13,6 +14,7 @@ import com.example.webdavplayer.data.repository.SettingsRepositoryImpl
 import com.example.webdavplayer.data.repository.TrustedCertRepositoryImpl
 import com.example.webdavplayer.domain.player.PlaylistController
 import com.example.webdavplayer.domain.repository.BrowseRepository
+import com.example.webdavplayer.domain.repository.CacheRepository
 import com.example.webdavplayer.domain.repository.MediaResolver
 import com.example.webdavplayer.domain.repository.PlaybackProgressRepository
 import com.example.webdavplayer.domain.repository.PlayerRepository
@@ -35,6 +37,10 @@ abstract class RepositoryModule {
     @Binds
     @Singleton
     abstract fun bindWebDavClient(impl: SardineWebDavClient): WebDavClient
+
+    @Binds
+    @Singleton
+    abstract fun bindCacheRepository(impl: CacheRepositoryImpl): CacheRepository
 
     @Binds
     @Singleton

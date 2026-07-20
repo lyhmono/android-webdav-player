@@ -9,6 +9,7 @@ import com.example.webdavplayer.common.Result
 import com.example.webdavplayer.data.remote.WebDavPath
 import com.example.webdavplayer.domain.model.PlaylistItem
 import com.example.webdavplayer.domain.model.RemoteFile
+import com.example.webdavplayer.domain.repository.CacheRepository
 import com.example.webdavplayer.domain.usecase.AddDirVideosToPlaylistUseCase
 import com.example.webdavplayer.domain.usecase.BrowseDirectoryUseCase
 import com.example.webdavplayer.domain.usecase.PlayMediaUseCase
@@ -37,6 +38,7 @@ class BrowseViewModel @Inject constructor(
     private val uploadUseCase: UploadFileUseCase,
     private val fileOps: RenameMoveDeleteUseCase,
     private val playMedia: PlayMediaUseCase,
+    private val cacheRepository: CacheRepository,
 ) : ViewModel() {
 
     val serverId: String = savedStateHandle.get<String>("serverId") ?: ""
@@ -166,5 +168,15 @@ class BrowseViewModel @Inject constructor(
 
     fun consumeVideosAdded() {
         _videosAdded.value = null
+    }
+
+    /** 下载当前文件到本地离线缓存（P2）。 */
+    fun downloadFile(path: String) {
+        viewModelScope.launch {
+            when (val r = cacheRepository.download(serverId, path)) {
+                is Result.Success -> _message.value = "已下载到本地：${r.data.name}"
+                is Result.Error -> _error.value = r.throwable.message ?: "下载失败"
+            }
+        }
     }
 }

@@ -4,6 +4,7 @@ import android.content.Context
 import androidx.room.Room
 import androidx.room.RoomDatabase
 import com.example.webdavplayer.data.local.AppDatabase
+import com.example.webdavplayer.data.local.dao.CachedMediaDao
 import com.example.webdavplayer.data.local.dao.DirectoryMetaDao
 import com.example.webdavplayer.data.local.dao.PlaybackProgressDao
 import com.example.webdavplayer.data.local.dao.PlaylistDao
@@ -49,4 +50,7 @@ object DatabaseModule {
 
     @Provides
     fun provideTrustedCertDao(db: AppDatabase): TrustedCertDao = db.trustedCertDao()
+
+    @Provides
+    fun provideCachedMediaDao(db: AppDatabase): CachedMediaDao = db.cachedMediaDao()
 }

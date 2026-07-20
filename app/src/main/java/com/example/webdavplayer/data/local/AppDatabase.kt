@@ -3,12 +3,14 @@ package com.example.webdavplayer.data.local
 import androidx.room.Database
 import androidx.room.RoomDatabase
 import androidx.room.TypeConverters
+import com.example.webdavplayer.data.local.dao.CachedMediaDao
 import com.example.webdavplayer.data.local.dao.DirectoryMetaDao
 import com.example.webdavplayer.data.local.dao.PlaylistDao
 import com.example.webdavplayer.data.local.dao.PlaylistMetaDao
 import com.example.webdavplayer.data.local.dao.PlaybackProgressDao
 import com.example.webdavplayer.data.local.dao.RemoteFileDao
 import com.example.webdavplayer.data.local.dao.TrustedCertDao
+import com.example.webdavplayer.data.local.entity.CachedMediaEntity
 import com.example.webdavplayer.data.local.entity.DirectoryMetaEntity
 import com.example.webdavplayer.data.local.entity.PlaylistItemEntity
 import com.example.webdavplayer.data.local.entity.PlaylistMetaEntity
@@ -16,7 +18,7 @@ import com.example.webdavplayer.data.local.entity.PlaybackProgressEntity
 import com.example.webdavplayer.data.local.entity.RemoteFileEntity
 import com.example.webdavplayer.data.local.entity.TrustedCertEntity
 
-/** 应用数据库：远程文件缓存 + 播放列表 + 播放模式 + 播放进度 + 信任证书。 */
+/** 应用数据库：远程文件缓存 + 播放列表 + 播放模式 + 播放进度 + 信任证书 + 离线缓存。 */
 @Database(
     entities = [
         RemoteFileEntity::class,
@@ -25,8 +27,9 @@ import com.example.webdavplayer.data.local.entity.TrustedCertEntity
         PlaylistMetaEntity::class,   // C2：播放模式单例行
         PlaybackProgressEntity::class, // C3：进度表
         DirectoryMetaEntity::class,  // §1.3 优化：目录缓存 TTL 元数据
+        CachedMediaEntity::class,    // P2：离线缓存元数据
     ],
-    version = 3,
+    version = 4,
     exportSchema = false,
 )
 @TypeConverters(Converters::class)
@@ -37,4 +40,5 @@ abstract class AppDatabase : RoomDatabase() {
     abstract fun playbackProgressDao(): PlaybackProgressDao
     abstract fun trustedCertDao(): TrustedCertDao
     abstract fun directoryMetaDao(): DirectoryMetaDao
+    abstract fun cachedMediaDao(): CachedMediaDao
 }

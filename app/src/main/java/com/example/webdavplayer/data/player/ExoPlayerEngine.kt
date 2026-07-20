@@ -1,6 +1,7 @@
 package com.example.webdavplayer.data.player
 
 import android.content.Context
+import androidx.media3.common.MediaItem
 import androidx.media3.common.PlaybackException
 import androidx.media3.common.Player
 import androidx.media3.common.util.UnstableApi
@@ -79,10 +80,15 @@ class ExoPlayerEngine(
 
     override fun prepare(media: PlayableMedia) {
         ensurePlayer()
-        val client = okHttpClient
-            ?: throw IllegalStateException("OkHttpClient 未注入，无法流式播放")
-        val source = streamingSource.createExoMediaSource(client, media)
-        player!!.setMediaSource(source)
+        if (media.uri.startsWith("http", ignoreCase = true)) {
+            val client = okHttpClient
+                ?: throw IllegalStateException("OkHttpClient 未注入，无法流式播放")
+            val source = streamingSource.createExoMediaSource(client, media)
+            player!!.setMediaSource(source)
+        } else {
+            // 本地文件（离线缓存）：直接设置 URI，不走流式数据源。
+            player!!.setMediaItem(MediaItem.fromUri(media.uri))
+        }
         player!!.prepare()
         updateState(PlaybackState.PREPARING)
     }
