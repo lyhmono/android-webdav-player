@@ -2,7 +2,6 @@ package com.example.webdavplayer.data.player
 
 import android.net.Uri
 import androidx.media3.common.C
-import androidx.media3.common.Format
 import androidx.media3.common.MediaItem
 import androidx.media3.common.util.UnstableApi
 import androidx.media3.datasource.okhttp.OkHttpDataSource
@@ -37,13 +36,13 @@ class WebDavStreamingSource @Inject constructor() {
         if (media.subtitles.isEmpty()) return main
 
         val subSources = media.subtitles.map { sub ->
-            val format = Format.Builder()
-                .setSampleMimeType(sub.mimeType)
+            val config = MediaItem.SubtitleConfiguration.Builder(Uri.parse(sub.uri))
+                .setMimeType(sub.mimeType)
                 .setLanguage(sub.language)
                 .setLabel(sub.label)
                 .build()
             SingleSampleMediaSource.Factory(factory)
-                .createMediaSource(Uri.parse(sub.uri), C.TIME_UNSET, format)
+                .createMediaSource(config, C.TIME_UNSET)
         }
         return MergingMediaSource(main, *subSources.toTypedArray())
     }
