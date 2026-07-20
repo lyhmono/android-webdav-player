@@ -8,6 +8,7 @@ import com.example.webdavplayer.domain.model.MediaType
 import com.example.webdavplayer.domain.model.PlaylistItem
 import com.example.webdavplayer.domain.model.RemoteFile
 import com.example.webdavplayer.domain.model.ServerConfig
+import com.example.webdavplayer.domain.model.SubtitleTrack
 import com.example.webdavplayer.domain.repository.CacheRepository
 import com.example.webdavplayer.domain.repository.MediaResolver
 import com.example.webdavplayer.domain.repository.ServerRepository
@@ -84,7 +85,7 @@ class MediaResolverSubtitleDiscoveryTest {
             FakeWebDavClient(emptyMap()),
         )
         val item = PlaylistItem("sX:/a.mp4", "sX", "/a.mp4", "a.mp4", MediaType.VIDEO, 0, 0)
-        assertEquals(emptyList(), repo.discoverSubtitles(item))
+        assertEquals(emptyList<SubtitleTrack>(), repo.discoverSubtitles(item))
     }
 
     @Test
@@ -96,7 +97,7 @@ class MediaResolverSubtitleDiscoveryTest {
             FakeWebDavClient(mapOf("/movies" to dir)),
         )
         val item = PlaylistItem("s1:/movies/foo.mp4", "s1", "/movies/foo.mp4", "foo.mp4", MediaType.VIDEO, 0, 0)
-        assertEquals(emptyList(), repo.discoverSubtitles(item))
+        assertEquals(emptyList<SubtitleTrack>(), repo.discoverSubtitles(item))
     }
 
     private class FakeServerRepository(
@@ -112,7 +113,7 @@ class MediaResolverSubtitleDiscoveryTest {
 
     private class FakeCacheRepository : CacheRepository {
         override suspend fun download(serverId: String, path: String): Result<CachedMedia> =
-            Result.failure(UnsupportedOperationException())
+            Result.error(UnsupportedOperationException())
 
         override suspend fun getLocalFilePath(serverId: String, path: String): String? = null
         override fun observeAll() = emptyFlow<List<CachedMedia>>()
