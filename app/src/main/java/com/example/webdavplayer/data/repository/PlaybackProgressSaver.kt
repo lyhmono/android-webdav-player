@@ -6,6 +6,8 @@ import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.sync.Mutex
+import kotlinx.coroutines.sync.withLock
 import javax.inject.Inject
 import javax.inject.Singleton
 
@@ -18,6 +20,9 @@ import javax.inject.Singleton
  * - 单条媒体“自然结束”调用 [onEnded] 清除断点（非循环场景才应清除）。
  *
  * 设计为 kernel-agnostic：只接收 (serverId, path, positionMs)，不感知具体内核。
+ *
+ * 线程安全：所有写操作（[persist]、[flush]、[onEnded]）通过 [saveMutex] 串行化，
+ * 避免 onProgress 的 fire-and-forget 写入与 flush 的 suspend 写入乱序导致旧数据覆盖新数据。
  */
 @Singleton
 class PlaybackProgressSaver @Inject constructor(
@@ -27,6 +32,9 @@ class PlaybackProgressSaver @Inject constructor(
 
     /** 节流间隔：约 5 秒（C3 AC）。 */
     private val saveIntervalMs = 5_000L
+
+    /** 保护 lastSavedAt 与数据库写入的互斥锁，防止竞态。 */
+    private val saveMutex = Mutex()
 
     @Volatile
     private var lastSavedAt = 0L
@@ -45,30 +53,8 @@ class PlaybackProgressSaver @Inject constructor(
 
     /** 立即落库当前进度（暂停 / onPause 时调用，绕过节流）。 */
     suspend fun flush(serverId: String, path: String, positionMs: Long) {
-        lastSavedAt = System.currentTimeMillis()
-        repository.save(
-            PlaybackProgress(
-                serverId = serverId,
-                path = path,
-                positionMs = positionMs,
-                updatedAt = System.currentTimeMillis(),
-            ),
-        )
-    }
-
-    /**
-     * 单条媒体自然结束：清除断点（C3 AC：正常结束清除续播点）。
-     * 仅当非循环模式才应调用（调用方负责判断）。
-     */
-    fun onEnded(serverId: String, path: String) {
-        scope.launch { repository.clear(serverId, path) }
-    }
-
-    /** 手动清除（如用户点击“清除进度/从头播放”）。 */
-    fun clear(serverId: String, path: String) = onEnded(serverId, path)
-
-    private fun persist(serverId: String, path: String, positionMs: Long) {
-        scope.launch {
+        saveMutex.withLock {
+            lastSavedAt = System.currentTimeMillis()
             repository.save(
                 PlaybackProgress(
                     serverId = serverId,
@@ -77,6 +63,34 @@ class PlaybackProgressSaver @Inject constructor(
                     updatedAt = System.currentTimeMillis(),
                 ),
             )
+        }
+    }
+
+    /**
+     * 单条媒体自然结束：清除断点（C3 AC：正常结束清除续播点）。
+     * 仅当非循环模式才应调用（调用方负责判断）。
+     */
+    fun onEnded(serverId: String, path: String) {
+        scope.launch {
+            saveMutex.withLock { repository.clear(serverId, path) }
+        }
+    }
+
+    /** 手动清除（如用户点击“清除进度/从头播放”）。 */
+    fun clear(serverId: String, path: String) = onEnded(serverId, path)
+
+    private fun persist(serverId: String, path: String, positionMs: Long) {
+        scope.launch {
+            saveMutex.withLock {
+                repository.save(
+                    PlaybackProgress(
+                        serverId = serverId,
+                        path = path,
+                        positionMs = positionMs,
+                        updatedAt = System.currentTimeMillis(),
+                    ),
+                )
+            }
         }
     }
 }
