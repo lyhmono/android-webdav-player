@@ -100,6 +100,16 @@ class PlaylistRepositoryImplTest {
     }
 
     @Test
+    fun addItems_appendDoesNotDuplicateExistingId() = runBlocking {
+        repo.addItems(listOf(item("a1"), item("a2")), replace = false)
+        // 再次追加：含已存在项 a1 与新增 a3（如重复长按同目录识别视频）。
+        repo.addItems(listOf(item("a1"), item("a3")), replace = false)
+        val list = repo.observeItems().first { it.size == 3 }
+        assertEquals("不应产生重复 id 的条目", 3, list.size)
+        assertEquals(setOf("a1", "a2", "a3"), list.map { it.id }.toSet())
+    }
+
+    @Test
     fun removeItem_doubleWrites() = runBlocking {
         repo.addItems(listOf(item("a1"), item("a2")), replace = false)
         repo.removeItem("a1")

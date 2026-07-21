@@ -56,7 +56,11 @@ class PlaylistRepositoryImpl @Inject constructor(
         }
 
     override suspend fun addItems(items: List<PlaylistItem>, replace: Boolean) {
-        val next = if (replace) items else cache.value + items
+        // 去重（按 id）：追加时若同一文件已在列表（如重复长按同目录识别视频），
+        // 避免产生重复条目——否则内存出现重复而 Room 因 REPLACE 仅存一条，
+        // 造成“会话内显示重复、进程被杀重载后消失”的不一致（§一致性）。
+        val merged = if (replace) items else cache.value + items
+        val next = merged.distinctBy { it.id }
         cache.value = next
         dao.upsertAll(next.map { it.toEntity() }) // 双写 Room（全量，过滤在读取时按 serverId）
     }
