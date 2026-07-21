@@ -42,6 +42,13 @@ interface BrowseRepository {
     /** 取目录最后一次成功刷新的时间戳（毫秒）；从未刷新过返回 null。 */
     suspend fun getLastRefreshedAt(serverId: String, path: String): Long?
 
+    /**
+     * 使某目录的本地缓存失效（清除刷新时间戳）。
+     * 变更类操作（重命名/移动/删除/上传）成功后调用，使下次进入/观察该目录即触发重新拉取，
+     * 避免 Room 缓存残留已删除/改名条目直到 TTL 过期（§一致性）。
+     */
+    suspend fun invalidateDirectory(serverId: String, path: String)
+
     /** 同步列举目录全部条目（用于“长按目录识别视频”等需要完整列表的场景）。 */
     suspend fun listDirectory(serverId: String, path: String): List<RemoteFile>
 

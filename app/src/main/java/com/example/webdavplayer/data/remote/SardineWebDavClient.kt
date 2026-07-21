@@ -35,6 +35,8 @@ class SardineWebDavClient @Inject constructor(
 
     @Volatile private var client: OkHttpClient? = null
     @Volatile private var activeConfig: ServerConfig? = null
+    /** 当前连接已采纳的信任指纹集合（用于 connect 幂等判定）。 */
+    @Volatile private var activeFingerprints: Set<String>? = null
 
     private fun requireClient(): OkHttpClient =
         client ?: throw IllegalStateException("尚未连接：请先调用 connect(config)")
@@ -44,6 +46,12 @@ class SardineWebDavClient @Inject constructor(
 
     override suspend fun connect(config: ServerConfig) = withContext(Dispatchers.IO) {
         val fingerprints = trustedCertRepository.getFingerprints(config.id).toSet()
+        // 幂等（§性能优化）：同一服务器（配置相等）且信任指纹集合未变时，复用既有 OkHttpClient，
+        // 跳过 SSL 上下文重建与“握手探测”PROPFIND，避免每次操作都多打一次网络往返。
+        // 配置变化（改名/baseUrl/凭据/自签开关）或信任指纹变化（用户新信任证书）则重建。
+        if (client != null && activeConfig == config && activeFingerprints == fingerprints) {
+            return@withContext
+        }
         val trustManager = SelfSignedTrustManager(
             delegate = SelfSignedTrustManager.systemDefault(),
             trustedFingerprints = fingerprints,
@@ -87,6 +95,7 @@ class SardineWebDavClient @Inject constructor(
 
         client = built
         activeConfig = config
+        activeFingerprints = fingerprints
     }
 
     override suspend fun listDirectory(path: String, depth: Int): List<RemoteFile> =

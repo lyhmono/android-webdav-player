@@ -206,4 +206,26 @@ class BrowseRepositoryStaleRefreshTest {
         assertTrue("刷新时间戳应接近现在", System.currentTimeMillis() - (m!!.lastRefreshedAt) < 5000)
         assertEquals(2, files.countDirectory("s1", "/"))
     }
+
+    @Test
+    fun invalidateDirectory_makesCacheStale_andRefreshIfStaleRefetches() = runBlocking {
+        val client = FakeWebDavClient().apply { listDirectoryResult = listOf(sampleFile("a.mp4")) }
+        val files = FakeRemoteFileDao().apply { setCount("s1", "/", 3) }
+        val meta = FakeDirectoryMetaDao().apply {
+            upsert(DirectoryMetaEntity("s1::/", "s1", "/", System.currentTimeMillis()))
+        }
+        val repo = BrowseRepositoryImpl(client, files, meta, FakeServerRepository())
+
+        // 变更前：缓存新鲜，不应触发网络。
+        repo.refreshIfStale("s1", "/")
+        assertEquals(0, client.listDirectoryCallCount)
+
+        // 模拟删除/改名后使缓存失效：应判定为不新鲜。
+        repo.invalidateDirectory("s1", "/")
+        assertTrue("失效后不应再新鲜", !repo.isCacheFresh("s1", "/"))
+
+        // 下次进入应触发重新拉取。
+        repo.refreshIfStale("s1", "/")
+        assertEquals("失效后 refreshIfStale 应重新打 PROPFIND", 1, client.listDirectoryCallCount)
+    }
 }

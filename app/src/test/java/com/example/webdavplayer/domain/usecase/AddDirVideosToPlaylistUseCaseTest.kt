@@ -46,6 +46,7 @@ class AddDirVideosToPlaylistUseCaseTest {
         override suspend fun refreshIfStale(serverId: String, path: String, maxAgeMs: Long) = Unit
         override suspend fun isCacheFresh(serverId: String, path: String, maxAgeMs: Long): Boolean = false
         override suspend fun getLastRefreshedAt(serverId: String, path: String): Long? = null
+        override suspend fun invalidateDirectory(serverId: String, path: String) = Unit
         override suspend fun listDirectory(serverId: String, path: String): List<RemoteFile> = files
         override suspend fun rename(serverId: String, fromPath: String, toName: String) = Unit
         override suspend fun move(serverId: String, fromPath: String, toPath: String) = Unit
@@ -59,6 +60,7 @@ class AddDirVideosToPlaylistUseCaseTest {
         override suspend fun refreshIfStale(serverId: String, path: String, maxAgeMs: Long) = Unit
         override suspend fun isCacheFresh(serverId: String, path: String, maxAgeMs: Long): Boolean = false
         override suspend fun getLastRefreshedAt(serverId: String, path: String): Long? = null
+        override suspend fun invalidateDirectory(serverId: String, path: String) = Unit
         override suspend fun listDirectory(serverId: String, path: String): List<RemoteFile> = throw error
         override suspend fun rename(serverId: String, fromPath: String, toName: String) = Unit
         override suspend fun move(serverId: String, fromPath: String, toPath: String) = Unit

@@ -18,6 +18,7 @@ import kotlinx.coroutines.withContext
 import okio.buffer
 import okio.sink
 import java.io.File
+import java.security.MessageDigest
 import javax.inject.Inject
 import javax.inject.Singleton
 
@@ -81,7 +82,16 @@ class CacheRepositoryImpl @Inject constructor(
         cacheFile(entity.serverId, entity.path).delete()
     }
 
-    /** 本地缓存文件路径：`cacheDir/cache/$serverId/${path.hashCode()}.bin`。 */
+    /** 本地缓存文件路径：`cacheDir/cache/$serverId/${sha256Hex(path)}.bin`。 */
     private fun cacheFile(serverId: String, path: String): File =
-        File(context.cacheDir, "cache/$serverId/${path.hashCode()}.bin")
+        File(context.cacheDir, "cache/$serverId/${sha256Hex(path)}.bin")
+}
+
+/**
+ * 缓存文件名键：对规范化路径取 SHA-256 十六进制串。
+ * 相比 [String.hashCode] 可避免不同路径哈希碰撞导致的缓存互相覆盖/误命中（§正确性）。
+ */
+internal fun sha256Hex(input: String): String {
+    val digest = MessageDigest.getInstance("SHA-256").digest(input.toByteArray(Charsets.UTF_8))
+    return digest.joinToString("") { "%02x".format(it) }
 }

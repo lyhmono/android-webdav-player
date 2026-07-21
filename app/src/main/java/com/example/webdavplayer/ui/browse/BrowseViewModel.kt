@@ -86,6 +86,24 @@ class BrowseViewModel @Inject constructor(
         }
     }
 
+    /**
+     * 强制刷新当前目录（忽略 TTL）。
+     * 重命名/移动/删除/上传等变更操作成功后调用，使 Room 缓存立即与服务器对齐、
+     * Paging3 自动失效并展示最新列表（§一致性修复：避免变更后当前目录残留陈旧条目）。
+     */
+    private fun forceRefreshCurrentDir() {
+        viewModelScope.launch {
+            _isLoading.value = true
+            _error.value = null
+            when (val r = browseUseCase.refresh(serverId, _path.value)) {
+                is Result.Success -> { /* 缓存已更新 */ }
+                is Result.Error -> _error.value = r.throwable.message ?: "刷新失败"
+            }
+            _lastRefreshedAt.value = browseUseCase.lastRefreshedAt(serverId, _path.value)
+            _isLoading.value = false
+        }
+    }
+
     /** 计算某文件相对服务器的完整路径（供播放/操作使用）。 */
     fun fullPath(name: String): String {
         val p = _path.value
@@ -105,7 +123,10 @@ class BrowseViewModel @Inject constructor(
     fun upload(parentPath: String, fileName: String, source: Source, size: Long?) {
         viewModelScope.launch {
             when (val r = uploadUseCase(serverId, parentPath, fileName, source, size)) {
-                is Result.Success -> _message.value = "上传成功"
+                is Result.Success -> {
+                    _message.value = "上传成功"
+                    forceRefreshCurrentDir()
+                }
                 is Result.Error -> _error.value = r.throwable.message ?: "上传失败"
             }
         }
@@ -114,7 +135,10 @@ class BrowseViewModel @Inject constructor(
     fun rename(fromPath: String, toName: String) {
         viewModelScope.launch {
             when (val r = fileOps.rename(serverId, fromPath, toName)) {
-                is Result.Success -> _message.value = "重命名成功"
+                is Result.Success -> {
+                    _message.value = "重命名成功"
+                    forceRefreshCurrentDir()
+                }
                 is Result.Error -> _error.value = r.throwable.message ?: "重命名失败"
             }
         }
@@ -123,7 +147,10 @@ class BrowseViewModel @Inject constructor(
     fun move(fromPath: String, toPath: String) {
         viewModelScope.launch {
             when (val r = fileOps.move(serverId, fromPath, toPath)) {
-                is Result.Success -> _message.value = "移动成功"
+                is Result.Success -> {
+                    _message.value = "移动成功"
+                    forceRefreshCurrentDir()
+                }
                 is Result.Error -> _error.value = r.throwable.message ?: "移动失败"
             }
         }
@@ -132,7 +159,10 @@ class BrowseViewModel @Inject constructor(
     fun delete(path: String) {
         viewModelScope.launch {
             when (val r = fileOps.delete(serverId, path)) {
-                is Result.Success -> _message.value = "已删除"
+                is Result.Success -> {
+                    _message.value = "已删除"
+                    forceRefreshCurrentDir()
+                }
                 is Result.Error -> _error.value = r.throwable.message ?: "删除失败"
             }
         }

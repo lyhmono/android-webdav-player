@@ -86,6 +86,11 @@ class BrowseRepositoryImpl @Inject constructor(
             directoryMetaDao.get(serverId, WebDavPath.normalize(path))?.lastRefreshedAt
         }
 
+    override suspend fun invalidateDirectory(serverId: String, path: String) =
+        withContext(Dispatchers.IO) {
+            directoryMetaDao.clearDirectory(serverId, WebDavPath.normalize(path))
+        }
+
     /** 目录元数据复合主键：`"$serverId::$parentPath"`。 */
     private fun metaId(serverId: String, parentPath: String): String = "$serverId::$parentPath"
 
@@ -102,6 +107,8 @@ class BrowseRepositoryImpl @Inject constructor(
                 ?: throw IllegalStateException("server not found: $serverId")
             webDavClient.connect(cfg)
             webDavClient.rename(WebDavPath.normalize(fromPath), toName)
+            // 一致性：改名发生在同一父目录，使其缓存失效以便下次刷新反映新名称。
+            invalidateDirectory(serverId, WebDavPath.parentOf(fromPath))
         }
 
     override suspend fun move(serverId: String, fromPath: String, toPath: String) =
@@ -110,6 +117,9 @@ class BrowseRepositoryImpl @Inject constructor(
                 ?: throw IllegalStateException("server not found: $serverId")
             webDavClient.connect(cfg)
             webDavClient.move(WebDavPath.normalize(fromPath), WebDavPath.normalize(toPath))
+            // 一致性：源目录（文件移出）与目标目录（文件移入）均需失效。
+            invalidateDirectory(serverId, WebDavPath.parentOf(fromPath))
+            invalidateDirectory(serverId, WebDavPath.parentOf(toPath))
         }
 
     override suspend fun delete(serverId: String, path: String) = withContext(Dispatchers.IO) {
@@ -117,6 +127,8 @@ class BrowseRepositoryImpl @Inject constructor(
             ?: throw IllegalStateException("server not found: $serverId")
         webDavClient.connect(cfg)
         webDavClient.delete(WebDavPath.normalize(path))
+        // 一致性：被删条目的父目录需失效。
+        invalidateDirectory(serverId, WebDavPath.parentOf(path))
     }
 
     override suspend fun upload(
@@ -129,5 +141,7 @@ class BrowseRepositoryImpl @Inject constructor(
             ?: throw IllegalStateException("server not found: $serverId")
         webDavClient.connect(cfg)
         webDavClient.upload(WebDavPath.normalize(path), source, size)
+        // 一致性：上传落地的父目录需失效。
+        invalidateDirectory(serverId, WebDavPath.parentOf(path))
     }
 }
