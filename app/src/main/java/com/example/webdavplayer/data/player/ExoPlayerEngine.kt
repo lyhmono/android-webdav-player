@@ -144,6 +144,16 @@ class ExoPlayerEngine(
         p.setTrackSelectionParameters(params.build())
     }
 
+    override fun enableSubtitles() {
+        val p = player ?: return
+        // 不指定语言：仅解除文本轨禁用，由播放器自动选第一条可用文本轨。
+        p.setTrackSelectionParameters(
+            p.trackSelectionParameters.buildUpon()
+                .setTrackTypeDisabled(C.TRACK_TYPE_TEXT, false)
+                .build(),
+        )
+    }
+
     override fun setListener(listener: EngineListener?) {
         this.listener = listener
     }

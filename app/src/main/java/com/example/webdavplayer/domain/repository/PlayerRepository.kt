@@ -41,6 +41,12 @@ interface PlayerRepository {
      */
     fun selectSubtitle(language: String?) { /* no-op by default */ }
 
+    /**
+     * 启用字幕（不指定语言，由播放器自动选第一条可用文本轨）。
+     * 默认空实现，见 [com.example.webdavplayer.domain.player.PlayerEngine.enableSubtitles] 说明。
+     */
+    fun enableSubtitles() { /* no-op by default */ }
+
     fun getState(): PlaybackState
     fun release()
 }

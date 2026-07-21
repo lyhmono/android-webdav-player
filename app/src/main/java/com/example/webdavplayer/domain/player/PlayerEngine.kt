@@ -40,6 +40,13 @@ interface PlayerEngine {
      */
     fun selectSubtitle(language: String?) { /* no-op by default */ }
 
+    /**
+     * 启用字幕（不指定语言，由播放器自动选第一条可用文本轨）。
+     * 用于无语言后缀的字幕（如 `foo.srt`）：其 language 为 null，无法用 [selectSubtitle] 按语言选，
+     * 故用本方法直接开启文本轨。默认空实现，保证未覆写的内核（如 libVLC）编译通过。
+     */
+    fun enableSubtitles() { /* no-op by default */ }
+
     /** 当前状态快照。 */
     fun getState(): PlaybackState
 

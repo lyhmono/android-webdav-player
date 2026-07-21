@@ -23,7 +23,12 @@ class PlayMediaUseCase @Inject constructor(
     suspend operator fun invoke(item: PlaylistItem): Result<PlayableMedia> = Result.runCatching {
         val base = mediaResolver.resolve(item)
         // 字幕发现失败（离线 / 无权限）时静默退化为无字幕，不影响主媒体播放。
-        val subtitles = runCatching { mediaResolver.discoverSubtitles(item) }.getOrDefault(emptyList())
+        // 本地缓存文件（file://）无同级服务器字幕可发现，直接跳过网络列举，避免离线回放仍打 PROPFIND。
+        val subtitles = if (base.uri.startsWith("file", ignoreCase = true)) {
+            emptyList()
+        } else {
+            runCatching { mediaResolver.discoverSubtitles(item) }.getOrDefault(emptyList())
+        }
         val media = base.copy(subtitles = subtitles)
         playlistController.setCurrent(item)
         playerRepository.prepare(media)

@@ -207,6 +207,23 @@ class PlayerViewModel @Inject constructor(
         }
     }
 
+    /**
+     * 启用字幕（不指定语言）。用于无语言后缀的字幕（language 为 null）：
+     * 仅解除文本轨禁用，由播放器自动选第一条可用文本轨。优先经 MediaController。
+     */
+    fun enableSubtitles() {
+        val controller = mediaController
+        if (controller != null) {
+            controller.setTrackSelectionParameters(
+                controller.trackSelectionParameters.buildUpon()
+                    .setTrackTypeDisabled(C.TRACK_TYPE_TEXT, false)
+                    .build(),
+            )
+        } else {
+            playerRepository.enableSubtitles()
+        }
+    }
+
     fun next() {
         val controller = mediaController
         if (controller != null) {

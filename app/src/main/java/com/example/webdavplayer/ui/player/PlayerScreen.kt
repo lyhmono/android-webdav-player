@@ -307,7 +307,13 @@ fun PlayerScreen(
                                     sub.language?.let { append(" · $it") }
                                 },
                                 onClick = {
-                                    playerVm.selectSubtitle(sub.language)
+                                    // 无语言后缀的字幕（language 为 null）无法按语言选，
+                                    // 用 enableSubtitles 直接开启文本轨；否则按语言选。
+                                    if (sub.language != null) {
+                                        playerVm.selectSubtitle(sub.language)
+                                    } else {
+                                        playerVm.enableSubtitles()
+                                    }
                                     showSubtitleDialog = false
                                 },
                             )

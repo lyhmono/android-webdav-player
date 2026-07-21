@@ -96,6 +96,10 @@ class PlayerRepositoryImpl @Inject constructor(
         engine?.selectSubtitle(language)
     }
 
+    override fun enableSubtitles() {
+        engine?.enableSubtitles()
+    }
+
     override fun setListener(listener: EngineListener?) {
         this.listener = listener
         engine?.setListener(listener)
