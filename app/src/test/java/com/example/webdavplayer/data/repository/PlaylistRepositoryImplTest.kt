@@ -110,6 +110,30 @@ class PlaylistRepositoryImplTest {
     }
 
     @Test
+    fun addItems_replaceScopedToTargetServer_doesNotWipeOtherServers() = runBlocking {
+        fakeSettings.setCurrentServerId("srvA")
+        // 初始两个服务器各一条
+        repo.addItems(listOf(item("a1", "srvA"), item("b1", "srvB")), replace = false)
+        // replace=true：仅替换 srvA 列表，不得误清 srvB 内存态/持久化。
+        repo.addItems(listOf(item("a9", "srvA")), replace = true)
+        // srvA 被替换：新项 a9 在、旧项 a1 不在
+        assertTrue(fakeDao.items.any { it.id == "a9" })
+        assertFalse("被替换服务器的旧条目应从 Room 移除", fakeDao.items.any { it.id == "a1" })
+        // 其它服务器 srvB 既未被内存擦除也未被 Room 删除
+        assertTrue("其它服务器条目不应被误清", fakeDao.items.any { it.id == "b1" })
+    }
+
+    @Test
+    fun addItems_replaceEmptyClearsTargetServerOnly() = runBlocking {
+        fakeSettings.setCurrentServerId("srvA")
+        repo.addItems(listOf(item("a1", "srvA"), item("b1", "srvB")), replace = false)
+        // replace=true 且传入空列表：清空当前服务器 srvA，保留 srvB。
+        repo.addItems(emptyList(), replace = true)
+        assertFalse(fakeDao.items.any { it.serverId == "srvA" })
+        assertTrue(fakeDao.items.any { it.id == "b1" })
+    }
+
+    @Test
     fun removeItem_doubleWrites() = runBlocking {
         repo.addItems(listOf(item("a1"), item("a2")), replace = false)
         repo.removeItem("a1")
@@ -138,6 +162,9 @@ class PlaylistRepositoryImplTest {
         }
         override suspend fun deleteById(id: String) {
             items.removeAll { it.id == id }
+        }
+        override suspend fun deleteByServerId(serverId: String) {
+            items.removeAll { it.serverId == serverId }
         }
         override suspend fun clear() {
             items.clear()

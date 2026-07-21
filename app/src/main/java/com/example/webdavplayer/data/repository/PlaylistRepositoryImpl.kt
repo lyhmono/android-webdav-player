@@ -59,7 +59,23 @@ class PlaylistRepositoryImpl @Inject constructor(
         // 去重（按 id）：追加时若同一文件已在列表（如重复长按同目录识别视频），
         // 避免产生重复条目——否则内存出现重复而 Room 因 REPLACE 仅存一条，
         // 造成“会话内显示重复、进程被杀重载后消失”的不一致（§一致性）。
-        val merged = if (replace) items else cache.value + items
+        val merged = if (replace) {
+            // replace=true：仅替换“目标服务器”的列表（与 observeItems 按 serverId 过滤一致），
+            // 避免误清其它服务器的播放列表（原实现用 items 整体替换 cache，会擦除其它服务器内存态）。
+            val targetSid = items.firstOrNull()?.serverId ?: settingsRepository.getCurrentServerId()
+            val kept = if (targetSid != null) {
+                cache.value.filterNot { it.serverId == targetSid }
+            } else {
+                cache.value
+            }
+            if (targetSid != null) {
+                // Room：REPLACE 不会删除未被覆盖的旧行，故先按服务器清旧行再写新行，保证持久化一致。
+                dao.deleteByServerId(targetSid)
+            }
+            kept + items
+        } else {
+            cache.value + items
+        }
         val next = merged.distinctBy { it.id }
         cache.value = next
         dao.upsertAll(next.map { it.toEntity() }) // 双写 Room（全量，过滤在读取时按 serverId）
