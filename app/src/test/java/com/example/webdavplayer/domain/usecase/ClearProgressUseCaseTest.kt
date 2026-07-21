@@ -20,6 +20,7 @@ class ClearProgressUseCaseTest {
         override suspend fun clear(s: String, p: String) {
             lastCleared = Pair(s, p)
         }
+        override suspend fun clearServer(serverId: String) {}
         override suspend fun clearAll() {}
     }
 

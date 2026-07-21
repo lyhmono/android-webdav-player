@@ -91,6 +91,13 @@ class PlaylistRepositoryImpl @Inject constructor(
         dao.clear()
     }
 
+    override suspend fun clearServer(serverId: String) {
+        // 内存态持有全服务器列表（读取时按 serverId 过滤），故需按 serverId 剔除对应行；
+        // 同时清理 Room 持久化行，避免删除服务器后残留孤儿数据（H）。
+        cache.value = cache.value.filterNot { it.serverId == serverId }
+        dao.deleteByServerId(serverId)
+    }
+
     override fun observeMode(): Flow<PlayMode> = modeCache.asStateFlow()
 
     override suspend fun setMode(mode: PlayMode) {

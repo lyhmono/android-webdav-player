@@ -79,6 +79,7 @@ class AddDirVideosToPlaylistUseCaseTest {
         }
         override suspend fun removeItem(id: String) = Unit
         override suspend fun clear() = Unit
+        override suspend fun clearServer(serverId: String) = Unit
         override suspend fun reorder(fromIndex: Int, toIndex: Int) = Unit
         override fun observeMode(): Flow<PlayMode> = emptyFlow()
         override suspend fun setMode(mode: PlayMode) = Unit

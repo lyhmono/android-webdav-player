@@ -16,6 +16,9 @@ interface PlaybackProgressRepository {
     /** 清除某一媒体的断点（正常播放结束后调用）。 */
     suspend fun clear(serverId: String, path: String)
 
+    /** 清除某一服务器的全部断点（删除服务器时清理孤儿行）。 */
+    suspend fun clearServer(serverId: String)
+
     /** 清空全部断点。 */
     suspend fun clearAll()
 }

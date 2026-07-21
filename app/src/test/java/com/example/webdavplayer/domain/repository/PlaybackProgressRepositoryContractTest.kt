@@ -26,6 +26,9 @@ class PlaybackProgressRepositoryContractTest {
         override suspend fun clear(s: String, p: String) {
             store.remove(Pair(s, p))
         }
+        override suspend fun clearServer(serverId: String) {
+            store.keys.removeAll { it.first == serverId }
+        }
         override suspend fun clearAll() {
             store.clear()
         }
@@ -75,5 +78,17 @@ class PlaybackProgressRepositoryContractTest {
         repo.clearAll()
         assertNull(repo.get("s1", "/a.mp4"))
         assertNull(repo.get("s2", "/b.mp4"))
+    }
+
+    @Test
+    fun clearServer_removesOnlyThatServer() = runBlocking {
+        val repo = FakeRepo()
+        repo.save(PlaybackProgress("s1", "/a.mp4", 100L))
+        repo.save(PlaybackProgress("s1", "/b.mp4", 150L))
+        repo.save(PlaybackProgress("s2", "/a.mp4", 300L)) // 不同服务器，应保留
+        repo.clearServer("s1")
+        assertNull(repo.get("s1", "/a.mp4"))
+        assertNull(repo.get("s1", "/b.mp4"))
+        assertEquals(300L, repo.get("s2", "/a.mp4")?.positionMs)
     }
 }

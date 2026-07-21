@@ -32,6 +32,9 @@ class PlaybackProgressSaverTest {
         override suspend fun clearAll() {
             store.clear()
         }
+        override suspend fun clearServer(serverId: String) {
+            store.keys.removeAll { it.first == serverId }
+        }
     }
 
     @Test
