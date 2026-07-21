@@ -63,6 +63,7 @@ class PlayMediaUseCaseTest {
         override suspend fun save(progress: PlaybackProgress) {}
         override suspend fun get(serverId: String, path: String): PlaybackProgress? = saved
         override suspend fun clear(serverId: String, path: String) {}
+        override suspend fun clearServer(serverId: String) {}
         override suspend fun clearAll() {}
     }
 
