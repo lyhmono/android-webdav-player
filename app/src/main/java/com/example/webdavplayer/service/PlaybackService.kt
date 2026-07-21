@@ -78,8 +78,11 @@ class PlaybackService : MediaSessionService() {
     private val engineListener = object : EngineListener {
         override fun onStateChange(state: PlaybackState) {
             adapter.onEngineState(state)
-            // 暂停或结束时立即落库当前进度，避免丢失最近 5s 的播放位置。
-            if (state == PlaybackState.PAUSED || state == PlaybackState.ENDED || state == PlaybackState.ERROR) {
+            // 暂停/出错时立即落库当前进度，避免丢失最近 5s 的播放位置。
+            // 注意：ENDED 不在此落库——自然结束时由 onEnded 负责（非 LOOP 清除、LOOP 留待
+            // onProgress 节流续写实际位置），否则会持久化“末尾位置”，导致 LOOP 续播 seek 到
+            // 末尾而立即再结束的死循环（§一致性）。
+            if (state == PlaybackState.PAUSED || state == PlaybackState.ERROR) {
                 playlistController.current()?.let { item ->
                     serviceScope.launch {
                         progressSaver.flush(item.serverId, item.path, adapter.currentPositionMs)
