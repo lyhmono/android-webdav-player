@@ -96,9 +96,16 @@ class SardineWebDavClient @Inject constructor(
             val url = WebDavPath.join(cfg.baseUrl, path)
             val resources = retryIO { sardine.list(url, depth) }
             val parent = WebDavPath.normalize(path)
+            // baseUrl 中的路径前缀（如 http://host:port/dav 的 /dav），
+            // 用于从资源 href 中剥离，避免将 baseUrl 子路径误当目录名。
+            val baseHttpUrl = try {
+                okhttp3.HttpUrl.parse(cfg.baseUrl)
+            } catch (_: Exception) {
+                null
+            }
             resources.asSequence()
                 .drop(1) // 首个元素是目录自身
-                .map { mapResource(it, cfg.id, parent) }
+                .map { mapResource(it, cfg.id, parent, baseHttpUrl) }
                 .toList()
         }
 
@@ -149,9 +156,34 @@ class SardineWebDavClient @Inject constructor(
 
     override fun getOkHttpClient(): OkHttpClient = requireClient()
 
-    private fun mapResource(res: DavResource, serverId: String, parentPath: String): RemoteFile {
-        val href = res.href?.toString() ?: ""
-        val name = href.substringAfterLast('/').ifEmpty { href }
+    /**
+     * 将 Sardine DavResource 映射为 [RemoteFile]。
+     *
+     * 关键：从 href 中提取「相对于 baseUrl 路径前缀」的纯名称。
+     * 例如 baseUrl = http://host:5244/dav，资源 href = /dav/天翼云 →
+     *   pathSegment = 天翼云（而非 dav/天翼云），
+     * 避免将 baseUrl 子路径误当成一级目录。
+     */
+    private fun mapResource(
+        res: DavResource,
+        serverId: String,
+        parentPath: String,
+        baseHttpUrl: okhttp3.HttpUrl?,
+    ): RemoteFile {
+        val rawHref = res.href?.toString() ?: ""
+
+        // 从 href 中去掉 baseUrl 的路径前缀（如 /dav），得到相对路径
+        val basePath = baseHttpUrl?.encodedPath?.trimEnd('/') ?: ""
+        val relHref = if (basePath.isNotEmpty() && rawHref.startsWith(basePath + "/")) {
+            rawHref.substring(basePath.length) // 保留前导 /
+        } else if (basePath.isNotEmpty() && rawHref == basePath) {
+            "/"
+        } else {
+            rawHref
+        }
+
+        // 取末段作为名称（URL 解码后的原始名称）
+        val name = relHref.trimEnd('/').substringAfterLast('/').ifEmpty { relHref }
         val contentType = res.contentType ?: ""
         return RemoteFile(
             id = "$serverId:$parentPath/$name",
