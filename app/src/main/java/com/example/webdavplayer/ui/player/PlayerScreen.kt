@@ -90,6 +90,7 @@ fun PlayerScreen(
     val isOnline by playerVm.isOnline.collectAsStateWithLifecycle()
     val resumedPosition by playerVm.resumedPosition.collectAsStateWithLifecycle()
     val currentItemId by playerVm.currentItemId.collectAsStateWithLifecycle()
+    val exoPlayer by playerVm.exoPlayer.collectAsStateWithLifecycle()
 
     val isVlcAvailable = BuildConfig.FLAVOR == "full"
     val isPlaying = state == PlaybackState.PLAYING
@@ -171,17 +172,21 @@ fun PlayerScreen(
                 verticalArrangement = Arrangement.spacedBy(Spacing.md),
             ) {
                 // 视频画面渲染层：视频类型时显示 PlayerView，音频时不显示
-                val exoPlayer = playerVm.exoPlayer
-                if (isVideo && exoPlayer != null) {
+                if (isVideo) {
                     AndroidView(
                         factory = { ctx ->
                             PlayerView(ctx).apply {
-                                player = exoPlayer
                                 useController = true
                                 layoutParams = android.widget.FrameLayout.LayoutParams(
                                     android.widget.FrameLayout.LayoutParams.MATCH_PARENT,
                                     android.widget.FrameLayout.LayoutParams.WRAP_CONTENT,
                                 )
+                            }
+                        },
+                        update = { view ->
+                            // 每次 recomposition 都确保 player 绑定到最新实例
+                            if (view.player !== exoPlayer) {
+                                view.player = exoPlayer
                             }
                         },
                         modifier = Modifier

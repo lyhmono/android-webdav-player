@@ -80,7 +80,8 @@ class PlayerViewModel @Inject constructor(
     val currentMediaType: StateFlow<MediaType> = _currentMediaType.asStateFlow()
 
     /** 底层 ExoPlayer 实例（供 UI 绑定 Surface 渲染视频画面）。 */
-    val exoPlayer: ExoPlayer? get() = playerRepository.getExoPlayer()
+    private val _exoPlayer = MutableStateFlow<ExoPlayer?>(null)
+    val exoPlayer: StateFlow<ExoPlayer?> = _exoPlayer.asStateFlow()
 
     val items: StateFlow<List<PlaylistItem>> = playlistRepository.observeItems()
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
@@ -176,6 +177,7 @@ class PlayerViewModel @Inject constructor(
             when (val r = playMedia(item)) {
                 is Result.Success -> {
                     _resumedPosition.value = r.data
+                    _exoPlayer.value = playerRepository.getExoPlayer()
                     /* 状态由 MediaController 监听驱动 */
                 }
                 is Result.Error -> _state.value = PlaybackState.ERROR
