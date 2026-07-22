@@ -159,8 +159,9 @@ class PlaybackService : MediaSessionService() {
 
     override fun onTaskRemoved(rootIntent: Intent?) {
         super.onTaskRemoved(rootIntent)
-        // 后台播放：仍在播放则保留服务；已暂停/结束则释放。
+        // 后台播放：仍在播放则保留服务；已暂停/结束则先暂停引擎再停止服务。
         if (playerRepository.getState() != PlaybackState.PLAYING) {
+            playerRepository.pause()
             stopSelf()
         }
     }

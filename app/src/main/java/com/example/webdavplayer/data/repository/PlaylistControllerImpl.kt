@@ -46,14 +46,18 @@ class PlaylistControllerImpl @Inject constructor() : PlaylistController {
 
     override fun next(): PlaylistItem? {
         if (items.isEmpty()) return null
-        currentIndex = computeNext()
-        return items.getOrNull(currentIndex)
+        val nextIndex = computeNext()
+        if (nextIndex < 0) return null
+        currentIndex = nextIndex
+        return items[currentIndex]
     }
 
     override fun previous(): PlaylistItem? {
         if (items.isEmpty()) return null
-        currentIndex = computePrev()
-        return items.getOrNull(currentIndex)
+        val prevIndex = computePrev()
+        if (prevIndex < 0) return null
+        currentIndex = prevIndex
+        return items[currentIndex]
     }
 
     override fun onItemEnded(): PlaylistItem? = next()
