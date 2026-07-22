@@ -1,9 +1,10 @@
 package com.example.webdavplayer.data.player
 
 import android.content.Context
+import android.graphics.SurfaceTexture
 import android.net.Uri
-import android.view.SurfaceHolder
-import android.view.SurfaceView
+import android.view.Surface
+import android.view.TextureView
 import com.example.webdavplayer.domain.model.EngineListener
 import com.example.webdavplayer.domain.model.PlayableMedia
 import com.example.webdavplayer.domain.model.PlaybackState
@@ -26,8 +27,7 @@ import javax.inject.Inject
  * 仅编译于 `full` 风味（见 src/full）；[PlayerEngineFactory] 通过反射加载，
  * 因此 `lite` 风味（仅 Media3）可正常编译。
  *
- * 流式：使用传入 URI + 鉴权头；自签证书走 `:no-tls-check` 跳过校验
- * （由 [PlayableMedia.trustSelfSigned] 控制）。
+ * 使用 TextureView 渲染视频（不需要 Activity context，ApplicationContext 即可）。
  */
 class VlcEngine @Inject constructor(
     private val context: Context,
@@ -43,44 +43,44 @@ class VlcEngine @Inject constructor(
     private val scope = CoroutineScope(Dispatchers.Main + SupervisorJob())
     private var progressJob: Job? = null
 
-    /** Surface 是否已经 created（由 callback 置位）。 */
-    private var surfaceReady = false
-
-    /** VLC 视频渲染用的 SurfaceView，由 UI 层挂载到布局中。 */
-    val surfaceView: SurfaceView by lazy {
-        SurfaceView(context).apply {
-            holder.addCallback(object : SurfaceHolder.Callback {
-                override fun surfaceCreated(holder: SurfaceHolder) {
-                    surfaceReady = true
-                    attachVlcVout()
+    /** TextureView 供 UI 挂载到布局中。 */
+    val textureView: TextureView by lazy {
+        TextureView(context).apply {
+            surfaceTextureListener = object : TextureView.SurfaceTextureListener {
+                override fun onSurfaceTextureAvailable(
+                    surface: SurfaceTexture,
+                    width: Int,
+                    height: Int,
+                ) {
+                    attachVlcVout(Surface(surface))
                 }
 
-                override fun surfaceChanged(
-                    holder: SurfaceHolder,
-                    format: Int,
+                override fun onSurfaceTextureSizeChanged(
+                    surface: SurfaceTexture,
                     width: Int,
                     height: Int,
                 ) {
                     mediaPlayer?.vlcVout?.setWindowSize(width, height)
                 }
 
-                override fun surfaceDestroyed(holder: SurfaceHolder) {
-                    surfaceReady = false
+                override fun onSurfaceTextureDestroyed(surface: SurfaceTexture): Boolean {
                     try { mediaPlayer?.vlcVout?.detachViews() } catch (_: Exception) {}
+                    return true
                 }
-            })
+
+                override fun onSurfaceTextureUpdated(surface: SurfaceTexture) {}
+            }
         }
     }
 
-    /** 将 VLC vout 绑定到 SurfaceView（surface 和 mediaPlayer 都就绪时调用）。 */
-    private fun attachVlcVout() {
+    /** 将 VLC vout 绑定到 Surface。 */
+    private fun attachVlcVout(surface: Surface) {
         val mp = mediaPlayer ?: return
-        if (!surfaceReady) return
         try {
-            mp.vlcVout.setVideoView(surfaceView)
+            mp.vlcVout.setVideoSurface(surface, null)
             mp.vlcVout.attachViews()
         } catch (_: Exception) {
-            // vlcVout 可能已经 attached，忽略
+            // 可能已经 attached，忽略
         }
     }
 
@@ -110,8 +110,6 @@ class VlcEngine @Inject constructor(
         if (mediaPlayer == null) {
             mediaPlayer = MediaPlayer(libVlc).apply { setEventListener(eventListener) }
         }
-        // mediaPlayer 创建后立即尝试绑定 surface（surface 可能已经 ready）
-        attachVlcVout()
 
         val m = Media(libVlc, Uri.parse(media.uri))
         // libVLC 3.6.0 has no setHttpHeader(); pass custom headers as media options.
@@ -122,8 +120,6 @@ class VlcEngine @Inject constructor(
     }
 
     override fun play() {
-        // play 前再确保一次 surface 绑定
-        attachVlcVout()
         mediaPlayer?.play()
     }
 

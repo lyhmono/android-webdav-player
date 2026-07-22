@@ -83,9 +83,9 @@ class PlayerViewModel @Inject constructor(
     private val _exoPlayer = MutableStateFlow<ExoPlayer?>(null)
     val exoPlayer: StateFlow<ExoPlayer?> = _exoPlayer.asStateFlow()
 
-    /** VLC 内核的 SurfaceView（供 UI 挂载渲染视频画面）。 */
-    private val _vlcSurfaceView = MutableStateFlow<android.view.SurfaceView?>(null)
-    val vlcSurfaceView: StateFlow<android.view.SurfaceView?> = _vlcSurfaceView.asStateFlow()
+    /** VLC 内核的 TextureView（供 UI 挂载渲染视频画面）。 */
+    private val _vlcTextureView = MutableStateFlow<android.view.TextureView?>(null)
+    val vlcTextureView: StateFlow<android.view.TextureView?> = _vlcTextureView.asStateFlow()
 
     /** 当前是否使用 VLC 内核。 */
     val isVlcEngine: Boolean get() = engineType.value == EngineType.VLC
@@ -185,7 +185,7 @@ class PlayerViewModel @Inject constructor(
                 is Result.Success -> {
                     _resumedPosition.value = r.data
                     _exoPlayer.value = playerRepository.getExoPlayer()
-                    _vlcSurfaceView.value = playerRepository.getVlcSurfaceView()
+                    _vlcTextureView.value = playerRepository.getVlcTextureView()
                     /* 状态由 MediaController 监听驱动 */
                 }
                 is Result.Error -> _state.value = PlaybackState.ERROR
@@ -201,6 +201,15 @@ class PlayerViewModel @Inject constructor(
     fun play() = mediaController?.play() ?: playerRepository.play()
 
     fun pause() = mediaController?.pause() ?: playerRepository.pause()
+
+    /** 停止播放并释放引擎（退出播放界面时调用）。 */
+    fun stop() {
+        mediaController?.stop()
+        playerRepository.release()
+        _state.value = PlaybackState.IDLE
+        _exoPlayer.value = null
+        _vlcTextureView.value = null
+    }
 
     fun seekTo(ms: Long) = mediaController?.seekTo(ms) ?: playerRepository.seekTo(ms)
 
@@ -248,7 +257,7 @@ class PlayerViewModel @Inject constructor(
             playerRepository.setEngineType(type)
             _engineType.value = type
             _exoPlayer.value = playerRepository.getExoPlayer()
-            _vlcSurfaceView.value = playerRepository.getVlcSurfaceView()
+            _vlcTextureView.value = playerRepository.getVlcTextureView()
         }
     }
 

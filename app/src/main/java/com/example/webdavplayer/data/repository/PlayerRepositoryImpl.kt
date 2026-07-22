@@ -97,12 +97,12 @@ class PlayerRepositoryImpl @Inject constructor(
 
     override fun getExoPlayer(): ExoPlayer? = (engine as? ExoPlayerEngine)?.exoPlayer
 
-    override fun getVlcSurfaceView(): android.view.SurfaceView? =
+    override fun getVlcTextureView(): android.view.TextureView? =
         try {
             val clazz = Class.forName("com.example.webdavplayer.data.player.VlcEngine")
-            val field = clazz.getDeclaredField("surfaceView")
+            val field = clazz.getDeclaredField("textureView")
             field.isAccessible = true
-            field.get(engine) as? android.view.SurfaceView
+            field.get(engine) as? android.view.TextureView
         } catch (_: Exception) {
             null
         }

@@ -2,6 +2,7 @@
 
 package com.example.webdavplayer.ui.player
 
+import android.app.Activity
 import android.content.Context
 import android.content.ContextWrapper
 import android.content.pm.ActivityInfo
@@ -22,7 +23,6 @@ import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.aspectRatio
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
-import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
@@ -93,7 +93,6 @@ import com.example.webdavplayer.ui.common.modeLabel
 import com.example.webdavplayer.ui.common.stateLabel
 import com.example.webdavplayer.ui.playlist.PlaylistViewModel
 import com.example.webdavplayer.ui.theme.Spacing
-import kotlin.math.abs
 
 @OptIn(ExperimentalMaterial3Api::class, ExperimentalFoundationApi::class)
 @Composable
@@ -114,7 +113,7 @@ fun PlayerScreen(
     val resumedPosition by playerVm.resumedPosition.collectAsStateWithLifecycle()
     val currentItemId by playerVm.currentItemId.collectAsStateWithLifecycle()
     val exoPlayer by playerVm.exoPlayer.collectAsStateWithLifecycle()
-    val vlcSurfaceView by playerVm.vlcSurfaceView.collectAsStateWithLifecycle()
+    val vlcTextureView by playerVm.vlcTextureView.collectAsStateWithLifecycle()
 
     val isVlcAvailable = BuildConfig.FLAVOR == "full"
     val isPlaying = state == PlaybackState.PLAYING
@@ -123,6 +122,13 @@ fun PlayerScreen(
     val context = LocalContext.current
     val activity = remember(context) { context.findActivity() }
     var isFullScreen by remember { mutableStateOf(false) }
+
+    // 退出播放界面时停止播放
+    DisposableEffect(Unit) {
+        onDispose {
+            playerVm.stop()
+        }
+    }
 
     // 全屏沉浸式
     DisposableEffect(isFullScreen) {
@@ -134,6 +140,9 @@ fun PlayerScreen(
                 android.view.View.SYSTEM_UI_FLAG_FULLSCREEN
                     or android.view.View.SYSTEM_UI_FLAG_HIDE_NAVIGATION
                     or android.view.View.SYSTEM_UI_FLAG_IMMERSIVE_STICKY
+                    or android.view.View.SYSTEM_UI_FLAG_LAYOUT_FULLSCREEN
+                    or android.view.View.SYSTEM_UI_FLAG_LAYOUT_HIDE_NAVIGATION
+                    or android.view.View.SYSTEM_UI_FLAG_LAYOUT_STABLE
             )
             onDispose {
                 activity.requestedOrientation = originalOrientation
@@ -163,8 +172,8 @@ fun PlayerScreen(
     if (isFullScreen && isVideo) {
         FullScreenVideoPlayer(
             exoPlayer = exoPlayer,
-            vlcSurfaceView = vlcSurfaceView,
-            useVlc = engineType == EngineType.VLC && vlcSurfaceView != null,
+            vlcTextureView = vlcTextureView,
+            useVlc = engineType == EngineType.VLC && vlcTextureView != null,
             position = position,
             duration = duration,
             isPlaying = isPlaying,
@@ -222,16 +231,18 @@ fun PlayerScreen(
         ) {
             // ===== 视频画面 =====
             if (isVideo) {
-                val useVlc = engineType == EngineType.VLC && vlcSurfaceView != null
+                val useVlc = engineType == EngineType.VLC && vlcTextureView != null
                 if (useVlc) {
+                    // VLC: 用 TextureView 渲染
                     AndroidView(
-                        factory = { vlcSurfaceView!! },
+                        factory = { vlcTextureView!! },
                         modifier = Modifier
                             .fillMaxWidth()
                             .aspectRatio(16f / 9f)
                             .clip(RoundedCornerShape(8.dp)),
                     )
                 } else {
+                    // Media3: PlayerView 自带完整控制器
                     AndroidView(
                         factory = { ctx ->
                             PlayerView(ctx).apply {
@@ -242,6 +253,7 @@ fun PlayerScreen(
                                 setShowNextButton(false)
                                 setShowPreviousButton(false)
                                 controllerAutoShow = true
+                                resizeMode = AspectRatioFrameLayout.RESIZE_MODE_FIT
                                 layoutParams = android.widget.FrameLayout.LayoutParams(
                                     android.widget.FrameLayout.LayoutParams.MATCH_PARENT,
                                     android.widget.FrameLayout.LayoutParams.WRAP_CONTENT,
@@ -388,7 +400,7 @@ fun PlayerScreen(
 @Composable
 private fun FullScreenVideoPlayer(
     exoPlayer: androidx.media3.exoplayer.ExoPlayer?,
-    vlcSurfaceView: android.view.SurfaceView?,
+    vlcTextureView: android.view.TextureView?,
     useVlc: Boolean,
     position: Long,
     duration: Long,
@@ -399,9 +411,6 @@ private fun FullScreenVideoPlayer(
     onExitFullScreen: () -> Unit,
 ) {
     var showControls by remember { mutableStateOf(true) }
-    // 滑动手势累积量
-    var dragSeekAccum by remember { mutableFloatStateOf(0f) }
-    // 滑动中显示的临时 seek 预览
     var seekPreview by remember { mutableStateOf<Long?>(null) }
     val effectivePosition = seekPreview ?: position
     val durSafe = duration.coerceAtLeast(1L)
@@ -409,10 +418,10 @@ private fun FullScreenVideoPlayer(
     Box(
         modifier = Modifier.fillMaxSize().background(Color.Black),
     ) {
-        // --- 视频画面 ---
-        if (useVlc && vlcSurfaceView != null) {
+        // --- 视频画面（填满整个屏幕） ---
+        if (useVlc && vlcTextureView != null) {
             AndroidView(
-                factory = { vlcSurfaceView },
+                factory = { vlcTextureView },
                 modifier = Modifier.fillMaxSize(),
             )
         } else {
@@ -420,7 +429,10 @@ private fun FullScreenVideoPlayer(
                 factory = { ctx ->
                     PlayerView(ctx).apply {
                         useController = false
-                        resizeMode = AspectRatioFrameLayout.RESIZE_MODE_FIT
+                        // RESIZE_MODE_FILL: 拉伸填满全屏（可能裁切边缘）
+                        // 如果要保持比例不裁切，用 RESIZE_MODE_FIT（上下黑边）
+                        // 用户要真全屏 → 用 FILL
+                        resizeMode = AspectRatioFrameLayout.RESIZE_MODE_FILL
                         player = exoPlayer
                         layoutParams = android.widget.FrameLayout.LayoutParams(
                             android.widget.FrameLayout.LayoutParams.MATCH_PARENT,
@@ -443,17 +455,14 @@ private fun FullScreenVideoPlayer(
                 .pointerInput(duration) {
                     detectHorizontalDragGestures(
                         onDragStart = {
-                            dragSeekAccum = 0f
                             seekPreview = position
                         },
                         onDragEnd = {
                             seekPreview?.let { onSeekTo(it) }
                             seekPreview = null
-                            dragSeekAccum = 0f
                         },
-                        onHorizontalDrag = { change, dragAmount ->
+                        onHorizontalDrag = { _, dragAmount ->
                             val widthPx = this.size.width.toFloat().coerceAtLeast(1f)
-                            // 滑动整个屏幕宽度 = 跳整条视频
                             val deltaMs = (dragAmount / widthPx * durSafe).toLong()
                             seekPreview = (seekPreview?.plus(deltaMs) ?: position + deltaMs)
                                 .coerceIn(0L, duration)
@@ -501,12 +510,9 @@ private fun FullScreenVideoPlayer(
                     .background(Color.Black.copy(alpha = 0.7f))
                     .padding(horizontal = 16.dp, vertical = 8.dp),
             ) {
-                // 进度条
                 Slider(
                     value = effectivePosition.toFloat().coerceIn(0f, durSafe.toFloat()),
-                    onValueChange = {
-                        seekPreview = it.toLong()
-                    },
+                    onValueChange = { seekPreview = it.toLong() },
                     onValueChangeFinished = {
                         seekPreview?.let { onSeekTo(it) }
                         seekPreview = null
@@ -531,14 +537,12 @@ private fun FullScreenVideoPlayer(
                         style = MaterialTheme.typography.labelMedium,
                     )
                     Row(verticalAlignment = Alignment.CenterVertically) {
-                        // -15s
                         IconButton(onClick = {
                             onSeekTo((effectivePosition - 15_000).coerceAtLeast(0))
                         }) {
                             Icon(Icons.Filled.FastRewind, "后退15秒", tint = Color.White)
                         }
                         Spacer(Modifier.width(8.dp))
-                        // 播放/暂停
                         Surface(
                             shape = RoundedCornerShape(28.dp),
                             color = Color.White.copy(alpha = 0.2f),
@@ -552,7 +556,6 @@ private fun FullScreenVideoPlayer(
                             }
                         }
                         Spacer(Modifier.width(8.dp))
-                        // +15s
                         IconButton(onClick = {
                             onSeekTo((effectivePosition + 15_000).coerceAtMost(duration))
                         }) {
@@ -568,7 +571,7 @@ private fun FullScreenVideoPlayer(
             }
         }
 
-        // --- 滑动 seek 提示（拖动中显示目标时间） ---
+        // --- 滑动 seek 提示 ---
         if (seekPreview != null) {
             Surface(
                 shape = RoundedCornerShape(8.dp),
