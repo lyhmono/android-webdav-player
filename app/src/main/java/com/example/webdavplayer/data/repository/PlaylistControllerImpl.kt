@@ -9,9 +9,12 @@ import javax.inject.Singleton
 /**
  * 播放列表导航控制实现（§4.2 / §6 T08）。
  * 持有播放列表快照与当前索引，按 [PlayMode] 计算上/下一首。
+ * 所有状态访问通过 [stateLock] 同步，保证并发安全。
  */
 @Singleton
 class PlaylistControllerImpl @Inject constructor() : PlaylistController {
+
+    private val stateLock = Any()
 
     @Volatile
     private var items: List<PlaylistItem> = emptyList()
@@ -20,7 +23,7 @@ class PlaylistControllerImpl @Inject constructor() : PlaylistController {
     @Volatile
     private var mode: PlayMode = PlayMode.SEQUENTIAL
 
-    override fun sync(items: List<PlaylistItem>) {
+    override fun sync(items: List<PlaylistItem>) = synchronized(stateLock) {
         val currentId = this.items.getOrNull(currentIndex)?.id
         this.items = items
         currentIndex = if (currentId != null) {
@@ -30,34 +33,36 @@ class PlaylistControllerImpl @Inject constructor() : PlaylistController {
         }
     }
 
-    override fun setMode(mode: PlayMode) {
+    override fun setMode(mode: PlayMode) = synchronized(stateLock) {
         this.mode = mode
     }
 
-    override fun getMode(): PlayMode = mode
+    override fun getMode(): PlayMode = synchronized(stateLock) { mode }
 
-    override fun current(): PlaylistItem? = items.getOrNull(currentIndex)
+    override fun current(): PlaylistItem? = synchronized(stateLock) {
+        items.getOrNull(currentIndex)
+    }
 
-    override fun setCurrent(item: PlaylistItem) {
+    override fun setCurrent(item: PlaylistItem) = synchronized(stateLock) {
         currentIndex = items.indexOfFirst { it.id == item.id }
     }
 
-    override fun snapshot(): List<PlaylistItem> = items
+    override fun snapshot(): List<PlaylistItem> = synchronized(stateLock) { items }
 
-    override fun next(): PlaylistItem? {
+    override fun next(): PlaylistItem? = synchronized(stateLock) {
         if (items.isEmpty()) return null
         val nextIndex = computeNext()
         if (nextIndex < 0) return null
         currentIndex = nextIndex
-        return items[currentIndex]
+        items[currentIndex]
     }
 
-    override fun previous(): PlaylistItem? {
+    override fun previous(): PlaylistItem? = synchronized(stateLock) {
         if (items.isEmpty()) return null
         val prevIndex = computePrev()
         if (prevIndex < 0) return null
         currentIndex = prevIndex
-        return items[currentIndex]
+        items[currentIndex]
     }
 
     override fun onItemEnded(): PlaylistItem? = next()

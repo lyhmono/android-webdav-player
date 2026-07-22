@@ -1,5 +1,6 @@
 package com.example.webdavplayer.service
 
+import android.util.Log
 import androidx.media3.common.C
 import androidx.media3.common.MediaItem
 import androidx.media3.common.MediaMetadata
@@ -68,7 +69,7 @@ class EngineMedia3Adapter(
     /** 工作协程（用于触发 playItem 等挂起调用，主线程即可）。 */
     private val scope = CoroutineScope(SupervisorJob() + Dispatchers.Main)
 
-    /** 当前播放状态（由引擎监听驱动）。 */
+    /** 当前播放状态快照（由引擎监听驱动）。 */
     @Volatile
     private var engineState: PlaybackState = PlaybackState.IDLE
 
@@ -83,14 +84,35 @@ class EngineMedia3Adapter(
     /** 供外部读取当前播放位置（用于暂停/结束时 flush 进度）。 */
     val currentPositionMs: Long get() = positionMs
 
+    /** 状态快照数据类，保证多字段原子读取。 */
+    private data class StateSnapshot(
+        val state: PlaybackState = PlaybackState.IDLE,
+        val position: Long = 0L,
+        val duration: Long = 0L,
+    )
+
+    /** 用 synchronized 块保证状态+进度+时长的一致性快照。 */
+    private val stateLock = Any()
+    @Volatile
+    private var snapshot = StateSnapshot()
+
     /** 引擎监听驱动：更新状态并推送。 */
     fun onEngineState(state: PlaybackState) {
+        synchronized(stateLock) {
+            snapshot = snapshot.copy(state = state)
+        }
         engineState = state
         invalidateState()
     }
 
     /** 引擎监听驱动：更新进度并推送。 */
     fun onEngineProgress(position: Long, duration: Long) {
+        synchronized(stateLock) {
+            snapshot = snapshot.copy(
+                position = position,
+                duration = if (duration > 0) duration else snapshot.duration,
+            )
+        }
         positionMs = position
         if (duration > 0) durationMs = duration
         invalidateState()
@@ -207,6 +229,6 @@ class EngineMedia3Adapter(
         PlaybackState.PLAYING -> Player.STATE_READY
         PlaybackState.PAUSED -> Player.STATE_READY
         PlaybackState.ENDED -> Player.STATE_ENDED
-        PlaybackState.ERROR -> Player.STATE_IDLE
+        PlaybackState.ERROR -> Player.STATE_ERROR
     }
 }

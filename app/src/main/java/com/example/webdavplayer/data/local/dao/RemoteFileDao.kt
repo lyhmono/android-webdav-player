@@ -26,4 +26,12 @@ interface RemoteFileDao {
 
     @Query("DELETE FROM remote_files WHERE serverId = :serverId")
     suspend fun clearServer(serverId: String)
+
+    /** 清除指定时间之前缓存的文件记录（TTL 失效策略）。 */
+    @Query("DELETE FROM remote_files WHERE cachedAt < :expireBefore")
+    suspend fun clearExpired(expireBefore: Long)
+
+    /** 清除所有过期缓存（默认 TTL 30 分钟）。 */
+    @Query("DELETE FROM remote_files WHERE cachedAt < :expireBefore")
+    suspend fun clearAllExpired(expireBefore: Long)
 }

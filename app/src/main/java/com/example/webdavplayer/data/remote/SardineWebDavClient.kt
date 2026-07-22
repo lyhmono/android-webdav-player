@@ -94,7 +94,7 @@ class SardineWebDavClient @Inject constructor(
             val cfg = requireConfig()
             val sardine = OkHttpSardine(requireClient())
             val url = WebDavPath.join(cfg.baseUrl, path)
-            val resources = sardine.list(url, depth)
+            val resources = retryIO { sardine.list(url, depth) }
             val parent = WebDavPath.normalize(path)
             resources.asSequence()
                 .drop(1) // 首个元素是目录自身
@@ -105,7 +105,7 @@ class SardineWebDavClient @Inject constructor(
     override suspend fun openStream(path: String): Source = withContext(Dispatchers.IO) {
         val cfg = requireConfig()
         val sardine = OkHttpSardine(requireClient())
-        val input = sardine.get(WebDavPath.join(cfg.baseUrl, path))
+        val input = retryIO { sardine.get(WebDavPath.join(cfg.baseUrl, path)) }
         input.source()
     }
 
@@ -125,7 +125,9 @@ class SardineWebDavClient @Inject constructor(
         val targetName = WebDavPath.nameOf(to) // to 为目标名称
         val toPath = if (parent == "/") "/$targetName" else "$parent/$targetName"
         val sardine = OkHttpSardine(requireClient())
-        sardine.move(WebDavPath.join(cfg.baseUrl, from), WebDavPath.join(cfg.baseUrl, toPath))
+        retryIO {
+            sardine.move(WebDavPath.join(cfg.baseUrl, from), WebDavPath.join(cfg.baseUrl, toPath))
+        }
     }
 
     override suspend fun move(from: String, to: String) = withContext(Dispatchers.IO) {
@@ -134,13 +136,15 @@ class SardineWebDavClient @Inject constructor(
         val name = WebDavPath.nameOf(from)
         val dest = if (to == "/") "/$name" else "$to/$name"
         val sardine = OkHttpSardine(requireClient())
-        sardine.move(WebDavPath.join(cfg.baseUrl, from), WebDavPath.join(cfg.baseUrl, dest))
+        retryIO {
+            sardine.move(WebDavPath.join(cfg.baseUrl, from), WebDavPath.join(cfg.baseUrl, dest))
+        }
     }
 
     override suspend fun delete(path: String) = withContext(Dispatchers.IO) {
         val cfg = requireConfig()
         val sardine = OkHttpSardine(requireClient())
-        sardine.delete(WebDavPath.join(cfg.baseUrl, path))
+        retryIO { sardine.delete(WebDavPath.join(cfg.baseUrl, path)) }
     }
 
     override fun getOkHttpClient(): OkHttpClient = requireClient()
@@ -165,4 +169,24 @@ class SardineWebDavClient @Inject constructor(
 
     private fun guessContentType(path: String): String =
         URLConnection.guessContentTypeFromName(path) ?: "application/octet-stream"
+
+    private fun <T> retryIO(
+        maxRetries: Int = 3,
+        initialDelayMs: Long = 500L,
+        block: () -> T,
+    ): T {
+        var lastError: Throwable? = null
+        repeat(maxRetries) { attempt ->
+            try {
+                return block()
+            } catch (e: java.io.IOException) {
+                lastError = e
+                if (attempt < maxRetries - 1) {
+                    val delay = initialDelayMs * (1 shl attempt) // 500, 1000, 2000 ms
+                    Thread.sleep(delay)
+                }
+            }
+        }
+        throw lastError ?: java.io.IOException("retryIO: unknown failure")
+    }
 }
