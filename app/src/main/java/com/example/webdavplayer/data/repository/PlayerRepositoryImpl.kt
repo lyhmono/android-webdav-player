@@ -97,6 +97,16 @@ class PlayerRepositoryImpl @Inject constructor(
 
     override fun getExoPlayer(): ExoPlayer? = (engine as? ExoPlayerEngine)?.exoPlayer
 
+    override fun getVlcSurfaceView(): android.view.SurfaceView? =
+        try {
+            val clazz = Class.forName("com.example.webdavplayer.data.player.VlcEngine")
+            val field = clazz.getDeclaredField("surfaceView")
+            field.isAccessible = true
+            field.get(engine) as? android.view.SurfaceView
+        } catch (_: Exception) {
+            null
+        }
+
     private suspend fun connectFor(media: PlayableMedia) {
         val cfg = serverRepository.getById(media.serverId)
             ?: throw IllegalStateException("找不到服务器配置：${media.serverId}")

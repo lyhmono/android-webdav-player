@@ -83,6 +83,13 @@ class PlayerViewModel @Inject constructor(
     private val _exoPlayer = MutableStateFlow<ExoPlayer?>(null)
     val exoPlayer: StateFlow<ExoPlayer?> = _exoPlayer.asStateFlow()
 
+    /** VLC 内核的 SurfaceView（供 UI 挂载渲染视频画面）。 */
+    private val _vlcSurfaceView = MutableStateFlow<android.view.SurfaceView?>(null)
+    val vlcSurfaceView: StateFlow<android.view.SurfaceView?> = _vlcSurfaceView.asStateFlow()
+
+    /** 当前是否使用 VLC 内核。 */
+    val isVlcEngine: Boolean get() = engineType.value == EngineType.VLC
+
     val items: StateFlow<List<PlaylistItem>> = playlistRepository.observeItems()
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
 
@@ -178,6 +185,7 @@ class PlayerViewModel @Inject constructor(
                 is Result.Success -> {
                     _resumedPosition.value = r.data
                     _exoPlayer.value = playerRepository.getExoPlayer()
+                    _vlcSurfaceView.value = playerRepository.getVlcSurfaceView()
                     /* 状态由 MediaController 监听驱动 */
                 }
                 is Result.Error -> _state.value = PlaybackState.ERROR
@@ -239,6 +247,8 @@ class PlayerViewModel @Inject constructor(
         viewModelScope.launch {
             playerRepository.setEngineType(type)
             _engineType.value = type
+            _exoPlayer.value = playerRepository.getExoPlayer()
+            _vlcSurfaceView.value = playerRepository.getVlcSurfaceView()
         }
     }
 

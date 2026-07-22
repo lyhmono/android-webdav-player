@@ -1,14 +1,24 @@
-@file:OptIn(ExperimentalFoundationApi::class)
+@file:OptIn(ExperimentalFoundationApi::class, UnstableApi::class)
 
 package com.example.webdavplayer.ui.player
 
-import androidx.compose.foundation.clickable
+import android.content.Context
+import android.content.ContextWrapper
+import android.content.pm.ActivityInfo
+import android.view.WindowManager
+import androidx.activity.ComponentActivity
+import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.animation.fadeIn
+import androidx.compose.animation.fadeOut
+import androidx.compose.foundation.ExperimentalFoundationApi
+import androidx.compose.foundation.background
 import androidx.compose.foundation.combinedClickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.aspectRatio
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
@@ -16,7 +26,6 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
-import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.ArrowBack
 import androidx.compose.material.icons.filled.AudioFile
@@ -29,7 +38,6 @@ import androidx.compose.material.icons.filled.QueueMusic
 import androidx.compose.material.icons.filled.SkipNext
 import androidx.compose.material.icons.filled.SkipPrevious
 import androidx.compose.material.icons.filled.VideoLibrary
-import androidx.compose.material.icons.filled.WifiOff
 import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.ExperimentalMaterial3Api
@@ -39,12 +47,12 @@ import androidx.compose.material3.IconButton
 import androidx.compose.material3.ListItem
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Scaffold
-import androidx.compose.material3.Slider
 import androidx.compose.material3.SnackbarHost
 import androidx.compose.material3.SnackbarHostState
 import androidx.compose.material3.Text
 import androidx.compose.material3.TopAppBar
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -52,6 +60,7 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.viewinterop.AndroidView
@@ -91,30 +100,52 @@ fun PlayerScreen(
     val resumedPosition by playerVm.resumedPosition.collectAsStateWithLifecycle()
     val currentItemId by playerVm.currentItemId.collectAsStateWithLifecycle()
     val exoPlayer by playerVm.exoPlayer.collectAsStateWithLifecycle()
+    val vlcSurfaceView by playerVm.vlcSurfaceView.collectAsStateWithLifecycle()
 
     val isVlcAvailable = BuildConfig.FLAVOR == "full"
     val isPlaying = state == PlaybackState.PLAYING
+    val isVideo = mediaType == MediaType.VIDEO
 
     val configuration = LocalConfiguration.current
     val isLandscape = configuration.orientation == android.content.res.Configuration.ORIENTATION_LANDSCAPE
     var isFullScreen by remember { mutableStateOf(false) }
 
-    val isVideo = mediaType == MediaType.VIDEO
-    // 视频手势层仅在视频 + 横屏/全屏时启用（C4）。
-    val showGesture = isVideo && (isFullScreen || isLandscape)
+    // 全屏模式：隐藏系统 UI + 横屏
+    val context = androidx.compose.ui.platform.LocalContext.current
+    val activity = remember(context) { context.findActivity() }
+
+    DisposableEffect(isFullScreen) {
+        if (isFullScreen && activity != null) {
+            val originalOrientation = activity.requestedOrientation
+            activity.requestedOrientation = ActivityInfo.SCREEN_ORIENTATION_LANDSCAPE
+            activity.window?.addFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON)
+            // 隐藏状态栏和导航栏（沉浸式）
+            activity.window?.decorView?.systemUiVisibility = (
+                android.view.View.SYSTEM_UI_FLAG_FULLSCREEN
+                    or android.view.View.SYSTEM_UI_FLAG_HIDE_NAVIGATION
+                    or android.view.View.SYSTEM_UI_FLAG_IMMERSIVE_STICKY
+            )
+            onDispose {
+                activity.requestedOrientation = originalOrientation
+                activity.window?.clearFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON)
+                activity.window?.decorView?.systemUiVisibility = (
+                    android.view.View.SYSTEM_UI_FLAG_VISIBLE
+                )
+            }
+        } else {
+            onDispose {}
+        }
+    }
 
     var menuExpanded by remember { mutableStateOf(false) }
-
     val snackbarHostState = remember { SnackbarHostState() }
 
-    // 网络断开提示
     LaunchedEffect(isOnline) {
         if (!isOnline) {
             snackbarHostState.showSnackbar("网络已断开，播放可能受到影响")
         }
     }
 
-    // 播放进度恢复提示
     LaunchedEffect(resumedPosition) {
         resumedPosition?.let { pos ->
             if (pos > 0) {
@@ -124,21 +155,38 @@ fun PlayerScreen(
         }
     }
 
+    // ===== 全屏视频模式 =====
+    if (isFullScreen && isVideo) {
+        val useVlc = engineType == EngineType.VLC && vlcSurfaceView != null
+        FullScreenVideoPlayer(
+            exoPlayer = exoPlayer,
+            vlcSurfaceView = vlcSurfaceView,
+            useVlc = useVlc,
+            position = position,
+            duration = duration,
+            isPlaying = isPlaying,
+            onSeekTo = { playerVm.seekTo(it) },
+            onTogglePlay = { playerVm.togglePlay() },
+            onExitFullScreen = { isFullScreen = false },
+        )
+        return
+    }
+
+    // ===== 正常模式 =====
     Scaffold(
         topBar = {
             TopAppBar(
-                title = { Text("播放") },
+                title = { Text(title.ifEmpty { "播放" }) },
                 navigationIcon = {
                     IconButton(onClick = { navController.popBackStack() }) {
                         Icon(Icons.Filled.ArrowBack, "返回")
                     }
                 },
                 actions = {
-                    IconButton(onClick = { isFullScreen = !isFullScreen }) {
-                        Icon(
-                            if (isFullScreen) Icons.Filled.FullscreenExit else Icons.Filled.Fullscreen,
-                            "全屏",
-                        )
+                    if (isVideo) {
+                        IconButton(onClick = { isFullScreen = true }) {
+                            Icon(Icons.Filled.Fullscreen, "全屏")
+                        }
                     }
                     IconButton(onClick = { navController.navigate("playlist") }) {
                         Icon(Icons.Filled.QueueMusic, "播放列表")
@@ -171,65 +219,50 @@ fun PlayerScreen(
                 horizontalAlignment = Alignment.CenterHorizontally,
                 verticalArrangement = Arrangement.spacedBy(Spacing.md),
             ) {
-                // 视频画面渲染层：视频类型时显示 PlayerView，音频时不显示
+                // ===== 视频画面 =====
                 if (isVideo) {
-                    AndroidView(
-                        factory = { ctx ->
-                            PlayerView(ctx).apply {
-                                useController = true
-                                layoutParams = android.widget.FrameLayout.LayoutParams(
-                                    android.widget.FrameLayout.LayoutParams.MATCH_PARENT,
-                                    android.widget.FrameLayout.LayoutParams.WRAP_CONTENT,
-                                )
-                            }
-                        },
-                        update = { view ->
-                            // 每次 recomposition 都确保 player 绑定到最新实例
-                            if (view.player !== exoPlayer) {
-                                view.player = exoPlayer
-                            }
-                        },
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .height(240.dp),
-                    )
+                    val useVlc = engineType == EngineType.VLC && vlcSurfaceView != null
+                    if (useVlc) {
+                        // VLC 内核：挂载 SurfaceView
+                        AndroidView(
+                            factory = { _ ->
+                                vlcSurfaceView!!
+                            },
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .aspectRatio(16f / 9f),
+                        )
+                    } else {
+                        // Media3/ExoPlayer 内核：使用 PlayerView（自带控制器）
+                        AndroidView(
+                            factory = { ctx ->
+                                PlayerView(ctx).apply {
+                                    useController = true
+                                    setShowNextButton(false)
+                                    setShowPreviousButton(false)
+                                    layoutParams = android.widget.FrameLayout.LayoutParams(
+                                        android.widget.FrameLayout.LayoutParams.MATCH_PARENT,
+                                        android.widget.FrameLayout.LayoutParams.WRAP_CONTENT,
+                                    )
+                                }
+                            },
+                            update = { view ->
+                                if (view.player !== exoPlayer) {
+                                    view.player = exoPlayer
+                                }
+                            },
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .aspectRatio(16f / 9f),
+                        )
+                    }
                 }
 
-                Spacer(Modifier.height(Spacing.lg))
+                Spacer(Modifier.height(Spacing.sm))
                 Text(title.ifEmpty { "未选择媒体" }, style = MaterialTheme.typography.titleLarge)
                 Text(stateLabel(state), style = MaterialTheme.typography.bodyMedium)
 
-                // 拖拽中保持本地值，释放时才 seek，避免频繁 seekTo 导致卡顿
-                var sliderValue by remember { mutableStateOf<Float?>(null) }
-                val sliderPos = sliderValue
-                    ?: position.toFloat().coerceIn(0f, duration.coerceAtLeast(1).toFloat())
-
-                Slider(
-                    value = sliderPos,
-                    onValueChange = { sliderValue = it },
-                    onValueChangeFinished = {
-                        sliderValue?.let { playerVm.seekTo(it.toLong()) }
-                        sliderValue = null
-                    },
-                    valueRange = 0f..duration.coerceAtLeast(1).toFloat(),
-                    modifier = Modifier.fillMaxWidth(),
-                )
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.SpaceBetween,
-                ) {
-                    Text(
-                        formatDuration(position),
-                        style = MaterialTheme.typography.labelMedium,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant,
-                    )
-                    Text(
-                        formatDuration(duration),
-                        style = MaterialTheme.typography.labelMedium,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant,
-                    )
-                }
-
+                // ===== 播放控制 =====
                 Row(verticalAlignment = Alignment.CenterVertically) {
                     IconButton(onClick = { playerVm.previous() }) {
                         Icon(Icons.Filled.SkipPrevious, "上一首")
@@ -322,20 +355,141 @@ fun PlayerScreen(
                     }
                 }
             }
+        }
+    }
+}
 
-            // 视频手势层（C4）：横屏/全屏 + 视频时叠加，捕获亮度/音量/快退手势。
-            if (showGesture) {
-                VideoGestureLayer(
-                    modifier = Modifier.fillMaxSize(),
-                    isVideo = true,
-                    durationMs = duration,
-                    onSeekBy = { delta ->
-                        playerVm.seekTo((position + delta).coerceIn(0, duration.coerceAtLeast(1)))
-                    },
+// ===== 全屏视频播放器 =====
+@Composable
+private fun FullScreenVideoPlayer(
+    exoPlayer: androidx.media3.exoplayer.ExoPlayer?,
+    vlcSurfaceView: android.view.SurfaceView?,
+    useVlc: Boolean,
+    position: Long,
+    duration: Long,
+    isPlaying: Boolean,
+    onSeekTo: (Long) -> Unit,
+    onTogglePlay: () -> Unit,
+    onExitFullScreen: () -> Unit,
+) {
+    var showControls by remember { mutableStateOf(true) }
+
+    Box(
+        Modifier
+            .fillMaxSize()
+            .background(Color.Black),
+    ) {
+        // 视频画面填满全屏
+        if (useVlc && vlcSurfaceView != null) {
+            AndroidView(
+                factory = { _ -> vlcSurfaceView },
+                modifier = Modifier
+                    .fillMaxSize()
+                    .combinedClickable(
+                        onClick = { showControls = !showControls },
+                    ),
+            )
+        } else {
+            AndroidView(
+                factory = { ctx ->
+                    PlayerView(ctx).apply {
+                        useController = false // 我们用自己的 Compose 控制层
+                        layoutParams = android.widget.FrameLayout.LayoutParams(
+                            android.widget.FrameLayout.LayoutParams.MATCH_PARENT,
+                            android.widget.FrameLayout.LayoutParams.MATCH_PARENT,
+                        )
+                    }
+                },
+                update = { view ->
+                    if (view.player !== exoPlayer) {
+                        view.player = exoPlayer
+                    }
+                },
+                modifier = Modifier
+                    .fillMaxSize()
+                    .combinedClickable(
+                        onClick = { showControls = !showControls },
+                    ),
+            )
+        }
+
+        // 顶部退出按钮
+        AnimatedVisibility(
+            visible = showControls,
+            enter = fadeIn(),
+            exit = fadeOut(),
+            modifier = Modifier.align(Alignment.TopStart),
+        ) {
+            Row(
+                Modifier
+                    .fillMaxWidth()
+                    .background(Color.Black.copy(alpha = 0.5f))
+                    .padding(horizontal = 8.dp, vertical = 4.dp),
+                verticalAlignment = Alignment.CenterVertically,
+            ) {
+                IconButton(onClick = onExitFullScreen) {
+                    Icon(Icons.Filled.FullscreenExit, "退出全屏", tint = Color.White)
+                }
+            }
+        }
+
+        // 底部控制栏
+        AnimatedVisibility(
+            visible = showControls,
+            enter = fadeIn(),
+            exit = fadeOut(),
+            modifier = Modifier.align(Alignment.BottomCenter),
+        ) {
+            Column(
+                Modifier
+                    .fillMaxWidth()
+                    .background(Color.Black.copy(alpha = 0.7f))
+                    .padding(horizontal = 16.dp, vertical = 8.dp),
+            ) {
+                // 进度条
+                val sliderPos = position.toFloat().coerceIn(0f, duration.coerceAtLeast(1).toFloat())
+                androidx.compose.material3.Slider(
+                    value = sliderPos,
+                    onValueChange = { onSeekTo(it.toLong()) },
+                    valueRange = 0f..duration.coerceAtLeast(1).toFloat(),
+                    modifier = Modifier.fillMaxWidth(),
                 )
+                Row(
+                    Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.CenterVertically,
+                ) {
+                    Text(
+                        formatDuration(position),
+                        color = Color.White,
+                        style = MaterialTheme.typography.labelMedium,
+                    )
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        IconButton(onClick = onTogglePlay) {
+                            Icon(
+                                if (isPlaying) Icons.Filled.Pause else Icons.Filled.PlayArrow,
+                                "播放/暂停",
+                                tint = Color.White,
+                            )
+                        }
+                    }
+                    Text(
+                        formatDuration(duration),
+                        color = Color.White,
+                        style = MaterialTheme.typography.labelMedium,
+                    )
+                }
             }
         }
     }
 }
 
-// modeLabel / engineLabel / stateLabel / formatDuration 已抽取到 ui.common.Labels
+/** 从 Context 向上查找 Activity。 */
+private fun Context.findActivity(): ComponentActivity? {
+    var ctx = this
+    while (ctx is ContextWrapper) {
+        if (ctx is ComponentActivity) return ctx
+        ctx = ctx.baseContext
+    }
+    return null
+}

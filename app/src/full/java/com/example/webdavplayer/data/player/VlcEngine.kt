@@ -2,6 +2,8 @@ package com.example.webdavplayer.data.player
 
 import android.content.Context
 import android.net.Uri
+import android.view.SurfaceHolder
+import android.view.SurfaceView
 import com.example.webdavplayer.domain.model.EngineListener
 import com.example.webdavplayer.domain.model.PlayableMedia
 import com.example.webdavplayer.domain.model.PlaybackState
@@ -31,12 +33,40 @@ class VlcEngine @Inject constructor(
     private val context: Context,
 ) : PlayerEngine {
 
-    private val libVlc: LibVLC = LibVLC(context, arrayListOf("--no-video-title-show"))
+    private val libVlc: LibVLC = LibVLC(context, arrayListOf(
+        "--no-video-title-show",
+        "--fullscreen",
+    ))
     private var mediaPlayer: MediaPlayer? = null
     private var listener: EngineListener? = null
     private var state: PlaybackState = PlaybackState.IDLE
     private val scope = CoroutineScope(Dispatchers.Main + SupervisorJob())
     private var progressJob: Job? = null
+
+    /** VLC 视频渲染用的 SurfaceView，由 UI 层挂载到布局中。 */
+    val surfaceView: SurfaceView by lazy {
+        SurfaceView(context).apply {
+            holder.addCallback(object : SurfaceHolder.Callback {
+                override fun surfaceCreated(holder: SurfaceHolder) {
+                    mediaPlayer?.vlcVout?.setVideoView(holder)
+                    mediaPlayer?.vlcVout?.attachViews()
+                }
+
+                override fun surfaceChanged(
+                    holder: SurfaceHolder,
+                    format: Int,
+                    width: Int,
+                    height: Int,
+                ) {
+                    mediaPlayer?.vlcVout?.setWindowSize(width, height)
+                }
+
+                override fun surfaceDestroyed(holder: SurfaceHolder) {
+                    mediaPlayer?.vlcVout?.detachViews()
+                }
+            })
+        }
+    }
 
     private val eventListener = MediaPlayer.EventListener { event ->
         when (event.type) {
@@ -92,6 +122,7 @@ class VlcEngine @Inject constructor(
 
     override fun release() {
         stopProgress()
+        mediaPlayer?.vlcVout?.detachViews()
         mediaPlayer?.release()
         mediaPlayer = null
         libVlc.release()
@@ -107,8 +138,10 @@ class VlcEngine @Inject constructor(
         if (progressJob?.isActive == true) return
         progressJob = scope.launch {
             while (isActive) {
-                val position = mediaPlayer?.time ?: 0L
-                val duration = mediaPlayer?.length ?: 0L
+                val mp = mediaPlayer
+                if (mp == null) break
+                val position = mp.time.coerceAtLeast(0L)
+                val duration = mp.length.coerceAtLeast(0L)
                 listener?.onProgress(position, duration)
                 delay(500)
             }

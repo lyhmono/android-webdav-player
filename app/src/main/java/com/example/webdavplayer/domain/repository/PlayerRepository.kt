@@ -36,4 +36,10 @@ interface PlayerRepository {
      * 若当前内核非 Media3/ExoPlayer 或引擎尚未创建，返回 null。
      */
     fun getExoPlayer(): ExoPlayer?
+
+    /**
+     * 获取 VLC 内核的 SurfaceView（供 UI 挂载渲染视频画面）。
+     * 若当前内核非 VLC 或引擎尚未创建，返回 null。
+     */
+    fun getVlcSurfaceView(): android.view.SurfaceView?
 }
