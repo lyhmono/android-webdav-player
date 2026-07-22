@@ -46,8 +46,14 @@ class PlaybackProgressSaver @Inject constructor(
      */
     fun onProgress(serverId: String, path: String, positionMs: Long) {
         val now = System.currentTimeMillis()
-        if (now - lastSavedAt >= saveIntervalMs) {
-            lastSavedAt = now
+        // saveMutex 保证 lastSavedAt 读-改-写的原子性
+        if (saveMutex.tryLock()) {
+            try {
+                if (now - lastSavedAt < saveIntervalMs) return
+                lastSavedAt = now
+            } finally {
+                saveMutex.unlock()
+            }
             persist(serverId, path, positionMs)
         }
     }

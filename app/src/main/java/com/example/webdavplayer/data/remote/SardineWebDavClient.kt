@@ -170,7 +170,7 @@ class SardineWebDavClient @Inject constructor(
     private fun guessContentType(path: String): String =
         URLConnection.guessContentTypeFromName(path) ?: "application/octet-stream"
 
-    private fun <T> retryIO(
+    private suspend fun <T> retryIO(
         maxRetries: Int = 3,
         initialDelayMs: Long = 500L,
         block: () -> T,
@@ -183,7 +183,7 @@ class SardineWebDavClient @Inject constructor(
                 lastError = e
                 if (attempt < maxRetries - 1) {
                     val delay = initialDelayMs * (1 shl attempt) // 500, 1000, 2000 ms
-                    Thread.sleep(delay)
+                    kotlinx.coroutines.delay(delay)
                 }
             }
         }
