@@ -48,7 +48,7 @@ class VlcEngine @Inject constructor(
         SurfaceView(context).apply {
             holder.addCallback(object : SurfaceHolder.Callback {
                 override fun surfaceCreated(holder: SurfaceHolder) {
-                    mediaPlayer?.vlcVout?.setVideoView(holder)
+                    mediaPlayer?.vlcVout?.setVideoView(surfaceView)
                     mediaPlayer?.vlcVout?.attachViews()
                 }
 
