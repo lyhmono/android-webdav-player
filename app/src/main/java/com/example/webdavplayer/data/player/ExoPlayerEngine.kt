@@ -121,8 +121,10 @@ class ExoPlayerEngine(
         if (progressJob?.isActive == true) return
         progressJob = scope.launch {
             while (isActive) {
-                val position = player?.currentPosition ?: 0L
-                val duration = player?.duration ?: 0L
+                val p = player
+                if (p == null) break // 引擎已释放，退出轮询
+                val position = p.currentPosition.coerceAtLeast(0L)
+                val duration = p.duration.takeIf { it != androidx.media3.common.C.TIME_UNSET } ?: 0L
                 listener?.onProgress(position, duration)
                 delay(PROGRESS_INTERVAL_MS)
             }

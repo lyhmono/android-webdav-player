@@ -23,7 +23,7 @@ import com.example.webdavplayer.data.local.entity.TrustedCertEntity
         PlaylistMetaEntity::class,   // C2：播放模式单例行
         PlaybackProgressEntity::class, // C3：进度表
     ],
-    version = 2,
+    version = 3,
     exportSchema = false,
 )
 @TypeConverters(Converters::class)

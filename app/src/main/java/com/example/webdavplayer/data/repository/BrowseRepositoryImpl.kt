@@ -46,6 +46,9 @@ class BrowseRepositoryImpl @Inject constructor(
         val files = webDavClient.listDirectory(norm, 1)
         remoteFileDao.clearDirectory(serverId, norm)
         remoteFileDao.upsertAll(files.map { it.toEntity() })
+        // 顺手清理过期缓存（TTL 30 分钟）
+        val expireBefore = System.currentTimeMillis() - CACHE_TTL_MS
+        remoteFileDao.clearExpired(expireBefore)
     }
 
     override suspend fun listDirectory(serverId: String, path: String): List<RemoteFile> =
@@ -88,5 +91,10 @@ class BrowseRepositoryImpl @Inject constructor(
             ?: throw IllegalStateException("server not found: $serverId")
         webDavClient.connect(cfg)
         webDavClient.upload(WebDavPath.normalize(path), source, size)
+    }
+
+    companion object {
+        /** 缓存 TTL：30 分钟。 */
+        private const val CACHE_TTL_MS = 30 * 60 * 1000L
     }
 }

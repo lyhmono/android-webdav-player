@@ -137,7 +137,7 @@ class PlayerViewModel @Inject constructor(
 
     /** Media3 Player 状态 → 领域 [PlaybackState]。 */
     private fun mapControllerState(c: MediaController): PlaybackState = when (c.playbackState) {
-        Player.STATE_IDLE -> PlaybackState.IDLE
+        Player.STATE_IDLE -> if (c.playerError != null) PlaybackState.ERROR else PlaybackState.IDLE
         Player.STATE_BUFFERING -> PlaybackState.PREPARING
         Player.STATE_READY -> if (c.isPlaying) PlaybackState.PLAYING else PlaybackState.PAUSED
         Player.STATE_ENDED -> PlaybackState.ENDED

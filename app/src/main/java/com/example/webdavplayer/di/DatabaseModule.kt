@@ -44,12 +44,25 @@ object DatabaseModule {
         }
     }
 
+    /**
+     * v2 → v3 迁移：remote_files 表新增 cachedAt 列（TTL 失效策略）。
+     *
+     * 已有记录回填当前时间戳，确保不会因 TTL 被立即清除。
+     */
+    private val MIGRATION_2_3 = object : Migration(2, 3) {
+        override fun migrate(db: SupportSQLiteDatabase) {
+            db.execSQL(
+                "ALTER TABLE remote_files ADD COLUMN cachedAt INTEGER NOT NULL DEFAULT ${System.currentTimeMillis()}",
+            )
+        }
+    }
+
     @Provides
     @Singleton
     fun provideAppDatabase(@ApplicationContext context: Context): AppDatabase =
         Room.databaseBuilder(context, AppDatabase::class.java, "webdav_player.db")
             // 已知版本迁移走正式 Migration 路径，保留数据
-            .addMigrations(MIGRATION_1_2)
+            .addMigrations(MIGRATION_1_2, MIGRATION_2_3)
             // 未知版本升级兜底（开发阶段新加字段忘记写 Migration 时）
             .fallbackToDestructiveMigration()
             // 降级时直接重建（调试回退版本场景）
