@@ -73,6 +73,7 @@ import com.example.webdavplayer.data.remote.WebDavPath
 import com.example.webdavplayer.domain.model.RemoteFile
 import com.example.webdavplayer.ui.common.EmptyView
 import com.example.webdavplayer.ui.common.LoadingView
+import com.example.webdavplayer.domain.model.PlaylistItem
 import com.example.webdavplayer.ui.player.PlayerViewModel
 import com.example.webdavplayer.ui.theme.Spacing
 import com.example.webdavplayer.ui.playlist.PlaylistViewModel
@@ -298,7 +299,16 @@ fun BrowseScreen(
                                                 URLEncoder.encode(child, "UTF-8"),
                                         )
                                     } else {
-                                        viewModel.playFile(file)
+                                        val item = PlaylistItem(
+                                            id = "${file.serverId}:${viewModel.fullPath(file.name)}",
+                                            serverId = file.serverId,
+                                            path = viewModel.fullPath(file.name),
+                                            name = file.name,
+                                            mediaType = file.mediaType,
+                                            durationMs = 0L,
+                                            addedAt = System.currentTimeMillis(),
+                                        )
+                                        playerVm.playItem(item)
                                         navController.navigate("player")
                                     }
                                 },
@@ -321,7 +331,16 @@ fun BrowseScreen(
                                             URLEncoder.encode(child, "UTF-8"),
                                     )
                                 } else {
-                                    viewModel.playFile(file)
+                                    val item = PlaylistItem(
+                                        id = "${file.serverId}:${viewModel.fullPath(file.name)}",
+                                        serverId = file.serverId,
+                                        path = viewModel.fullPath(file.name),
+                                        name = file.name,
+                                        mediaType = file.mediaType,
+                                        durationMs = 0L,
+                                        addedAt = System.currentTimeMillis(),
+                                    )
+                                    playerVm.playItem(item)
                                     navController.navigate("player")
                                 }
                             },
@@ -422,8 +441,18 @@ fun BrowseScreen(
                             } else {
                                 TextButton(
                                     onClick = {
-                                        viewModel.playFile(file)
+                                        val item = PlaylistItem(
+                                            id = "${file.serverId}:${viewModel.fullPath(file.name)}",
+                                            serverId = file.serverId,
+                                            path = viewModel.fullPath(file.name),
+                                            name = file.name,
+                                            mediaType = file.mediaType,
+                                            durationMs = 0L,
+                                            addedAt = System.currentTimeMillis(),
+                                        )
+                                        playerVm.playItem(item)
                                         fileAction = null
+                                        navController.navigate("player")
                                     },
                                     modifier = Modifier.fillMaxWidth(),
                                 ) { Text("播放") }

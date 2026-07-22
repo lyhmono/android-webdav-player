@@ -179,8 +179,9 @@ class SardineWebDavClient @Inject constructor(
             rawHref
         }
 
-        // 取末段作为名称（URL 解码后的原始名称）
-        val name = relHref.trimEnd('/').substringAfterLast('/').ifEmpty { relHref }
+        // 取末段并 URL 解码为原始中文名称
+        val encodedName = relHref.trimEnd('/').substringAfterLast('/').ifEmpty { relHref }
+        val name = java.net.URLDecoder.decode(encodedName, "UTF-8")
         val contentType = res.contentType ?: ""
         return RemoteFile(
             id = "$serverId:$parentPath/$name",
