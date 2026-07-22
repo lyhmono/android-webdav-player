@@ -303,11 +303,7 @@ fun BrowseScreen(
                                     }
                                 },
                                 onItemLongClick = { file ->
-                                    if (file.isDirectory) {
-                                        viewModel.onDirLongClick(file)
-                                    } else {
-                                        fileAction = file
-                                    }
+                                    fileAction = file
                                 },
                             )
                         }
@@ -330,11 +326,7 @@ fun BrowseScreen(
                                 }
                             },
                             onItemLongClick = { file ->
-                                if (file.isDirectory) {
-                                    viewModel.onDirLongClick(file)
-                                } else {
-                                    fileAction = file
-                                }
+                                fileAction = file
                             },
                         )
                     }
@@ -403,24 +395,51 @@ fun BrowseScreen(
                 AlertDialog(
                     onDismissRequest = { fileAction = null },
                     title = { Text(file.name) },
-                    text = { Text("选择操作") },
-                    confirmButton = {
-                        TextButton(onClick = {
-                            renameText = file.name
-                            showRename = true
-                        }) { Text("重命名") }
-                    },
-                    dismissButton = {
-                        Row {
-                            TextButton(onClick = {
-                                moveText = file.parentPath
-                                showMove = true
-                            }) { Text("移动") }
-                            TextButton(onClick = {
-                                viewModel.delete(viewModel.fullPath(file.name))
-                                fileAction = null
-                            }) { Text("删除") }
+                    text = {
+                        Column {
+                            TextButton(
+                                onClick = {
+                                    renameText = file.name
+                                    showRename = true
+                                },
+                                modifier = Modifier.fillMaxWidth(),
+                            ) { Text("重命名") }
+                            TextButton(
+                                onClick = {
+                                    moveText = file.parentPath
+                                    showMove = true
+                                },
+                                modifier = Modifier.fillMaxWidth(),
+                            ) { Text("移动") }
+                            if (file.isDirectory) {
+                                TextButton(
+                                    onClick = {
+                                        viewModel.onDirLongClick(file)
+                                        fileAction = null
+                                    },
+                                    modifier = Modifier.fillMaxWidth(),
+                                ) { Text("加入播放列表") }
+                            } else {
+                                TextButton(
+                                    onClick = {
+                                        viewModel.playFile(file)
+                                        fileAction = null
+                                    },
+                                    modifier = Modifier.fillMaxWidth(),
+                                ) { Text("播放") }
+                            }
+                            TextButton(
+                                onClick = {
+                                    viewModel.delete(viewModel.fullPath(file.name))
+                                    fileAction = null
+                                },
+                                modifier = Modifier.fillMaxWidth(),
+                            ) { Text("删除", color = MaterialTheme.colorScheme.error) }
                         }
+                    },
+                    confirmButton = {},
+                    dismissButton = {
+                        TextButton(onClick = { fileAction = null }) { Text("取消") }
                     },
                 )
             }
