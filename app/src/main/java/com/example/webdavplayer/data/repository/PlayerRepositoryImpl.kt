@@ -1,6 +1,7 @@
 package com.example.webdavplayer.data.repository
 
 import android.content.Context
+import androidx.media3.exoplayer.ExoPlayer
 import dagger.hilt.android.qualifiers.ApplicationContext
 import com.example.webdavplayer.data.player.ExoPlayerEngine
 import com.example.webdavplayer.data.player.PlayerEngineFactory
@@ -93,6 +94,8 @@ class PlayerRepositoryImpl @Inject constructor(
         engine?.release()
         engine = null
     }
+
+    override fun getExoPlayer(): ExoPlayer? = (engine as? ExoPlayerEngine)?.exoPlayer
 
     private suspend fun connectFor(media: PlayableMedia) {
         val cfg = serverRepository.getById(media.serverId)

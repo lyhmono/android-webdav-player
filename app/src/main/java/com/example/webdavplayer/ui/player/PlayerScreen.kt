@@ -54,7 +54,10 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.viewinterop.AndroidView
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import androidx.media3.common.util.UnstableApi
+import androidx.media3.ui.PlayerView
 import androidx.navigation.NavHostController
 import com.example.webdavplayer.BuildConfig
 import com.example.webdavplayer.domain.model.EngineType
@@ -167,6 +170,26 @@ fun PlayerScreen(
                 horizontalAlignment = Alignment.CenterHorizontally,
                 verticalArrangement = Arrangement.spacedBy(Spacing.md),
             ) {
+                // 视频画面渲染层：视频类型时显示 PlayerView，音频时不显示
+                val exoPlayer = playerVm.exoPlayer
+                if (isVideo && exoPlayer != null) {
+                    AndroidView(
+                        factory = { ctx ->
+                            PlayerView(ctx).apply {
+                                player = exoPlayer
+                                useController = true
+                                layoutParams = android.widget.FrameLayout.LayoutParams(
+                                    android.widget.FrameLayout.LayoutParams.MATCH_PARENT,
+                                    android.widget.FrameLayout.LayoutParams.WRAP_CONTENT,
+                                )
+                            }
+                        },
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .height(240.dp),
+                    )
+                }
+
                 Spacer(Modifier.height(Spacing.lg))
                 Text(title.ifEmpty { "未选择媒体" }, style = MaterialTheme.typography.titleLarge)
                 Text(stateLabel(state), style = MaterialTheme.typography.bodyMedium)

@@ -9,6 +9,7 @@ import androidx.media3.common.C
 import androidx.media3.common.MediaMetadata
 import androidx.media3.common.Player
 import androidx.media3.common.util.UnstableApi
+import androidx.media3.exoplayer.ExoPlayer
 import androidx.media3.session.MediaController
 import androidx.media3.session.SessionToken
 import com.example.webdavplayer.common.Result
@@ -77,6 +78,9 @@ class PlayerViewModel @Inject constructor(
     /** 当前媒体类型（用于视频手势层门控，C4）。 */
     private val _currentMediaType = MutableStateFlow(MediaType.OTHER)
     val currentMediaType: StateFlow<MediaType> = _currentMediaType.asStateFlow()
+
+    /** 底层 ExoPlayer 实例（供 UI 绑定 Surface 渲染视频画面）。 */
+    val exoPlayer: ExoPlayer? get() = playerRepository.getExoPlayer()
 
     val items: StateFlow<List<PlaylistItem>> = playlistRepository.observeItems()
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
@@ -167,6 +171,7 @@ class PlayerViewModel @Inject constructor(
     fun playItem(item: PlaylistItem) {
         _title.value = item.name
         _currentItemId.value = item.id
+        _currentMediaType.value = item.mediaType
         viewModelScope.launch {
             when (val r = playMedia(item)) {
                 is Result.Success -> {

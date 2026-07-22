@@ -29,6 +29,9 @@ class ExoPlayerEngine(
 ) : PlayerEngine {
 
     private var player: ExoPlayer? = null
+
+    /** 供 UI 绑定 Surface 渲染视频画面。 */
+    val exoPlayer: ExoPlayer? get() = player
     private var listener: EngineListener? = null
     private var okHttpClient: OkHttpClient? = null
     private var state: PlaybackState = PlaybackState.IDLE
