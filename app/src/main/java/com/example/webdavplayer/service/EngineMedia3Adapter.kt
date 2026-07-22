@@ -229,6 +229,6 @@ class EngineMedia3Adapter(
         PlaybackState.PLAYING -> Player.STATE_READY
         PlaybackState.PAUSED -> Player.STATE_READY
         PlaybackState.ENDED -> Player.STATE_ENDED
-        PlaybackState.ERROR -> Player.STATE_ERROR
+        PlaybackState.ERROR -> Player.STATE_IDLE  // Media3 无 STATE_ERROR；用 IDLE + playWhenReady=false 表达错误，通知栏可重试
     }
 }
