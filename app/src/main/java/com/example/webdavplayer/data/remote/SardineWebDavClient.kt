@@ -96,16 +96,14 @@ class SardineWebDavClient @Inject constructor(
             val url = WebDavPath.join(cfg.baseUrl, path)
             val resources = retryIO { sardine.list(url, depth) }
             val parent = WebDavPath.normalize(path)
-            // baseUrl 中的路径前缀（如 http://host:port/dav 的 /dav），
+            // 从 baseUrl 中提取路径前缀（如 http://host:5244/dav 的 /dav），
             // 用于从资源 href 中剥离，避免将 baseUrl 子路径误当目录名。
-            val baseHttpUrl = try {
-                okhttp3.HttpUrl.parse(cfg.baseUrl)
-            } catch (_: Exception) {
-                null
-            }
+            val basePath = runCatching {
+                java.net.URI(cfg.baseUrl).rawPath.trimEnd('/')
+            }.getOrDefault("")
             resources.asSequence()
                 .drop(1) // 首个元素是目录自身
-                .map { mapResource(it, cfg.id, parent, baseHttpUrl) }
+                .map { mapResource(it, cfg.id, parent, basePath) }
                 .toList()
         }
 
@@ -168,12 +166,11 @@ class SardineWebDavClient @Inject constructor(
         res: DavResource,
         serverId: String,
         parentPath: String,
-        baseHttpUrl: okhttp3.HttpUrl?,
+        basePath: String,
     ): RemoteFile {
         val rawHref = res.href?.toString() ?: ""
 
         // 从 href 中去掉 baseUrl 的路径前缀（如 /dav），得到相对路径
-        val basePath = baseHttpUrl?.encodedPath?.trimEnd('/') ?: ""
         val relHref = if (basePath.isNotEmpty() && rawHref.startsWith(basePath + "/")) {
             rawHref.substring(basePath.length) // 保留前导 /
         } else if (basePath.isNotEmpty() && rawHref == basePath) {
