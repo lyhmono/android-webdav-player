@@ -5,6 +5,7 @@ import android.content.Context
 import androidx.core.content.ContextCompat
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
+import android.view.Surface
 import androidx.media3.common.C
 import androidx.media3.common.MediaMetadata
 import androidx.media3.common.Player
@@ -83,9 +84,16 @@ class PlayerViewModel @Inject constructor(
     private val _exoPlayer = MutableStateFlow<ExoPlayer?>(null)
     val exoPlayer: StateFlow<ExoPlayer?> = _exoPlayer.asStateFlow()
 
-    /** VLC 内核的 TextureView（供 UI 挂载渲染视频画面）。 */
-    private val _vlcTextureView = MutableStateFlow<android.view.TextureView?>(null)
-    val vlcTextureView: StateFlow<android.view.TextureView?> = _vlcTextureView.asStateFlow()
+    /** 当前引擎是否为 VLC（供 UI 决定渲染方式）。 */
+    private val _isVlcEngine = MutableStateFlow(false)
+
+    /** 当前引擎是否为 VLC（供 UI 决定渲染方式）。 */
+    val isVlcEngine: StateFlow<Boolean> = _isVlcEngine.asStateFlow()
+
+    /** UI 层创建 SurfaceView 后调用此方法传给 VLC。 */
+    fun attachVlcSurface(surface: Surface?) {
+        playerRepository.setVlcSurface(surface)
+    }
 
     /** 当前是否使用 VLC 内核。 */
     val isVlcEngine: Boolean get() = engineType.value == EngineType.VLC
@@ -185,7 +193,7 @@ class PlayerViewModel @Inject constructor(
                 is Result.Success -> {
                     _resumedPosition.value = r.data
                     _exoPlayer.value = playerRepository.getExoPlayer()
-                    _vlcTextureView.value = playerRepository.getVlcTextureView()
+                    _isVlcEngine.value = playerRepository.isVlcEngine()
                     /* 状态由 MediaController 监听驱动 */
                 }
                 is Result.Error -> _state.value = PlaybackState.ERROR
@@ -208,7 +216,7 @@ class PlayerViewModel @Inject constructor(
         playerRepository.release()
         _state.value = PlaybackState.IDLE
         _exoPlayer.value = null
-        _vlcTextureView.value = null
+        _isVlcEngine.value = false
     }
 
     fun seekTo(ms: Long) = mediaController?.seekTo(ms) ?: playerRepository.seekTo(ms)
@@ -257,7 +265,7 @@ class PlayerViewModel @Inject constructor(
             playerRepository.setEngineType(type)
             _engineType.value = type
             _exoPlayer.value = playerRepository.getExoPlayer()
-            _vlcTextureView.value = playerRepository.getVlcTextureView()
+            _isVlcEngine.value = playerRepository.isVlcEngine()
         }
     }
 

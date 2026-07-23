@@ -97,14 +97,23 @@ class PlayerRepositoryImpl @Inject constructor(
 
     override fun getExoPlayer(): ExoPlayer? = (engine as? ExoPlayerEngine)?.exoPlayer
 
-    override fun getVlcTextureView(): android.view.TextureView? =
+    override fun setVlcSurface(surface: android.view.Surface?) {
         try {
             val clazz = Class.forName("com.example.webdavplayer.data.player.VlcEngine")
-            val field = clazz.getDeclaredField("textureView")
-            field.isAccessible = true
-            field.get(engine) as? android.view.TextureView
+            val method = clazz.getDeclaredMethod("setSurface", android.view.Surface::class.java)
+            method.isAccessible = true
+            method.invoke(engine, surface)
         } catch (_: Exception) {
-            null
+            // 非 full flavor 或引擎非 VlcEngine
+        }
+    }
+
+    override fun isVlcEngine(): Boolean =
+        try {
+            val clazz = Class.forName("com.example.webdavplayer.data.player.VlcEngine")
+            clazz.isInstance(engine)
+        } catch (_: Exception) {
+            false
         }
 
     private suspend fun connectFor(media: PlayableMedia) {

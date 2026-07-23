@@ -6,7 +6,10 @@ import android.app.Activity
 import android.content.Context
 import android.content.ContextWrapper
 import android.content.pm.ActivityInfo
-import android.os.Build
+import android.view.Surface
+import android.view.SurfaceHolder
+import android.view.SurfaceView
+import android.view.View
 import android.view.WindowManager
 import androidx.activity.ComponentActivity
 import androidx.compose.animation.AnimatedVisibility
@@ -31,7 +34,7 @@ import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.ArrowBack
+import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.AudioFile
 import androidx.compose.material.icons.filled.FastForward
 import androidx.compose.material.icons.filled.FastRewind
@@ -114,7 +117,7 @@ fun PlayerScreen(
     val resumedPosition by playerVm.resumedPosition.collectAsStateWithLifecycle()
     val currentItemId by playerVm.currentItemId.collectAsStateWithLifecycle()
     val exoPlayer by playerVm.exoPlayer.collectAsStateWithLifecycle()
-    val vlcTextureView by playerVm.vlcTextureView.collectAsStateWithLifecycle()
+    val isVlcEngine by playerVm.isVlcEngine.collectAsStateWithLifecycle()
 
     val isVlcAvailable = BuildConfig.FLAVOR == "full"
     val isPlaying = state == PlaybackState.PLAYING
@@ -131,7 +134,7 @@ fun PlayerScreen(
         }
     }
 
-    // 全屏：隐藏系统 UI + 横屏
+    // 全屏：隐藏系统 UI + 横屏（仅在 isFullScreen=true 时生效）
     DisposableEffect(isFullScreen) {
         val act = activity
         if (isFullScreen && act != null) {
@@ -140,21 +143,19 @@ fun PlayerScreen(
             act.window?.addFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON)
             act.window?.decorView?.let { decorView ->
                 decorView.systemUiVisibility = (
-                    android.view.View.SYSTEM_UI_FLAG_FULLSCREEN
-                        or android.view.View.SYSTEM_UI_FLAG_HIDE_NAVIGATION
-                        or android.view.View.SYSTEM_UI_FLAG_IMMERSIVE_STICKY
-                        or android.view.View.SYSTEM_UI_FLAG_LAYOUT_FULLSCREEN
-                        or android.view.View.SYSTEM_UI_FLAG_LAYOUT_HIDE_NAVIGATION
-                        or android.view.View.SYSTEM_UI_FLAG_LAYOUT_STABLE
+                    View.SYSTEM_UI_FLAG_FULLSCREEN
+                        or View.SYSTEM_UI_FLAG_HIDE_NAVIGATION
+                        or View.SYSTEM_UI_FLAG_IMMERSIVE_STICKY
+                        or View.SYSTEM_UI_FLAG_LAYOUT_FULLSCREEN
+                        or View.SYSTEM_UI_FLAG_LAYOUT_HIDE_NAVIGATION
+                        or View.SYSTEM_UI_FLAG_LAYOUT_STABLE
                 )
             }
             onDispose {
                 act.requestedOrientation = originalOrientation
                 act.window?.clearFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON)
-                act.window?.decorView?.systemUiVisibility = android.view.View.SYSTEM_UI_FLAG_VISIBLE
+                act.window?.decorView?.systemUiVisibility = View.SYSTEM_UI_FLAG_VISIBLE
             }
-        } else {
-            onDispose {}
         }
     }
 
@@ -173,12 +174,12 @@ fun PlayerScreen(
         }
     }
 
-    // ==================== 全屏模式 ====================
     if (isFullScreen && isVideo) {
+        // 全屏模式：不使用 Scaffold，直接渲染全屏播放器
+        // 注意：不用 return，而是用 if/else 让 Compose 正确管理 DisposableEffect 生命周期
         FullScreenVideoPlayer(
             exoPlayer = exoPlayer,
-            vlcTextureView = vlcTextureView,
-            useVlc = engineType == EngineType.VLC && vlcTextureView != null,
+            isVlcEngine = isVlcEngine,
             position = position,
             duration = duration,
             isPlaying = isPlaying,
@@ -186,216 +187,255 @@ fun PlayerScreen(
             onSeekTo = { playerVm.seekTo(it) },
             onTogglePlay = { playerVm.togglePlay() },
             onExitFullScreen = { isFullScreen = false },
+            onAttachVlcSurface = { surface -> playerVm.attachVlcSurface(surface) },
         )
-        return
-    }
+    } else {
+        // 普通模式
+        Scaffold(
+            topBar = {
+                TopAppBar(
+                    title = { Text(title.ifEmpty { "播放" }) },
+                    navigationIcon = {
+                        IconButton(onClick = { navController.popBackStack() }) {
+                            Icon(Icons.AutoMirrored.Filled.ArrowBack, "返回")
+                        }
+                    },
+                    actions = {
+                        if (isVideo) {
+                            IconButton(onClick = { isFullScreen = true }) {
+                                Icon(Icons.Filled.Fullscreen, "全屏")
+                            }
+                        }
+                        IconButton(onClick = { navController.navigate("playlist") }) {
+                            Icon(Icons.Filled.QueueMusic, "播放列表")
+                        }
+                        IconButton(onClick = { menuExpanded = true }) {
+                            Icon(Icons.Filled.MoreVert, "更多")
+                        }
+                        DropdownMenu(expanded = menuExpanded, onDismissRequest = { menuExpanded = false }) {
+                            DropdownMenuItem(
+                                text = { Text("清除进度/从头播放") },
+                                onClick = {
+                                    menuExpanded = false
+                                    playerVm.clearProgressAndRestart()
+                                },
+                            )
+                        }
+                    },
+                )
+            },
+            snackbarHost = { SnackbarHost(snackbarHostState) },
+        ) { padding ->
+            Column(
+                Modifier
+                    .fillMaxSize()
+                    .padding(padding)
+                    .padding(horizontal = Spacing.lg, vertical = Spacing.md),
+                horizontalAlignment = Alignment.CenterHorizontally,
+                verticalArrangement = Arrangement.spacedBy(Spacing.md),
+            ) {
+                // ===== 视频画面 =====
+                if (isVideo) {
+                    VideoSurface(
+                        exoPlayer = exoPlayer,
+                        isVlcEngine = isVlcEngine,
+                        onAttachVlcSurface = { surface -> playerVm.attachVlcSurface(surface) },
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .aspectRatio(16f / 9f)
+                            .clip(RoundedCornerShape(8.dp)),
+                    )
+                }
 
-    // ==================== 普通模式 ====================
-    Scaffold(
-        topBar = {
-            TopAppBar(
-                title = { Text(title.ifEmpty { "播放" }) },
-                navigationIcon = {
-                    IconButton(onClick = { navController.popBackStack() }) {
-                        Icon(Icons.Filled.ArrowBack, "返回")
-                    }
-                },
-                actions = {
-                    if (isVideo) {
-                        IconButton(onClick = { isFullScreen = true }) {
-                            Icon(Icons.Filled.Fullscreen, "全屏")
+                // ===== 标题 + 状态 =====
+                Text(title.ifEmpty { "未选择媒体" }, style = MaterialTheme.typography.titleLarge)
+                Text(stateLabel(state), style = MaterialTheme.typography.bodyMedium)
+
+                // ===== 音频模式才有播放控制按钮（视频用 PlayerView 自带的） =====
+                if (!isVideo) {
+                    Row(
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.Center,
+                        modifier = Modifier.fillMaxWidth(),
+                    ) {
+                        IconButton(onClick = { playerVm.previous() }) {
+                            Icon(Icons.Filled.SkipPrevious, "上一首")
+                        }
+                        Spacer(Modifier.width(24.dp))
+                        Surface(
+                            shape = RoundedCornerShape(28.dp),
+                            color = MaterialTheme.colorScheme.primaryContainer,
+                        ) {
+                            IconButton(onClick = { playerVm.togglePlay() }, modifier = Modifier.padding(4.dp)) {
+                                Icon(
+                                    if (isPlaying) Icons.Filled.Pause else Icons.Filled.PlayArrow,
+                                    "播放/暂停",
+                                    modifier = Modifier.size(36.dp),
+                                )
+                            }
+                        }
+                        Spacer(Modifier.width(24.dp))
+                        IconButton(onClick = { playerVm.next() }) {
+                            Icon(Icons.Filled.SkipNext, "下一首")
                         }
                     }
-                    IconButton(onClick = { navController.navigate("playlist") }) {
-                        Icon(Icons.Filled.QueueMusic, "播放列表")
+
+                    Slider(
+                        value = position.toFloat().coerceIn(0f, duration.coerceAtLeast(1).toFloat()),
+                        onValueChange = { playerVm.seekTo(it.toLong()) },
+                        valueRange = 0f..duration.coerceAtLeast(1).toFloat(),
+                        modifier = Modifier.fillMaxWidth(),
+                    )
+                    Row(
+                        Modifier.fillMaxWidth().padding(horizontal = 8.dp),
+                        horizontalArrangement = Arrangement.SpaceBetween,
+                    ) {
+                        Text(formatDuration(position), style = MaterialTheme.typography.labelSmall)
+                        Text(formatDuration(duration), style = MaterialTheme.typography.labelSmall)
                     }
-                    IconButton(onClick = { menuExpanded = true }) {
-                        Icon(Icons.Filled.MoreVert, "更多")
-                    }
-                    DropdownMenu(expanded = menuExpanded, onDismissRequest = { menuExpanded = false }) {
-                        DropdownMenuItem(
-                            text = { Text("清除进度/从头播放") },
-                            onClick = {
-                                menuExpanded = false
-                                playerVm.clearProgressAndRestart()
-                            },
+                }
+
+                // ===== 播放模式 =====
+                SectionHeader("播放模式")
+                Row(horizontalArrangement = Arrangement.spacedBy(Spacing.xs)) {
+                    PlayMode.values().forEach { m ->
+                        FilterChip(
+                            selected = mode == m,
+                            onClick = { playerVm.setMode(m) },
+                            label = { Text(modeLabel(m)) },
                         )
                     }
-                },
-            )
-        },
-        snackbarHost = { SnackbarHost(snackbarHostState) },
-    ) { padding ->
-        Column(
-            Modifier
-                .fillMaxSize()
-                .padding(padding)
-                .padding(horizontal = Spacing.lg, vertical = Spacing.md),
-            horizontalAlignment = Alignment.CenterHorizontally,
-            verticalArrangement = Arrangement.spacedBy(Spacing.md),
-        ) {
-            // ===== 视频画面 =====
-            if (isVideo) {
-                val useVlc = engineType == EngineType.VLC && vlcTextureView != null
-                if (useVlc) {
-                    // VLC: TextureView 渲染
-                    AndroidView(
-                        factory = { vlcTextureView!! },
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .aspectRatio(16f / 9f)
-                            .clip(RoundedCornerShape(8.dp)),
-                    )
-                } else {
-                    // Media3: PlayerView 自带完整控制器
-                    AndroidView(
-                        factory = { ctx ->
-                            PlayerView(ctx).apply {
-                                useController = true
-                                player = exoPlayer
-                                setShowFastForwardButton(true)
-                                setShowRewindButton(true)
-                                setShowNextButton(false)
-                                setShowPreviousButton(false)
-                                controllerAutoShow = true
-                                resizeMode = AspectRatioFrameLayout.RESIZE_MODE_FIT
-                                layoutParams = android.widget.FrameLayout.LayoutParams(
-                                    android.widget.FrameLayout.LayoutParams.MATCH_PARENT,
-                                    android.widget.FrameLayout.LayoutParams.WRAP_CONTENT,
+                }
+
+                // ===== 播放内核 =====
+                SectionHeader("播放内核")
+                Row(horizontalArrangement = Arrangement.spacedBy(Spacing.xs)) {
+                    EngineType.values().forEach { t ->
+                        FilterChip(
+                            selected = engineType == t,
+                            onClick = { playerVm.switchEngine(t) },
+                            label = { Text(engineLabel(t)) },
+                            enabled = if (t == EngineType.VLC) isVlcAvailable else true,
+                        )
+                    }
+                }
+
+                // ===== 播放列表 =====
+                SectionHeader("播放列表")
+                LazyColumn(
+                    modifier = Modifier.fillMaxWidth().weight(1f),
+                    verticalArrangement = Arrangement.spacedBy(Spacing.xs),
+                ) {
+                    items(items, key = { it.id }) { item ->
+                        val isCurrent = item.id == currentItemId
+                        ListItem(
+                            headlineContent = {
+                                Text(
+                                    item.name,
+                                    color = if (isCurrent) MaterialTheme.colorScheme.primary
+                                            else MaterialTheme.colorScheme.onSurface,
+                                    fontWeight = if (isCurrent) FontWeight.Bold else null,
                                 )
-                            }
-                        },
-                        update = { view ->
-                            if (view.player !== exoPlayer) view.player = exoPlayer
-                        },
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .aspectRatio(16f / 9f)
-                            .clip(RoundedCornerShape(8.dp)),
-                    )
-                }
-            }
-
-            // ===== 标题 + 状态 =====
-            Text(title.ifEmpty { "未选择媒体" }, style = MaterialTheme.typography.titleLarge)
-            Text(stateLabel(state), style = MaterialTheme.typography.bodyMedium)
-
-            // ===== 音频模式才有播放控制按钮（视频用 PlayerView 自带的） =====
-            if (!isVideo) {
-                Row(
-                    verticalAlignment = Alignment.CenterVertically,
-                    horizontalArrangement = Arrangement.Center,
-                    modifier = Modifier.fillMaxWidth(),
-                ) {
-                    IconButton(onClick = { playerVm.previous() }) {
-                        Icon(Icons.Filled.SkipPrevious, "上一首")
-                    }
-                    Spacer(Modifier.width(24.dp))
-                    Surface(
-                        shape = RoundedCornerShape(28.dp),
-                        color = MaterialTheme.colorScheme.primaryContainer,
-                    ) {
-                        IconButton(onClick = { playerVm.togglePlay() }, modifier = Modifier.padding(4.dp)) {
-                            Icon(
-                                if (isPlaying) Icons.Filled.Pause else Icons.Filled.PlayArrow,
-                                "播放/暂停",
-                                modifier = Modifier.size(36.dp),
-                            )
-                        }
-                    }
-                    Spacer(Modifier.width(24.dp))
-                    IconButton(onClick = { playerVm.next() }) {
-                        Icon(Icons.Filled.SkipNext, "下一首")
-                    }
-                }
-
-                // 音频进度条
-                Slider(
-                    value = position.toFloat().coerceIn(0f, duration.coerceAtLeast(1).toFloat()),
-                    onValueChange = { playerVm.seekTo(it.toLong()) },
-                    valueRange = 0f..duration.coerceAtLeast(1).toFloat(),
-                    modifier = Modifier.fillMaxWidth(),
-                )
-                Row(
-                    Modifier.fillMaxWidth().padding(horizontal = 8.dp),
-                    horizontalArrangement = Arrangement.SpaceBetween,
-                ) {
-                    Text(formatDuration(position), style = MaterialTheme.typography.labelSmall)
-                    Text(formatDuration(duration), style = MaterialTheme.typography.labelSmall)
-                }
-            }
-
-            // ===== 播放模式 =====
-            SectionHeader("播放模式")
-            Row(horizontalArrangement = Arrangement.spacedBy(Spacing.xs)) {
-                PlayMode.values().forEach { m ->
-                    FilterChip(
-                        selected = mode == m,
-                        onClick = { playerVm.setMode(m) },
-                        label = { Text(modeLabel(m)) },
-                    )
-                }
-            }
-
-            // ===== 播放内核 =====
-            SectionHeader("播放内核")
-            Row(horizontalArrangement = Arrangement.spacedBy(Spacing.xs)) {
-                EngineType.values().forEach { t ->
-                    FilterChip(
-                        selected = engineType == t,
-                        onClick = { playerVm.switchEngine(t) },
-                        label = { Text(engineLabel(t)) },
-                        enabled = if (t == EngineType.VLC) isVlcAvailable else true,
-                    )
-                }
-            }
-
-            // ===== 播放列表 =====
-            SectionHeader("播放列表")
-            LazyColumn(
-                modifier = Modifier.fillMaxWidth().weight(1f),
-                verticalArrangement = Arrangement.spacedBy(Spacing.xs),
-            ) {
-                items(items, key = { it.id }) { item ->
-                    val isCurrent = item.id == currentItemId
-                    ListItem(
-                        headlineContent = {
-                            Text(
-                                item.name,
-                                color = if (isCurrent) MaterialTheme.colorScheme.primary
-                                        else MaterialTheme.colorScheme.onSurface,
-                                fontWeight = if (isCurrent) FontWeight.Bold else null,
-                            )
-                        },
-                        leadingContent = {
-                            Icon(
-                                if (item.mediaType == MediaType.VIDEO) Icons.Filled.VideoLibrary
-                                else Icons.Filled.AudioFile,
-                                contentDescription = null,
-                                tint = if (isCurrent) MaterialTheme.colorScheme.primary
-                                        else MaterialTheme.colorScheme.onSurfaceVariant,
-                            )
-                        },
-                        trailingContent = {
-                            if (isCurrent && isPlaying) {
+                            },
+                            leadingContent = {
                                 Icon(
-                                    Icons.Filled.PlayArrow,
-                                    contentDescription = "正在播放",
-                                    tint = MaterialTheme.colorScheme.primary,
+                                    if (item.mediaType == MediaType.VIDEO) Icons.Filled.VideoLibrary
+                                    else Icons.Filled.AudioFile,
+                                    contentDescription = null,
+                                    tint = if (isCurrent) MaterialTheme.colorScheme.primary
+                                            else MaterialTheme.colorScheme.onSurfaceVariant,
                                 )
-                            }
-                        },
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .animateItemPlacement()
-                            .combinedClickable(
-                                onClick = { playerVm.playItem(item) },
-                                onLongClick = { playlistVm.removeItem(item.id) },
-                            ),
-                    )
+                            },
+                            trailingContent = {
+                                if (isCurrent && isPlaying) {
+                                    Icon(
+                                        Icons.Filled.PlayArrow,
+                                        contentDescription = "正在播放",
+                                        tint = MaterialTheme.colorScheme.primary,
+                                    )
+                                }
+                            },
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .animateItemPlacement()
+                                .combinedClickable(
+                                    onClick = { playerVm.playItem(item) },
+                                    onLongClick = { playlistVm.removeItem(item.id) },
+                                ),
+                        )
+                    }
                 }
             }
         }
+    }
+}
+
+// ============================================================
+// 视频渲染组件（非全屏 + 全屏共用）
+// ============================================================
+@Composable
+private fun VideoSurface(
+    exoPlayer: androidx.media3.exoplayer.ExoPlayer?,
+    isVlcEngine: Boolean,
+    onAttachVlcSurface: (Surface?) -> Unit,
+    modifier: Modifier = Modifier,
+    resizeModeFill: Boolean = false,
+) {
+    if (isVlcEngine) {
+        // VLC: UI 层创建 SurfaceView（使用 Compose context = Activity context）
+        AndroidView(
+            factory = { ctx ->
+                SurfaceView(ctx).apply {
+                    holder.addCallback(object : SurfaceHolder.Callback {
+                        override fun surfaceCreated(holder: SurfaceHolder) {
+                            onAttachVlcSurface(holder.surface)
+                        }
+
+                        override fun surfaceChanged(
+                            holder: SurfaceHolder,
+                            format: Int,
+                            width: Int,
+                            height: Int,
+                        ) {
+                            // VLC 会自动处理尺寸变化
+                        }
+
+                        override fun surfaceDestroyed(holder: SurfaceHolder) {
+                            onAttachVlcSurface(null)
+                        }
+                    })
+                }
+            },
+            modifier = modifier,
+        )
+    } else {
+        // Media3: PlayerView 自带控制器
+        AndroidView(
+            factory = { ctx ->
+                PlayerView(ctx).apply {
+                    useController = true
+                    player = exoPlayer
+                    setShowFastForwardButton(true)
+                    setShowRewindButton(true)
+                    setShowNextButton(false)
+                    setShowPreviousButton(false)
+                    controllerAutoShow = true
+                    resizeMode = if (resizeModeFill) {
+                        AspectRatioFrameLayout.RESIZE_MODE_FILL
+                    } else {
+                        AspectRatioFrameLayout.RESIZE_MODE_FIT
+                    }
+                    layoutParams = android.widget.FrameLayout.LayoutParams(
+                        android.widget.FrameLayout.LayoutParams.MATCH_PARENT,
+                        android.widget.FrameLayout.LayoutParams.MATCH_PARENT,
+                    )
+                }
+            },
+            update = { view ->
+                if (view.player !== exoPlayer) view.player = exoPlayer
+            },
+            modifier = modifier,
+        )
     }
 }
 
@@ -405,8 +445,7 @@ fun PlayerScreen(
 @Composable
 private fun FullScreenVideoPlayer(
     exoPlayer: androidx.media3.exoplayer.ExoPlayer?,
-    vlcTextureView: android.view.TextureView?,
-    useVlc: Boolean,
+    isVlcEngine: Boolean,
     position: Long,
     duration: Long,
     isPlaying: Boolean,
@@ -414,6 +453,7 @@ private fun FullScreenVideoPlayer(
     onSeekTo: (Long) -> Unit,
     onTogglePlay: () -> Unit,
     onExitFullScreen: () -> Unit,
+    onAttachVlcSurface: (Surface?) -> Unit,
 ) {
     var showControls by remember { mutableStateOf(true) }
     var seekPreview by remember { mutableLongStateOf(-1L) }
@@ -425,34 +465,16 @@ private fun FullScreenVideoPlayer(
             .fillMaxSize()
             .background(Color.Black),
     ) {
-        // --- 视频画面 ---
-        if (useVlc && vlcTextureView != null) {
-            AndroidView(
-                factory = { vlcTextureView },
-                modifier = Modifier.fillMaxSize(),
-            )
-        } else {
-            AndroidView(
-                factory = { ctx ->
-                    PlayerView(ctx).apply {
-                        useController = false
-                        // FILL: 拉伸填满全屏
-                        resizeMode = AspectRatioFrameLayout.RESIZE_MODE_FILL
-                        player = exoPlayer
-                        layoutParams = android.widget.FrameLayout.LayoutParams(
-                            android.widget.FrameLayout.LayoutParams.MATCH_PARENT,
-                            android.widget.FrameLayout.LayoutParams.MATCH_PARENT,
-                        )
-                    }
-                },
-                update = { view ->
-                    if (view.player !== exoPlayer) view.player = exoPlayer
-                },
-                modifier = Modifier.fillMaxSize(),
-            )
-        }
+        // --- 视频画面（全屏铺满） ---
+        VideoSurface(
+            exoPlayer = exoPlayer,
+            isVlcEngine = isVlcEngine,
+            onAttachVlcSurface = onAttachVlcSurface,
+            modifier = Modifier.fillMaxSize(),
+            resizeModeFill = true,
+        )
 
-        // --- 手势层 ---
+        // --- 手势层（点击切换控制 + 横向滑动 seek） ---
         Box(
             modifier = Modifier
                 .fillMaxSize()

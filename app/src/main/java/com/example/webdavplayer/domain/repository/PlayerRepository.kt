@@ -38,8 +38,13 @@ interface PlayerRepository {
     fun getExoPlayer(): ExoPlayer?
 
     /**
-     * 获取 VLC 内核的 TextureView（供 UI 挂载渲染视频画面）。
-     * 若当前内核非 VLC 或引擎尚未创建，返回 null。
+     * UI 层创建 Surface 后通过此方法传给 VLC 内核。
+     * 若当前内核非 VLC，此方法无效果。
      */
-    fun getVlcTextureView(): android.view.TextureView?
+    fun setVlcSurface(surface: android.view.Surface?)
+
+    /**
+     * 当前引擎是否为 VLC。
+     */
+    fun isVlcEngine(): Boolean
 }
