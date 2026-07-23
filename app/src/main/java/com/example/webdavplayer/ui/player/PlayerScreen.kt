@@ -396,10 +396,6 @@ private fun VideoSurface(
                     onAttachVlcSurfaceView(sv)
                 }
             },
-            update = { sv ->
-                // 确保 VlcEngine 持有最新的 SurfaceView 引用
-                onAttachVlcSurfaceView(sv)
-            },
             modifier = modifier,
         )
     } else {

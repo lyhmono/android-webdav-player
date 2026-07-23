@@ -49,6 +49,11 @@ class VlcEngine @Inject constructor(
 
     /** UI 层调用：绑定 SurfaceView（VLC 标准方式：setVideoView + attachViews）。 */
     fun setSurfaceView(view: SurfaceView?) {
+        if (surfaceView === view) return
+        // 如果已有 attached 的 views，先 detach 再重新 attach 到新的 SurfaceView
+        if (view != null) {
+            try { mediaPlayer?.vlcVout?.detachViews() } catch (_: Exception) {}
+        }
         surfaceView = view
         if (view != null) {
             attachVlcVout()
