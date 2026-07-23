@@ -95,8 +95,6 @@ class PlayerViewModel @Inject constructor(
         playerRepository.setVlcSurface(surface)
     }
 
-    /** 当前是否使用 VLC 内核。 */
-    val isVlcEngine: Boolean get() = engineType.value == EngineType.VLC
 
     val items: StateFlow<List<PlaylistItem>> = playlistRepository.observeItems()
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())

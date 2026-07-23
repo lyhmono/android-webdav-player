@@ -157,7 +157,7 @@ fun PlayerScreen(
                 act.window?.decorView?.systemUiVisibility = View.SYSTEM_UI_FLAG_VISIBLE
             }
         } else {
-            onDispose { }
+            onDispose {}
         }
     }
 
