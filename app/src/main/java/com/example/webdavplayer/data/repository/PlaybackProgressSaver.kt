@@ -42,11 +42,18 @@ class PlaybackProgressSaver @Inject constructor(
     /**
      * 周期性进度回调（节流保存）。
      * 内部判断距上次落库是否超过 [saveIntervalMs]，超过才写库。
+     * 使用 tryLock 防止上一次写库未完成时重复发起。
      */
     fun onProgress(serverId: String, path: String, positionMs: Long) {
         val now = System.currentTimeMillis()
-        if (now - lastSavedAt >= saveIntervalMs) {
-            lastSavedAt = now
+        // saveMutex 保证 lastSavedAt 读-改-写的原子性
+        if (saveMutex.tryLock()) {
+            try {
+                if (now - lastSavedAt < saveIntervalMs) return
+                lastSavedAt = now
+            } finally {
+                saveMutex.unlock()
+            }
             persist(serverId, path, positionMs)
         }
     }
@@ -81,15 +88,20 @@ class PlaybackProgressSaver @Inject constructor(
 
     private fun persist(serverId: String, path: String, positionMs: Long) {
         scope.launch {
-            saveMutex.withLock {
-                repository.save(
-                    PlaybackProgress(
-                        serverId = serverId,
-                        path = path,
-                        positionMs = positionMs,
-                        updatedAt = System.currentTimeMillis(),
-                    ),
-                )
+            // tryLock 避免上一次写库未完成时重复写入
+            if (saveMutex.tryLock()) {
+                try {
+                    repository.save(
+                        PlaybackProgress(
+                            serverId = serverId,
+                            path = path,
+                            positionMs = positionMs,
+                            updatedAt = System.currentTimeMillis(),
+                        ),
+                    )
+                } finally {
+                    saveMutex.unlock()
+                }
             }
         }
     }

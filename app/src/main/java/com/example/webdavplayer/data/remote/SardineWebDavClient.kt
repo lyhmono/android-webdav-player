@@ -94,18 +94,23 @@ class SardineWebDavClient @Inject constructor(
             val cfg = requireConfig()
             val sardine = OkHttpSardine(requireClient())
             val url = WebDavPath.join(cfg.baseUrl, path)
-            val resources = sardine.list(url, depth)
+            val resources = retryIO { sardine.list(url, depth) }
             val parent = WebDavPath.normalize(path)
+            // 从 baseUrl 中提取路径前缀（如 http://host:5244/dav 的 /dav），
+            // 用于从资源 href 中剥离，避免将 baseUrl 子路径误当目录名。
+            val basePath = runCatching {
+                java.net.URI(cfg.baseUrl).rawPath.trimEnd('/')
+            }.getOrDefault("")
             resources.asSequence()
                 .drop(1) // 首个元素是目录自身
-                .map { mapResource(it, cfg.id, parent) }
+                .map { mapResource(it, cfg.id, parent, basePath) }
                 .toList()
         }
 
     override suspend fun openStream(path: String): Source = withContext(Dispatchers.IO) {
         val cfg = requireConfig()
         val sardine = OkHttpSardine(requireClient())
-        val input = sardine.get(WebDavPath.join(cfg.baseUrl, path))
+        val input = retryIO { sardine.get(WebDavPath.join(cfg.baseUrl, path)) }
         input.source()
     }
 
@@ -125,7 +130,9 @@ class SardineWebDavClient @Inject constructor(
         val targetName = WebDavPath.nameOf(to) // to 为目标名称
         val toPath = if (parent == "/") "/$targetName" else "$parent/$targetName"
         val sardine = OkHttpSardine(requireClient())
-        sardine.move(WebDavPath.join(cfg.baseUrl, from), WebDavPath.join(cfg.baseUrl, toPath))
+        retryIO {
+            sardine.move(WebDavPath.join(cfg.baseUrl, from), WebDavPath.join(cfg.baseUrl, toPath))
+        }
     }
 
     override suspend fun move(from: String, to: String) = withContext(Dispatchers.IO) {
@@ -134,20 +141,47 @@ class SardineWebDavClient @Inject constructor(
         val name = WebDavPath.nameOf(from)
         val dest = if (to == "/") "/$name" else "$to/$name"
         val sardine = OkHttpSardine(requireClient())
-        sardine.move(WebDavPath.join(cfg.baseUrl, from), WebDavPath.join(cfg.baseUrl, dest))
+        retryIO {
+            sardine.move(WebDavPath.join(cfg.baseUrl, from), WebDavPath.join(cfg.baseUrl, dest))
+        }
     }
 
     override suspend fun delete(path: String) = withContext(Dispatchers.IO) {
         val cfg = requireConfig()
         val sardine = OkHttpSardine(requireClient())
-        sardine.delete(WebDavPath.join(cfg.baseUrl, path))
+        retryIO { sardine.delete(WebDavPath.join(cfg.baseUrl, path)) }
     }
 
     override fun getOkHttpClient(): OkHttpClient = requireClient()
 
-    private fun mapResource(res: DavResource, serverId: String, parentPath: String): RemoteFile {
-        val href = res.href?.toString() ?: ""
-        val name = href.substringAfterLast('/').ifEmpty { href }
+    /**
+     * 将 Sardine DavResource 映射为 [RemoteFile]。
+     *
+     * 关键：从 href 中提取「相对于 baseUrl 路径前缀」的纯名称。
+     * 例如 baseUrl = http://host:5244/dav，资源 href = /dav/天翼云 →
+     *   pathSegment = 天翼云（而非 dav/天翼云），
+     * 避免将 baseUrl 子路径误当成一级目录。
+     */
+    private fun mapResource(
+        res: DavResource,
+        serverId: String,
+        parentPath: String,
+        basePath: String,
+    ): RemoteFile {
+        val rawHref = res.href?.toString() ?: ""
+
+        // 从 href 中去掉 baseUrl 的路径前缀（如 /dav），得到相对路径
+        val relHref = if (basePath.isNotEmpty() && rawHref.startsWith(basePath + "/")) {
+            rawHref.substring(basePath.length) // 保留前导 /
+        } else if (basePath.isNotEmpty() && rawHref == basePath) {
+            "/"
+        } else {
+            rawHref
+        }
+
+        // 取末段并 URL 解码为原始中文名称
+        val encodedName = relHref.trimEnd('/').substringAfterLast('/').ifEmpty { relHref }
+        val name = java.net.URLDecoder.decode(encodedName, "UTF-8")
         val contentType = res.contentType ?: ""
         return RemoteFile(
             id = "$serverId:$parentPath/$name",
@@ -165,4 +199,24 @@ class SardineWebDavClient @Inject constructor(
 
     private fun guessContentType(path: String): String =
         URLConnection.guessContentTypeFromName(path) ?: "application/octet-stream"
+
+    private suspend fun <T> retryIO(
+        maxRetries: Int = 3,
+        initialDelayMs: Long = 500L,
+        block: () -> T,
+    ): T {
+        var lastError: Throwable? = null
+        repeat(maxRetries) { attempt ->
+            try {
+                return block()
+            } catch (e: java.io.IOException) {
+                lastError = e
+                if (attempt < maxRetries - 1) {
+                    val delay = initialDelayMs * (1 shl attempt) // 500, 1000, 2000 ms
+                    kotlinx.coroutines.delay(delay)
+                }
+            }
+        }
+        throw lastError ?: java.io.IOException("retryIO: unknown failure")
+    }
 }

@@ -1,6 +1,7 @@
 package com.example.webdavplayer.data.repository
 
 import android.content.Context
+import androidx.media3.exoplayer.ExoPlayer
 import dagger.hilt.android.qualifiers.ApplicationContext
 import com.example.webdavplayer.data.player.ExoPlayerEngine
 import com.example.webdavplayer.data.player.PlayerEngineFactory
@@ -93,6 +94,27 @@ class PlayerRepositoryImpl @Inject constructor(
         engine?.release()
         engine = null
     }
+
+    override fun getExoPlayer(): ExoPlayer? = (engine as? ExoPlayerEngine)?.exoPlayer
+
+    override fun setVlcSurfaceView(surfaceView: android.view.SurfaceView?) {
+        try {
+            val clazz = Class.forName("com.example.webdavplayer.data.player.VlcEngine")
+            val method = clazz.getDeclaredMethod("setSurfaceView", android.view.SurfaceView::class.java)
+            method.isAccessible = true
+            method.invoke(engine, surfaceView)
+        } catch (_: Exception) {
+            // 非 full flavor 或引擎非 VlcEngine
+        }
+    }
+
+    override fun isVlcEngine(): Boolean =
+        try {
+            val clazz = Class.forName("com.example.webdavplayer.data.player.VlcEngine")
+            clazz.isInstance(engine)
+        } catch (_: Exception) {
+            false
+        }
 
     private suspend fun connectFor(media: PlayableMedia) {
         val cfg = serverRepository.getById(media.serverId)

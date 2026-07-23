@@ -1,5 +1,6 @@
 package com.example.webdavplayer.service
 
+import android.util.Log
 import android.app.NotificationChannel
 import android.app.NotificationManager
 import android.content.Intent
@@ -31,17 +32,17 @@ import kotlinx.coroutines.launch
 import javax.inject.Inject
 
 /**
- * 后台播放服务（C1 / §7）。
+ * 后台播放服务(C1 / §7)。
  *
- * 继承 Media3 [MediaSessionService]：
- * - 持有 MediaSession（背后是 [EngineMedia3Adapter]），系统（通知/锁屏/蓝牙）经会话控制播放；
- * - 是 [PlayerRepository] 引擎监听的唯一拥有者（UI 不再持有监听，改为 MediaController 客户端），
- *   因此活动销毁后引擎仍在后台运行，实现后台播放；
- * - 经 [EngineListener] 把引擎事件转译为会话状态（[EngineMedia3Adapter.invalidateState]），
- *   并在进度回调中驱动 [PlaybackProgressSaver] 落库；
- * - 视频在应用退到后台时自动暂停（[foregroundObserver]）。
+ * 继承 Media3 [MediaSessionService]:
+ * - 持有 MediaSession(背后是 [EngineMedia3Adapter]),系统(通知/锁屏/蓝牙)经会话控制播放;
+ * - 是 [PlayerRepository] 引擎监听的唯一拥有者(UI 不再持有监听,改为 MediaController 客户端),
+ *   因此活动销毁后引擎仍在后台运行,实现后台播放;
+ * - 经 [EngineListener] 把引擎事件转译为会话状态([EngineMedia3Adapter.invalidateState]),
+ *   并在进度回调中驱动 [PlaybackProgressSaver] 落库;
+ * - 视频在应用退到后台时自动暂停([foregroundObserver])。
  *
- * 注意：MediaSessionService 在媒体播放时会自动以前台服务 + 通知形式运行，
+ * 注意:MediaSessionService 在媒体播放时会自动以前台服务 + 通知形式运行,
  * 无需手动 startForeground。
  */
 @AndroidEntryPoint
@@ -49,7 +50,12 @@ import javax.inject.Inject
 class PlaybackService : MediaSessionService() {
 
     /** 通知渠道 id（与 DefaultMediaNotificationProvider 配置对应）。 */
-    private val channelId: String = "webdav_playback"
+    companion object {
+        const val CHANNEL_ID = "webdav_playback"
+        const val CHANNEL_DESCRIPTION = "WebDAV 播放器后台播放通知"
+    }
+
+    private val channelId: String = CHANNEL_ID
 
     @Inject
     lateinit var playerRepository: PlayerRepository
@@ -66,19 +72,19 @@ class PlaybackService : MediaSessionService() {
     private lateinit var mediaSession: MediaSession
     private lateinit var adapter: EngineMedia3Adapter
 
-    /** 服务级协程（触发 playItem 等挂起调用）。 */
-    private val serviceScope = CoroutineScope(SupervisorJob() + Dispatchers.Main)
+    /** 服务级协程(触发 playItem 等挂起调用,IO 保证 DB 操作不阻塞主线程)。 */
+    private val serviceScope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
 
-    /** 统一“播放某一项”入口（供 adapter / callback 复用）。 */
+    /** 统一"播放某一项"入口(供 adapter / callback 复用)。 */
     private fun launchPlayItem(item: PlaylistItem) {
         serviceScope.launch { playMedia(item) }
     }
 
-    /** 引擎事件监听：驱动会话状态 + 进度落库 + 自然结束续播。 */
+    /** 引擎事件监听:驱动会话状态 + 进度落库 + 自然结束续播。 */
     private val engineListener = object : EngineListener {
         override fun onStateChange(state: PlaybackState) {
             adapter.onEngineState(state)
-            // 暂停或结束时立即落库当前进度，避免丢失最近 5s 的播放位置。
+            // 暂停或结束时立即落库当前进度,避免丢失最近 5s 的播放位置。
             if (state == PlaybackState.PAUSED || state == PlaybackState.ENDED || state == PlaybackState.ERROR) {
                 playlistController.current()?.let { item ->
                     serviceScope.launch {
@@ -90,15 +96,16 @@ class PlaybackService : MediaSessionService() {
 
         override fun onProgress(positionMs: Long, durationMs: Long) {
             adapter.onEngineProgress(positionMs, durationMs)
-            // 节流保存当前项断点（C3）。
+            // 节流保存当前项断点(C3)-- PlaybackProgressSaver 内部已做 5s 节流,
+            // 这里只转发,不会每秒写 DB。
             playlistController.current()?.let { item ->
                 progressSaver.onProgress(item.serverId, item.path, positionMs)
             }
         }
 
         override fun onEnded() {
-            // 自然结束：仅当当前播放模式“非 LOOP”时才清除刚播完项的续播断点（C3-AC4）。
-            // LOOP 模式下保留断点，由 onProgress 每 ~5s 节流续写，保证“下次打开仍从断点续播”。
+            // 自然结束:仅当当前播放模式"非 LOOP"时才清除刚播完项的续播断点(C3-AC4)。
+            // LOOP 模式下保留断点,由 onProgress 每 ~5s 节流续写,保证"下次打开仍从断点续播"。
             if (playlistController.getMode() != PlayMode.LOOP) {
                 playlistController.current()?.let { ended ->
                     progressSaver.onEnded(ended.serverId, ended.path)
@@ -109,11 +116,14 @@ class PlaybackService : MediaSessionService() {
         }
 
         override fun onError(throwable: Throwable) {
-            // 错误状态已由 onEngineState(ERROR) 经 adapter.onEngineState 推送，无需额外刷新。
+            // 记录错误堆栈,便于排查问题。
+            Log.e("PlaybackService", "播放引擎出错", throwable)
+            // 错误状态已由 onEngineState(ERROR) 经 adapter.onEngineState 推送,
+            // 此处仅做日志记录,不额外刷新状态。
         }
     }
 
-    /** 应用前后台观测：退到后台且当前是视频则暂停（C1：视频后台暂停）。 */
+    /** 应用前后台观测:退到后台且当前是视频则暂停(C1:视频后台暂停)。 */
     private val foregroundObserver = LifecycleEventObserver { _, event ->
         if (event == Lifecycle.Event.ON_STOP) {
             val current = playlistController.current()
@@ -133,8 +143,8 @@ class PlaybackService : MediaSessionService() {
             .setChannelId(channelId)
             .setChannelName(R.string.playback_channel_name)
             .build()
-        // Media3 1.5.1：通知提供方通过 MediaSessionService 的 protected 方法设置
-        //（MediaSession.Builder 已无 setMediaNotificationProvider）。
+        // Media3 1.5.1:通知提供方通过 MediaSessionService 的 protected 方法设置
+        //(MediaSession.Builder 已无 setMediaNotificationProvider)。
         setMediaNotificationProvider(provider)
 
         adapter = EngineMedia3Adapter(
@@ -148,7 +158,7 @@ class PlaybackService : MediaSessionService() {
             .setCallback(PlaybackSessionCallback())
             .build()
 
-        // 服务成为引擎监听的唯一拥有者（UI 已降级为 MediaController 客户端）。
+        // 服务成为引擎监听的唯一拥有者(UI 已降级为 MediaController 客户端)。
         playerRepository.setListener(engineListener)
 
         ProcessLifecycleOwner.get().lifecycle.addObserver(foregroundObserver)
@@ -159,8 +169,9 @@ class PlaybackService : MediaSessionService() {
 
     override fun onTaskRemoved(rootIntent: Intent?) {
         super.onTaskRemoved(rootIntent)
-        // 后台播放：仍在播放则保留服务；已暂停/结束则释放。
+        // 后台播放:仍在播放则保留服务;已暂停/结束则先暂停引擎再停止服务。
         if (playerRepository.getState() != PlaybackState.PLAYING) {
+            playerRepository.pause()
             stopSelf()
         }
     }
@@ -173,7 +184,7 @@ class PlaybackService : MediaSessionService() {
         super.onDestroy()
     }
 
-    /** 创建 mediaPlayback 通知渠道（Android 8+ 必需）。 */
+    /** 创建 mediaPlayback 通知渠道(Android 8+ 必需)。 */
     private fun createNotificationChannel() {
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
             val manager = getSystemService(NotificationManager::class.java)
@@ -183,7 +194,7 @@ class PlaybackService : MediaSessionService() {
                     getString(R.string.playback_channel_name),
                     NotificationManager.IMPORTANCE_LOW,
                 ).apply {
-                    description = "WebDAV 播放器后台播放通知"
+                    description = CHANNEL_DESCRIPTION
                 }
                 manager.createNotificationChannel(channel)
             }

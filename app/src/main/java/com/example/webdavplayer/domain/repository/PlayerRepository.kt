@@ -1,5 +1,6 @@
 package com.example.webdavplayer.domain.repository
 
+import androidx.media3.exoplayer.ExoPlayer
 import com.example.webdavplayer.domain.model.EngineListener
 import com.example.webdavplayer.domain.model.EngineType
 import com.example.webdavplayer.domain.model.PlayableMedia
@@ -29,4 +30,22 @@ interface PlayerRepository {
     fun setListener(listener: EngineListener?)
     fun getState(): PlaybackState
     fun release()
+
+    /**
+     * 获取底层 ExoPlayer 实例（供 UI 绑定 Surface 渲染视频画面）。
+     * 若当前内核非 Media3/ExoPlayer 或引擎尚未创建，返回 null。
+     */
+    fun getExoPlayer(): ExoPlayer?
+
+    /**
+     * UI 层创建 SurfaceView 后通过此方法传给 VLC 内核。
+     * VLC 使用 setVideoView(SurfaceView) + attachViews() 标准方式绑定。
+     * 若当前内核非 VLC，此方法无效果。
+     */
+    fun setVlcSurfaceView(surfaceView: android.view.SurfaceView?)
+
+    /**
+     * 当前引擎是否为 VLC。
+     */
+    fun isVlcEngine(): Boolean
 }

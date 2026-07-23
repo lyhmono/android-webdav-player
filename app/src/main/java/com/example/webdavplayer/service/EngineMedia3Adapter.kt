@@ -1,5 +1,6 @@
 package com.example.webdavplayer.service
 
+import android.util.Log
 import androidx.media3.common.C
 import androidx.media3.common.MediaItem
 import androidx.media3.common.MediaMetadata
@@ -68,36 +69,43 @@ class EngineMedia3Adapter(
     /** 工作协程（用于触发 playItem 等挂起调用，主线程即可）。 */
     private val scope = CoroutineScope(SupervisorJob() + Dispatchers.Main)
 
-    /** 当前播放状态（由引擎监听驱动）。 */
-    @Volatile
-    private var engineState: PlaybackState = PlaybackState.IDLE
+    /** 状态快照数据类，保证多字段原子读取。 */
+    private data class StateSnapshot(
+        val state: PlaybackState = PlaybackState.IDLE,
+        val position: Long = 0L,
+        val duration: Long = 0L,
+    )
 
-    /** 当前进度（毫秒，由引擎监听驱动）。 */
+    /** 用 synchronized 块保证状态+进度+时长的一致性快照。 */
+    private val stateLock = Any()
     @Volatile
-    private var positionMs: Long = 0L
-
-    /** 当前总时长（毫秒，由引擎监听驱动）。 */
-    @Volatile
-    private var durationMs: Long = 0L
+    private var snapshot = StateSnapshot()
 
     /** 供外部读取当前播放位置（用于暂停/结束时 flush 进度）。 */
-    val currentPositionMs: Long get() = positionMs
+    val currentPositionMs: Long get() = synchronized(stateLock) { snapshot.position }
 
     /** 引擎监听驱动：更新状态并推送。 */
     fun onEngineState(state: PlaybackState) {
-        engineState = state
+        synchronized(stateLock) {
+            snapshot = snapshot.copy(state = state)
+        }
         invalidateState()
     }
 
     /** 引擎监听驱动：更新进度并推送。 */
     fun onEngineProgress(position: Long, duration: Long) {
-        positionMs = position
-        if (duration > 0) durationMs = duration
+        synchronized(stateLock) {
+            snapshot = snapshot.copy(
+                position = position,
+                duration = if (duration > 0) duration else snapshot.duration,
+            )
+        }
         invalidateState()
     }
 
     @UnstableApi
     override fun getState(): State {
+        val snap = synchronized(stateLock) { snapshot }
         val items = playlistController.snapshot()
         val commands = buildCommands()
 
@@ -131,8 +139,8 @@ class EngineMedia3Adapter(
                 .setDurationUs(
                     if (item.durationMs > 0) {
                         item.durationMs * 1000
-                    } else if (durationMs > 0) {
-                        durationMs * 1000
+                    } else if (snap.duration > 0) {
+                        snap.duration * 1000
                     } else {
                         C.TIME_UNSET
                     },
@@ -147,12 +155,12 @@ class EngineMedia3Adapter(
         return State.Builder()
             .setAvailableCommands(commands)
             .setPlayWhenReady(
-                engineState == PlaybackState.PLAYING,
+                snap.state == PlaybackState.PLAYING,
                 Player.PLAY_WHEN_READY_CHANGE_REASON_USER_REQUEST,
             )
-            .setPlaybackState(mapState(engineState))
+            .setPlaybackState(mapState(snap.state))
             .setCurrentMediaItemIndex(currentIndex)
-            .setContentPositionMs(positionMs)
+            .setContentPositionMs(snap.position)
             .setPlaylist(mediaItemData)
             .build()
     }
@@ -207,6 +215,6 @@ class EngineMedia3Adapter(
         PlaybackState.PLAYING -> Player.STATE_READY
         PlaybackState.PAUSED -> Player.STATE_READY
         PlaybackState.ENDED -> Player.STATE_ENDED
-        PlaybackState.ERROR -> Player.STATE_IDLE
+        PlaybackState.ERROR -> Player.STATE_IDLE  // Media3 无 STATE_ERROR；用 IDLE + playWhenReady=false 表达错误，通知栏可重试
     }
 }

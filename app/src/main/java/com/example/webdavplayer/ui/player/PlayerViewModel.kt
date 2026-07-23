@@ -5,10 +5,12 @@ import android.content.Context
 import androidx.core.content.ContextCompat
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
+import android.view.SurfaceView
 import androidx.media3.common.C
 import androidx.media3.common.MediaMetadata
 import androidx.media3.common.Player
 import androidx.media3.common.util.UnstableApi
+import androidx.media3.exoplayer.ExoPlayer
 import androidx.media3.session.MediaController
 import androidx.media3.session.SessionToken
 import com.example.webdavplayer.common.Result
@@ -78,6 +80,22 @@ class PlayerViewModel @Inject constructor(
     private val _currentMediaType = MutableStateFlow(MediaType.OTHER)
     val currentMediaType: StateFlow<MediaType> = _currentMediaType.asStateFlow()
 
+    /** 底层 ExoPlayer 实例（供 UI 绑定 Surface 渲染视频画面）。 */
+    private val _exoPlayer = MutableStateFlow<ExoPlayer?>(null)
+    val exoPlayer: StateFlow<ExoPlayer?> = _exoPlayer.asStateFlow()
+
+    /** 当前引擎是否为 VLC（供 UI 决定渲染方式）。 */
+    private val _isVlcEngine = MutableStateFlow(false)
+
+    /** 当前引擎是否为 VLC（供 UI 决定渲染方式）。 */
+    val isVlcEngine: StateFlow<Boolean> = _isVlcEngine.asStateFlow()
+
+    /** UI 层创建 SurfaceView 后调用此方法传给 VLC。 */
+    fun attachVlcSurfaceView(surfaceView: SurfaceView?) {
+        playerRepository.setVlcSurfaceView(surfaceView)
+    }
+
+
     val items: StateFlow<List<PlaylistItem>> = playlistRepository.observeItems()
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
 
@@ -137,7 +155,7 @@ class PlayerViewModel @Inject constructor(
 
     /** Media3 Player 状态 → 领域 [PlaybackState]。 */
     private fun mapControllerState(c: MediaController): PlaybackState = when (c.playbackState) {
-        Player.STATE_IDLE -> PlaybackState.IDLE
+        Player.STATE_IDLE -> if (c.playerError != null) PlaybackState.ERROR else PlaybackState.IDLE
         Player.STATE_BUFFERING -> PlaybackState.PREPARING
         Player.STATE_READY -> if (c.isPlaying) PlaybackState.PLAYING else PlaybackState.PAUSED
         Player.STATE_ENDED -> PlaybackState.ENDED
@@ -167,10 +185,13 @@ class PlayerViewModel @Inject constructor(
     fun playItem(item: PlaylistItem) {
         _title.value = item.name
         _currentItemId.value = item.id
+        _currentMediaType.value = item.mediaType
         viewModelScope.launch {
             when (val r = playMedia(item)) {
                 is Result.Success -> {
                     _resumedPosition.value = r.data
+                    _exoPlayer.value = playerRepository.getExoPlayer()
+                    _isVlcEngine.value = playerRepository.isVlcEngine()
                     /* 状态由 MediaController 监听驱动 */
                 }
                 is Result.Error -> _state.value = PlaybackState.ERROR
@@ -186,6 +207,15 @@ class PlayerViewModel @Inject constructor(
     fun play() = mediaController?.play() ?: playerRepository.play()
 
     fun pause() = mediaController?.pause() ?: playerRepository.pause()
+
+    /** 停止播放并释放引擎（退出播放界面时调用）。 */
+    fun stop() {
+        mediaController?.stop()
+        playerRepository.release()
+        _state.value = PlaybackState.IDLE
+        _exoPlayer.value = null
+        _isVlcEngine.value = false
+    }
 
     fun seekTo(ms: Long) = mediaController?.seekTo(ms) ?: playerRepository.seekTo(ms)
 
@@ -232,6 +262,8 @@ class PlayerViewModel @Inject constructor(
         viewModelScope.launch {
             playerRepository.setEngineType(type)
             _engineType.value = type
+            _exoPlayer.value = playerRepository.getExoPlayer()
+            _isVlcEngine.value = playerRepository.isVlcEngine()
         }
     }
 

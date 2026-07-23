@@ -21,11 +21,13 @@ import javax.inject.Singleton
  *
  * 采用 Security-Crypto 的 [EncryptedSharedPreferences]：凭据（含密码）在落库时由
  * Android 密钥库加密，满足「冷启动加密存储 + 进应用再懒连接」的约定。
+ * 所有读写通过 [writeLock] 同步，保证多线程并发安全。
  */
 @Singleton
 class ServerConfigStore @Inject constructor(
     @ApplicationContext private val context: Context,
 ) {
+    private val writeLock = Any()
     /**
      * 延迟初始化加密偏好。
      *
@@ -65,12 +67,12 @@ class ServerConfigStore @Inject constructor(
         awaitClose { prefs.unregisterOnSharedPreferenceChangeListener(listener) }
     }
 
-    fun loadAll(): List<ServerConfig> {
+    fun loadAll(): List<ServerConfig> = synchronized(writeLock) {
         val json = prefs.getString(KEY, null) ?: return emptyList()
-        return runCatching { parse(json) }.getOrDefault(emptyList())
+        runCatching { parse(json) }.getOrDefault(emptyList())
     }
 
-    fun saveAll(list: List<ServerConfig>) {
+    fun saveAll(list: List<ServerConfig>) = synchronized(writeLock) {
         prefs.edit { putString(KEY, serialize(list)) }
     }
 

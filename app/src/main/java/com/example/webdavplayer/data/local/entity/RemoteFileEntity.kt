@@ -21,6 +21,8 @@ data class RemoteFileEntity(
     val lastModified: Long,
     val eTag: String,
     val mediaType: MediaType,
+    /** 缓存写入时间戳（用于 TTL 失效策略）。 */
+    val cachedAt: Long = System.currentTimeMillis(),
 )
 
 fun RemoteFileEntity.toDomain(): RemoteFile = RemoteFile(
@@ -47,4 +49,5 @@ fun RemoteFile.toEntity(): RemoteFileEntity = RemoteFileEntity(
     lastModified = lastModified,
     eTag = eTag,
     mediaType = mediaType,
+    cachedAt = System.currentTimeMillis(),
 )
