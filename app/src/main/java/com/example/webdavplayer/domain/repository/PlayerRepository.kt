@@ -38,10 +38,11 @@ interface PlayerRepository {
     fun getExoPlayer(): ExoPlayer?
 
     /**
-     * UI 层创建 Surface 后通过此方法传给 VLC 内核。
+     * UI 层创建 SurfaceView 后通过此方法传给 VLC 内核。
+     * VLC 使用 setVideoView(SurfaceView) + attachViews() 标准方式绑定。
      * 若当前内核非 VLC，此方法无效果。
      */
-    fun setVlcSurface(surface: android.view.Surface?)
+    fun setVlcSurfaceView(surfaceView: android.view.SurfaceView?)
 
     /**
      * 当前引擎是否为 VLC。

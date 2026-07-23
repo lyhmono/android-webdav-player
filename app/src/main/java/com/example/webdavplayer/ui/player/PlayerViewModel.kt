@@ -5,7 +5,7 @@ import android.content.Context
 import androidx.core.content.ContextCompat
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
-import android.view.Surface
+import android.view.SurfaceView
 import androidx.media3.common.C
 import androidx.media3.common.MediaMetadata
 import androidx.media3.common.Player
@@ -91,8 +91,8 @@ class PlayerViewModel @Inject constructor(
     val isVlcEngine: StateFlow<Boolean> = _isVlcEngine.asStateFlow()
 
     /** UI 层创建 SurfaceView 后调用此方法传给 VLC。 */
-    fun attachVlcSurface(surface: Surface?) {
-        playerRepository.setVlcSurface(surface)
+    fun attachVlcSurfaceView(surfaceView: SurfaceView?) {
+        playerRepository.setVlcSurfaceView(surfaceView)
     }
 
 

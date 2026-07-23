@@ -6,7 +6,6 @@ import android.app.Activity
 import android.content.Context
 import android.content.ContextWrapper
 import android.content.pm.ActivityInfo
-import android.view.Surface
 import android.view.SurfaceHolder
 import android.view.SurfaceView
 import android.view.View
@@ -128,6 +127,7 @@ fun PlayerScreen(
     var isFullScreen by remember { mutableStateOf(false) }
 
     // 退出播放界面时停止播放
+    // 关键：放在最外层，全屏/非全屏切换不会触发 onDispose
     DisposableEffect(Unit) {
         onDispose {
             playerVm.stop()
@@ -176,25 +176,11 @@ fun PlayerScreen(
         }
     }
 
-    if (isFullScreen && isVideo) {
-        // 全屏模式：不使用 Scaffold，直接渲染全屏播放器
-        // 注意：不用 return，而是用 if/else 让 Compose 正确管理 DisposableEffect 生命周期
-        FullScreenVideoPlayer(
-            exoPlayer = exoPlayer,
-            isVlcEngine = isVlcEngine,
-            position = position,
-            duration = duration,
-            isPlaying = isPlaying,
-            title = title,
-            onSeekTo = { playerVm.seekTo(it) },
-            onTogglePlay = { playerVm.togglePlay() },
-            onExitFullScreen = { isFullScreen = false },
-            onAttachVlcSurface = { surface -> playerVm.attachVlcSurface(surface) },
-        )
-    } else {
-        // 普通模式
-        Scaffold(
-            topBar = {
+    // 关键修复：全屏和非全屏使用同一个 Scaffold，通过内容切换避免 DisposableEffect 重建
+    Scaffold(
+        topBar = {
+            // 全屏时隐藏 TopAppBar
+            if (!isFullScreen || !isVideo) {
                 TopAppBar(
                     title = { Text(title.ifEmpty { "播放" }) },
                     navigationIcon = {
@@ -225,9 +211,27 @@ fun PlayerScreen(
                         }
                     },
                 )
-            },
-            snackbarHost = { SnackbarHost(snackbarHostState) },
-        ) { padding ->
+            }
+        },
+        snackbarHost = { SnackbarHost(snackbarHostState) },
+    ) { padding ->
+        if (isFullScreen && isVideo) {
+            // ===== 全屏视频播放器 =====
+            FullScreenVideoContent(
+                exoPlayer = exoPlayer,
+                isVlcEngine = isVlcEngine,
+                position = position,
+                duration = duration,
+                isPlaying = isPlaying,
+                title = title,
+                onSeekTo = { playerVm.seekTo(it) },
+                onTogglePlay = { playerVm.togglePlay() },
+                onExitFullScreen = { isFullScreen = false },
+                onAttachVlcSurfaceView = { sv -> playerVm.attachVlcSurfaceView(sv) },
+                modifier = Modifier.fillMaxSize(),
+            )
+        } else {
+            // ===== 普通模式 =====
             Column(
                 Modifier
                     .fillMaxSize()
@@ -241,7 +245,7 @@ fun PlayerScreen(
                     VideoSurface(
                         exoPlayer = exoPlayer,
                         isVlcEngine = isVlcEngine,
-                        onAttachVlcSurface = { surface -> playerVm.attachVlcSurface(surface) },
+                        onAttachVlcSurfaceView = { sv -> playerVm.attachVlcSurfaceView(sv) },
                         modifier = Modifier
                             .fillMaxWidth()
                             .aspectRatio(16f / 9f)
@@ -379,34 +383,22 @@ fun PlayerScreen(
 private fun VideoSurface(
     exoPlayer: androidx.media3.exoplayer.ExoPlayer?,
     isVlcEngine: Boolean,
-    onAttachVlcSurface: (Surface?) -> Unit,
+    onAttachVlcSurfaceView: (SurfaceView?) -> Unit,
     modifier: Modifier = Modifier,
     resizeModeFill: Boolean = false,
 ) {
     if (isVlcEngine) {
-        // VLC: UI 层创建 SurfaceView（使用 Compose context = Activity context）
+        // VLC: UI 层创建 SurfaceView，通过 setVideoView + attachViews 标准方式绑定
         AndroidView(
             factory = { ctx ->
-                SurfaceView(ctx).apply {
-                    holder.addCallback(object : SurfaceHolder.Callback {
-                        override fun surfaceCreated(holder: SurfaceHolder) {
-                            onAttachVlcSurface(holder.surface)
-                        }
-
-                        override fun surfaceChanged(
-                            holder: SurfaceHolder,
-                            format: Int,
-                            width: Int,
-                            height: Int,
-                        ) {
-                            // VLC 会自动处理尺寸变化
-                        }
-
-                        override fun surfaceDestroyed(holder: SurfaceHolder) {
-                            onAttachVlcSurface(null)
-                        }
-                    })
+                SurfaceView(ctx).also { sv ->
+                    // 立即传给 VlcEngine，VlcEngine 会在 play() 时 attachViews
+                    onAttachVlcSurfaceView(sv)
                 }
+            },
+            update = { sv ->
+                // 确保 VlcEngine 持有最新的 SurfaceView 引用
+                onAttachVlcSurfaceView(sv)
             },
             modifier = modifier,
         )
@@ -442,10 +434,10 @@ private fun VideoSurface(
 }
 
 // ============================================================
-// 全屏视频播放器
+// 全屏视频播放内容（在 Scaffold 内部渲染，不会触发外层 onDispose）
 // ============================================================
 @Composable
-private fun FullScreenVideoPlayer(
+private fun FullScreenVideoContent(
     exoPlayer: androidx.media3.exoplayer.ExoPlayer?,
     isVlcEngine: Boolean,
     position: Long,
@@ -455,7 +447,8 @@ private fun FullScreenVideoPlayer(
     onSeekTo: (Long) -> Unit,
     onTogglePlay: () -> Unit,
     onExitFullScreen: () -> Unit,
-    onAttachVlcSurface: (Surface?) -> Unit,
+    onAttachVlcSurfaceView: (SurfaceView?) -> Unit,
+    modifier: Modifier = Modifier,
 ) {
     var showControls by remember { mutableStateOf(true) }
     var seekPreview by remember { mutableLongStateOf(-1L) }
@@ -463,15 +456,13 @@ private fun FullScreenVideoPlayer(
     val durSafe = duration.coerceAtLeast(1L)
 
     Box(
-        modifier = Modifier
-            .fillMaxSize()
-            .background(Color.Black),
+        modifier = modifier.background(Color.Black),
     ) {
         // --- 视频画面（全屏铺满） ---
         VideoSurface(
             exoPlayer = exoPlayer,
             isVlcEngine = isVlcEngine,
-            onAttachVlcSurface = onAttachVlcSurface,
+            onAttachVlcSurfaceView = onAttachVlcSurfaceView,
             modifier = Modifier.fillMaxSize(),
             resizeModeFill = true,
         )

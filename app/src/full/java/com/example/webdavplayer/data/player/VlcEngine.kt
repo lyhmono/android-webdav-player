@@ -26,8 +26,8 @@ import javax.inject.Inject
  *
  * 仅编译于 `full` 风味（见 src/full）；[PlayerEngineFactory] 通过反射加载。
  *
- * 视频渲染：UI 层创建 [SurfaceView] 并通过 [setSurface] 传入，
- * VlcEngine 在 [play] 时绑定 vlcVout。
+ * 视频渲染：UI 层创建 [SurfaceView] 并通过 [setSurfaceView] 传入，
+ * VlcEngine 使用 VLC 的 setVideoView + attachViews 标准流程绑定。
  */
 class VlcEngine @Inject constructor(
     private val context: Context,
@@ -43,25 +43,26 @@ class VlcEngine @Inject constructor(
     private val scope = CoroutineScope(Dispatchers.Main + SupervisorJob())
     private var progressJob: Job? = null
 
-    /** UI 层通过此方法传入 Surface（来自 SurfaceView 的 holder）。 */
+    /** UI 层传入的 SurfaceView。 */
     @Volatile
-    private var currentSurface: Surface? = null
+    private var surfaceView: SurfaceView? = null
 
-    /** UI 层调用：绑定 SurfaceView 的 holder。 */
-    fun setSurface(surface: Surface?) {
-        currentSurface = surface
-        if (surface != null) {
+    /** UI 层调用：绑定 SurfaceView（VLC 标准方式：setVideoView + attachViews）。 */
+    fun setSurfaceView(view: SurfaceView?) {
+        surfaceView = view
+        if (view != null) {
             attachVlcVout()
         }
     }
 
-    /** 将 VLC vout 绑定到当前 Surface（幂等）。 */
+    /** 将 VLC vout 绑定到 SurfaceView（幂等）。 */
     private fun attachVlcVout() {
         val mp = mediaPlayer ?: return
-        val surface = currentSurface ?: return
+        val sv = surfaceView ?: return
         try {
             if (!mp.vlcVout.areViewsAttached()) {
-                mp.vlcVout.setVideoSurface(surface, null)
+                // VLC 官方推荐方式：setVideoView(SurfaceView) + attachViews()
+                mp.vlcVout.setVideoView(sv)
                 mp.vlcVout.attachViews()
             }
         } catch (_: Exception) {
@@ -143,7 +144,7 @@ class VlcEngine @Inject constructor(
         try { mediaPlayer?.vlcVout?.detachViews() } catch (_: Exception) {}
         mediaPlayer?.release()
         mediaPlayer = null
-        currentSurface = null
+        surfaceView = null
         updateState(PlaybackState.IDLE)
     }
 
