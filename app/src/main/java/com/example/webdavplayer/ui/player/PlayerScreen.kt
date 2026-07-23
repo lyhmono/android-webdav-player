@@ -156,6 +156,8 @@ fun PlayerScreen(
                 act.window?.clearFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON)
                 act.window?.decorView?.systemUiVisibility = View.SYSTEM_UI_FLAG_VISIBLE
             }
+        } else {
+            onDispose { }
         }
     }
 
