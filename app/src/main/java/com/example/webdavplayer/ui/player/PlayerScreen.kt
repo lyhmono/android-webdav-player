@@ -6,6 +6,7 @@ import android.app.Activity
 import android.content.Context
 import android.content.ContextWrapper
 import android.content.pm.ActivityInfo
+import android.os.Build
 import android.view.WindowManager
 import androidx.activity.ComponentActivity
 import androidx.compose.animation.AnimatedVisibility
@@ -63,7 +64,7 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
-import androidx.compose.runtime.mutableFloatStateOf
+import androidx.compose.runtime.mutableLongStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
@@ -130,27 +131,31 @@ fun PlayerScreen(
         }
     }
 
-    // 全屏沉浸式
+    // 全屏：隐藏系统 UI + 横屏
     DisposableEffect(isFullScreen) {
-        if (isFullScreen && activity != null) {
-            val originalOrientation = activity.requestedOrientation
-            activity.requestedOrientation = ActivityInfo.SCREEN_ORIENTATION_LANDSCAPE
-            activity.window?.addFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON)
-            activity.window?.decorView?.systemUiVisibility = (
-                android.view.View.SYSTEM_UI_FLAG_FULLSCREEN
-                    or android.view.View.SYSTEM_UI_FLAG_HIDE_NAVIGATION
-                    or android.view.View.SYSTEM_UI_FLAG_IMMERSIVE_STICKY
-                    or android.view.View.SYSTEM_UI_FLAG_LAYOUT_FULLSCREEN
-                    or android.view.View.SYSTEM_UI_FLAG_LAYOUT_HIDE_NAVIGATION
-                    or android.view.View.SYSTEM_UI_FLAG_LAYOUT_STABLE
-            )
-            onDispose {
-                activity.requestedOrientation = originalOrientation
-                activity.window?.clearFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON)
-                activity.window?.decorView?.systemUiVisibility =
-                    android.view.View.SYSTEM_UI_FLAG_VISIBLE
+        val act = activity
+        if (isFullScreen && act != null) {
+            val originalOrientation = act.requestedOrientation
+            act.requestedOrientation = ActivityInfo.SCREEN_ORIENTATION_LANDSCAPE
+            act.window?.addFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON)
+            act.window?.decorView?.let { decorView ->
+                decorView.systemUiVisibility = (
+                    android.view.View.SYSTEM_UI_FLAG_FULLSCREEN
+                        or android.view.View.SYSTEM_UI_FLAG_HIDE_NAVIGATION
+                        or android.view.View.SYSTEM_UI_FLAG_IMMERSIVE_STICKY
+                        or android.view.View.SYSTEM_UI_FLAG_LAYOUT_FULLSCREEN
+                        or android.view.View.SYSTEM_UI_FLAG_LAYOUT_HIDE_NAVIGATION
+                        or android.view.View.SYSTEM_UI_FLAG_LAYOUT_STABLE
+                )
             }
-        } else onDispose {}
+            onDispose {
+                act.requestedOrientation = originalOrientation
+                act.window?.clearFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON)
+                act.window?.decorView?.systemUiVisibility = android.view.View.SYSTEM_UI_FLAG_VISIBLE
+            }
+        } else {
+            onDispose {}
+        }
     }
 
     var menuExpanded by remember { mutableStateOf(false) }
@@ -233,7 +238,7 @@ fun PlayerScreen(
             if (isVideo) {
                 val useVlc = engineType == EngineType.VLC && vlcTextureView != null
                 if (useVlc) {
-                    // VLC: 用 TextureView 渲染
+                    // VLC: TextureView 渲染
                     AndroidView(
                         factory = { vlcTextureView!! },
                         modifier = Modifier
@@ -411,14 +416,16 @@ private fun FullScreenVideoPlayer(
     onExitFullScreen: () -> Unit,
 ) {
     var showControls by remember { mutableStateOf(true) }
-    var seekPreview by remember { mutableStateOf<Long?>(null) }
-    val effectivePosition = seekPreview ?: position
+    var seekPreview by remember { mutableLongStateOf(-1L) }
+    val effectivePosition = if (seekPreview >= 0) seekPreview else position
     val durSafe = duration.coerceAtLeast(1L)
 
     Box(
-        modifier = Modifier.fillMaxSize().background(Color.Black),
+        modifier = Modifier
+            .fillMaxSize()
+            .background(Color.Black),
     ) {
-        // --- 视频画面（填满整个屏幕） ---
+        // --- 视频画面 ---
         if (useVlc && vlcTextureView != null) {
             AndroidView(
                 factory = { vlcTextureView },
@@ -429,9 +436,7 @@ private fun FullScreenVideoPlayer(
                 factory = { ctx ->
                     PlayerView(ctx).apply {
                         useController = false
-                        // RESIZE_MODE_FILL: 拉伸填满全屏（可能裁切边缘）
-                        // 如果要保持比例不裁切，用 RESIZE_MODE_FIT（上下黑边）
-                        // 用户要真全屏 → 用 FILL
+                        // FILL: 拉伸填满全屏
                         resizeMode = AspectRatioFrameLayout.RESIZE_MODE_FILL
                         player = exoPlayer
                         layoutParams = android.widget.FrameLayout.LayoutParams(
@@ -447,7 +452,7 @@ private fun FullScreenVideoPlayer(
             )
         }
 
-        // --- 手势层：点击切换控制 + 水平滑动 seek ---
+        // --- 手势层 ---
         Box(
             modifier = Modifier
                 .fillMaxSize()
@@ -458,14 +463,13 @@ private fun FullScreenVideoPlayer(
                             seekPreview = position
                         },
                         onDragEnd = {
-                            seekPreview?.let { onSeekTo(it) }
-                            seekPreview = null
+                            if (seekPreview >= 0) onSeekTo(seekPreview)
+                            seekPreview = -1L
                         },
                         onHorizontalDrag = { _, dragAmount ->
                             val widthPx = this.size.width.toFloat().coerceAtLeast(1f)
                             val deltaMs = (dragAmount / widthPx * durSafe).toLong()
-                            seekPreview = (seekPreview?.plus(deltaMs) ?: position + deltaMs)
-                                .coerceIn(0L, duration)
+                            seekPreview = (seekPreview + deltaMs).coerceIn(0L, duration)
                         },
                     )
                 },
@@ -476,11 +480,11 @@ private fun FullScreenVideoPlayer(
             visible = showControls,
             enter = fadeIn(),
             exit = fadeOut(),
+            modifier = Modifier.align(Alignment.TopCenter),
         ) {
             Row(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .align(Alignment.TopCenter)
                     .background(Color.Black.copy(alpha = 0.5f))
                     .padding(horizontal = 8.dp, vertical = 4.dp),
                 verticalAlignment = Alignment.CenterVertically,
@@ -502,11 +506,11 @@ private fun FullScreenVideoPlayer(
             visible = showControls,
             enter = fadeIn(),
             exit = fadeOut(),
+            modifier = Modifier.align(Alignment.BottomCenter),
         ) {
             Column(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .align(Alignment.BottomCenter)
                     .background(Color.Black.copy(alpha = 0.7f))
                     .padding(horizontal = 16.dp, vertical = 8.dp),
             ) {
@@ -514,8 +518,8 @@ private fun FullScreenVideoPlayer(
                     value = effectivePosition.toFloat().coerceIn(0f, durSafe.toFloat()),
                     onValueChange = { seekPreview = it.toLong() },
                     onValueChangeFinished = {
-                        seekPreview?.let { onSeekTo(it) }
-                        seekPreview = null
+                        if (seekPreview >= 0) onSeekTo(seekPreview)
+                        seekPreview = -1L
                     },
                     valueRange = 0f..durSafe.toFloat(),
                     modifier = Modifier.fillMaxWidth(),
@@ -571,15 +575,15 @@ private fun FullScreenVideoPlayer(
             }
         }
 
-        // --- 滑动 seek 提示 ---
-        if (seekPreview != null) {
+        // --- 滑动 seek 提示气泡 ---
+        if (seekPreview >= 0) {
             Surface(
                 shape = RoundedCornerShape(8.dp),
                 color = Color.Black.copy(alpha = 0.8f),
                 modifier = Modifier.align(Alignment.Center),
             ) {
                 Text(
-                    "${formatDuration(seekPreview!!)} / ${formatDuration(duration)}",
+                    "${formatDuration(seekPreview)} / ${formatDuration(duration)}",
                     color = Color.White,
                     style = MaterialTheme.typography.titleMedium,
                     modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp),

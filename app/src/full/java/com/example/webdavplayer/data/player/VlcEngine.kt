@@ -43,6 +43,9 @@ class VlcEngine @Inject constructor(
     private val scope = CoroutineScope(Dispatchers.Main + SupervisorJob())
     private var progressJob: Job? = null
 
+    /** 当前持有的 Surface（由 TextureView callback 提供）。 */
+    private var currentSurface: Surface? = null
+
     /** TextureView 供 UI 挂载到布局中。 */
     val textureView: TextureView by lazy {
         TextureView(context).apply {
@@ -52,7 +55,8 @@ class VlcEngine @Inject constructor(
                     width: Int,
                     height: Int,
                 ) {
-                    attachVlcVout(Surface(surface))
+                    currentSurface = Surface(surface)
+                    attachVlcVout()
                 }
 
                 override fun onSurfaceTextureSizeChanged(
@@ -65,6 +69,7 @@ class VlcEngine @Inject constructor(
 
                 override fun onSurfaceTextureDestroyed(surface: SurfaceTexture): Boolean {
                     try { mediaPlayer?.vlcVout?.detachViews() } catch (_: Exception) {}
+                    currentSurface = null
                     return true
                 }
 
@@ -73,9 +78,10 @@ class VlcEngine @Inject constructor(
         }
     }
 
-    /** 将 VLC vout 绑定到 Surface。 */
-    private fun attachVlcVout(surface: Surface) {
+    /** 将 VLC vout 绑定到当前 Surface（幂等）。 */
+    private fun attachVlcVout() {
         val mp = mediaPlayer ?: return
+        val surface = currentSurface ?: return
         try {
             mp.vlcVout.setVideoSurface(surface, null)
             mp.vlcVout.attachViews()
@@ -89,6 +95,8 @@ class VlcEngine @Inject constructor(
             MediaPlayer.Event.Playing -> {
                 updateState(PlaybackState.PLAYING)
                 startProgress()
+                // play 时再尝试一次 attach（surface 可能在此刻才 available）
+                attachVlcVout()
             }
             MediaPlayer.Event.Paused -> {
                 updateState(PlaybackState.PAUSED)
@@ -112,8 +120,21 @@ class VlcEngine @Inject constructor(
         }
 
         val m = Media(libVlc, Uri.parse(media.uri))
-        // libVLC 3.6.0 has no setHttpHeader(); pass custom headers as media options.
-        media.headers.forEach { (k, v) -> m.addOption(":http-header=$k: $v") }
+        // VLC HTTP 认证：使用 :http-user 和 :http-pwd 选项
+        // 从 headers 中提取 Authorization: Basic xxx
+        val authHeader = media.headers["Authorization"]
+        if (authHeader != null && authHeader.startsWith("Basic ")) {
+            val decoded = String(android.util.Base64.decode(
+                authHeader.substring(6), android.util.Base64.DEFAULT
+            ))
+            val colonIdx = decoded.indexOf(':')
+            if (colonIdx > 0) {
+                val user = decoded.substring(0, colonIdx)
+                val pwd = decoded.substring(colonIdx + 1)
+                m.addOption(":http-user=$user")
+                m.addOption(":http-pwd=$pwd")
+            }
+        }
         if (media.trustSelfSigned) m.addOption(":no-tls-check")
         mediaPlayer!!.media = m
         updateState(PlaybackState.PREPARING)
@@ -142,7 +163,6 @@ class VlcEngine @Inject constructor(
         try { mediaPlayer?.vlcVout?.detachViews() } catch (_: Exception) {}
         mediaPlayer?.release()
         mediaPlayer = null
-        libVlc.release()
         updateState(PlaybackState.IDLE)
     }
 
