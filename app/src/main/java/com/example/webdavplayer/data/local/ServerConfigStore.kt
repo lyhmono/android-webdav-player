@@ -84,6 +84,7 @@ class ServerConfigStore @Inject constructor(
                         put("id", s.id)
                         put("name", s.name)
                         put("baseUrl", s.baseUrl)
+                        put("path", s.path)
                         put("username", s.username)
                         put("encryptedPassword", s.encryptedPassword)
                         put("authType", s.authType.name)
@@ -103,6 +104,7 @@ class ServerConfigStore @Inject constructor(
                     id = o.getString("id"),
                     name = o.optString("name", ""),
                     baseUrl = o.getString("baseUrl"),
+                    path = o.optString("path", ""),
                     username = o.optString("username", ""),
                     encryptedPassword = o.optString("encryptedPassword", ""),
                     authType = runCatching { AuthType.valueOf(o.optString("authType", "NONE")) }
