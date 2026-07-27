@@ -1,5 +1,6 @@
 package com.example.webdavplayer.domain.usecase
 
+import android.view.Surface
 import com.example.webdavplayer.common.Result
 import com.example.webdavplayer.data.repository.PlaylistControllerImpl
 import com.example.webdavplayer.domain.model.EngineListener
@@ -56,6 +57,9 @@ class PlayMediaUseCaseTest {
         override fun setListener(listener: EngineListener?) {}
         override fun getState(): PlaybackState = PlaybackState.IDLE
         override fun release() {}
+        override fun setVideoSurface(surface: Surface?) {
+            // no-op: test fake
+        }
     }
 
     private class FakeProgressRepository(var saved: PlaybackProgress? = null) :

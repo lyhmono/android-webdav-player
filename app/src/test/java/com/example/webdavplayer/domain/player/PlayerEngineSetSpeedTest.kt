@@ -1,5 +1,6 @@
 package com.example.webdavplayer.domain.player
 
+import android.view.Surface
 import com.example.webdavplayer.domain.model.EngineListener
 import com.example.webdavplayer.domain.model.EngineType
 import com.example.webdavplayer.domain.model.MediaType
@@ -90,6 +91,9 @@ class PlayerEngineSetSpeedTest {
         override fun setListener(listener: EngineListener?) = Unit
         override fun getState(): PlaybackState = PlaybackState.IDLE
         override fun release() = Unit
+        override fun setVideoSurface(surface: Surface?) {
+            // no-op: test fake
+        }
     }
 
     /**
@@ -122,5 +126,8 @@ class PlayerEngineSetSpeedTest {
         override fun setListener(listener: EngineListener?) = Unit
         override fun getState(): PlaybackState = engine.getState()
         override fun release() = Unit
+        override fun setVideoSurface(surface: Surface?) {
+            // no-op: test fake
+        }
     }
 }
