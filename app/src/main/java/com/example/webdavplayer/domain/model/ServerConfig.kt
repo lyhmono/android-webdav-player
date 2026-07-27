@@ -10,12 +10,11 @@ data class ServerConfig(
     val id: String,
     val name: String,
     val baseUrl: String,
-    /** WebDAV 根路径（拼接在 baseUrl 之后，如 /dav、/remote.php/dav/files/用户名）。为空表示根目录。 */
-    val path: String = "",
     val username: String,
     /** 明文凭据（落库由 EncryptedSharedPreferences 加密）。 */
     val encryptedPassword: String,
     val authType: AuthType,
     val trustSelfSigned: Boolean,
     val createdAt: Long,
+    val path: String = "",
 )
