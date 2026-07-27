@@ -90,7 +90,7 @@ object AppLogger {
     @Synchronized
     fun snapshot(): List<LogEntry> {
         return try {
-            entries.reversed()
+            entries.toList().reversed()
         } catch (_: Throwable) {
             emptyList()
         }
