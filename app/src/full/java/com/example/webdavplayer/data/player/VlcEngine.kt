@@ -2,6 +2,7 @@ package com.example.webdavplayer.data.player
 
 import android.content.Context
 import android.net.Uri
+import android.view.Surface
 import com.example.webdavplayer.domain.model.EngineListener
 import com.example.webdavplayer.domain.model.PlayableMedia
 import com.example.webdavplayer.domain.model.PlaybackState
@@ -26,6 +27,12 @@ import javax.inject.Inject
  *
  * 流式：使用传入 URI + 鉴权头；自签证书走 `:no-tls-check` 跳过校验
  * （由 [PlayableMedia.trustSelfSigned] 控制）。
+ *
+ * 视频 Surface 穿透抽象层直达内核：[setVideoSurface] 缓存 [pendingSurface]，
+ * 在 [prepare] 创建 MediaPlayer 后（或绑定发生在 prepare 之前时）通过 [applyVideoSurface]
+ * 绑定 libVLC 的 `IVLCVout`。
+ *
+ * ⚠️ best-effort：本文件属 `full` 风味，沙箱无法编译，需 full 风味真机核对 API 签名。
  */
 class VlcEngine @Inject constructor(
     private val context: Context,
@@ -35,6 +42,8 @@ class VlcEngine @Inject constructor(
     private var mediaPlayer: MediaPlayer? = null
     private var listener: EngineListener? = null
     private var state: PlaybackState = PlaybackState.IDLE
+    private var pendingSurface: Surface? = null
+    private var attached = false
     private val scope = CoroutineScope(Dispatchers.Main + SupervisorJob())
     private var progressJob: Job? = null
 
@@ -64,6 +73,8 @@ class VlcEngine @Inject constructor(
         if (mediaPlayer == null) {
             mediaPlayer = MediaPlayer(libVlc).apply { setEventListener(eventListener) }
         }
+        // 内核创建后重新绑定 prepare 之前已设置的 Surface。
+        pendingSurface?.let { applyVideoSurface(it) }
         val m = Media(libVlc, Uri.parse(media.uri))
         // libVLC 3.6.0 has no setHttpHeader(); pass custom headers as media options.
         media.headers.forEach { (k, v) -> m.addOption(":http-header=$k: $v") }
@@ -89,6 +100,27 @@ class VlcEngine @Inject constructor(
         mediaPlayer?.setRate(speed)
     }
 
+    override fun setVideoSurface(surface: Surface?) {
+        pendingSurface = surface
+        applyVideoSurface(surface)
+    }
+
+    /** 绑定/解绑 libVLC 的 IVLCVout（按 libVLC 3.6.0 API）。 */
+    private fun applyVideoSurface(surface: Surface?) {
+        val mp = mediaPlayer ?: return
+        val vout = mp.vlcVout
+        if (surface != null) {
+            vout.setVideoSurface(surface)
+            if (!attached) {
+                vout.attachViews()
+                attached = true
+            }
+        } else {
+            vout.detachViews()
+            attached = false
+        }
+    }
+
     override fun setListener(listener: EngineListener?) {
         this.listener = listener
     }
@@ -97,6 +129,8 @@ class VlcEngine @Inject constructor(
 
     override fun release() {
         stopProgress()
+        attached = false
+        pendingSurface = null
         mediaPlayer?.release()
         mediaPlayer = null
         libVlc.release()

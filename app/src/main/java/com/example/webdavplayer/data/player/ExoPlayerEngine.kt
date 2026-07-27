@@ -2,6 +2,7 @@ package com.example.webdavplayer.data.player
 
 import android.content.Context
 import android.net.Uri
+import android.view.Surface
 import androidx.media3.common.C
 import androidx.media3.common.MediaItem
 import androidx.media3.common.PlaybackException
@@ -24,6 +25,9 @@ import okhttp3.OkHttpClient
 /**
  * Media3 / ExoPlayer 内核实现（§1.2 默认内核）。
  * 仅负责「当前这一条媒体的解码渲染」，进度/列表由上层持有。
+ *
+ * 视频 Surface 穿透抽象层直达此内核：[setVideoSurface] 缓存 [pendingSurface]，
+ * 在 [ensurePlayer] 构建 ExoPlayer 实例后立即绑定（并设定 [C.VIDEO_SCALING_MODE_SCALE_TO_FIT]）。
  */
 @UnstableApi
 class ExoPlayerEngine(
@@ -35,6 +39,7 @@ class ExoPlayerEngine(
     private var listener: EngineListener? = null
     private var okHttpClient: OkHttpClient? = null
     private var state: PlaybackState = PlaybackState.IDLE
+    private var pendingSurface: Surface? = null
     private val scope = CoroutineScope(Dispatchers.Main + SupervisorJob())
     private var progressJob: Job? = null
 
@@ -71,7 +76,11 @@ class ExoPlayerEngine(
 
     private fun ensurePlayer() {
         if (player == null) {
-            player = ExoPlayer.Builder(context).build().apply { addListener(playerListener) }
+            player = ExoPlayer.Builder(context).build().apply {
+                addListener(playerListener)
+                videoScalingMode = C.VIDEO_SCALING_MODE_SCALE_TO_FIT
+                pendingSurface?.let { setVideoSurface(it) }
+            }
         }
     }
 
@@ -160,8 +169,14 @@ class ExoPlayerEngine(
 
     override fun getState(): PlaybackState = state
 
+    override fun setVideoSurface(surface: Surface?) {
+        pendingSurface = surface
+        player?.setVideoSurface(surface)
+    }
+
     override fun release() {
         stopProgress()
+        player?.setVideoSurface(null)
         player?.release()
         player = null
         updateState(PlaybackState.IDLE)

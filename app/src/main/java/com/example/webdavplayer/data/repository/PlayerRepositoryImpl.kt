@@ -1,6 +1,7 @@
 package com.example.webdavplayer.data.repository
 
 import android.content.Context
+import android.view.Surface
 import dagger.hilt.android.qualifiers.ApplicationContext
 import com.example.webdavplayer.data.player.ExoPlayerEngine
 import com.example.webdavplayer.data.player.PlayerEngineFactory
@@ -23,6 +24,9 @@ import javax.inject.Singleton
  *
  * 持有当前 [PlayerEngine]；应用内切换内核 = `release()` 旧 + `Factory.create()` 新
  * + `prepare()` 当前媒体（§1.2）。内核无状态记忆，进度/列表由上层持有。
+ *
+ * 视频 Surface 穿透抽象层直达内核：[setVideoSurface] 缓存 [videoSurface] 并转发给当前引擎，
+ * 在 [prepare] / [setEngineType] 重建引擎后通过 [reapplyVideoSurface] 重新绑定，避免画面丢失。
  */
 @Singleton
 class PlayerRepositoryImpl @Inject constructor(
@@ -42,6 +46,7 @@ class PlayerRepositoryImpl @Inject constructor(
     /** 当前倍速（播放偏好，跨曲目 / 跨内核重建后重放）。可能从非主线程设置，需保证可见性。 */
     @Volatile
     private var currentSpeed: Float = 1.0f
+    private var videoSurface: Surface? = null
 
     override fun getEngineType(): EngineType = settingsRepository.getEngineType()
 
@@ -53,6 +58,7 @@ class PlayerRepositoryImpl @Inject constructor(
         engine?.release()
         engine = playerEngineFactory.create(type, context)
         listener?.let { engine!!.setListener(it) }
+        reapplyVideoSurface()
         connectFor(media)
         // ExoPlayer 内核需要注入共享 OkHttp（含自签信任 + 鉴权）；
         // VLC 内核使用 libVLC 自建网络栈，不需要也不支持此注入。
@@ -68,6 +74,7 @@ class PlayerRepositoryImpl @Inject constructor(
             engine = playerEngineFactory.create(settingsRepository.getEngineType(), context)
         }
         listener?.let { engine!!.setListener(it) }
+        reapplyVideoSurface()
         connectFor(media)
         // ExoPlayer 内核需要注入共享 OkHttp；VLC 自建网络栈无需此注入。
         (engine as? ExoPlayerEngine)?.setOkHttpClient(webDavClient.getOkHttpClient())
@@ -110,6 +117,16 @@ class PlayerRepositoryImpl @Inject constructor(
     override fun release() {
         engine?.release()
         engine = null
+    }
+
+    override fun setVideoSurface(surface: Surface?) {
+        videoSurface = surface
+        engine?.setVideoSurface(surface)
+    }
+
+    /** 内核重建后重新绑定已缓存的 Surface（避免切换内核/重连后画面丢失）。 */
+    private fun reapplyVideoSurface() {
+        videoSurface?.let { engine?.setVideoSurface(it) }
     }
 
     private suspend fun connectFor(media: PlayableMedia) {

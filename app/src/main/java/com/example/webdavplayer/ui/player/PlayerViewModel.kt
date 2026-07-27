@@ -2,6 +2,7 @@ package com.example.webdavplayer.ui.player
 
 import android.content.ComponentName
 import android.content.Context
+import android.view.Surface
 import androidx.core.content.ContextCompat
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
@@ -44,6 +45,10 @@ import javax.inject.Inject
  *   也不再在 [onCleared] 中 [PlayerRepository.release]（否则后台播放会被打断）。
  * - 播放状态/进度来自 [MediaController]（会话背后是 [PlaybackService] 的引擎）；
  * - 播放控制命令转发给 [MediaController]（失败时回退到 [PlayerRepository] 直连同一单例引擎）。
+ *
+ * 视频 Surface 穿透抽象层**直达单例引擎**：[attachVideoSurface] / [detachVideoSurface]
+ * 直连 [PlayerRepository.setVideoSurface]，**不**走 MediaController / PlayerSurface
+ * （[com.example.webdavplayer.data.player.EngineMedia3Adapter] 仅作 SimpleBasePlayer 代理，不渲染）。
  *
  * 进度与顺序真相源仍在 [PlaylistController]（由观察 PlaylistRepository 驱动）。
  */
@@ -176,6 +181,19 @@ class PlayerViewModel @Inject constructor(
     fun pause() = mediaController?.pause() ?: playerRepository.pause()
 
     fun seekTo(ms: Long) = mediaController?.seekTo(ms) ?: playerRepository.seekTo(ms)
+
+    /**
+     * 绑定视频渲染 Surface（穿透抽象层直达单例引擎，不走 MediaController / PlayerSurface）。
+     * 由 [VideoSurfaceHost] 在 Surface 创建时调用。
+     */
+    fun attachVideoSurface(surface: Surface?) {
+        playerRepository.setVideoSurface(surface)
+    }
+
+    /** 解绑视频 Surface（Surface 销毁时调用）。 */
+    fun detachVideoSurface() {
+        playerRepository.setVideoSurface(null)
+    }
 
     fun togglePlay() {
         if (_state.value == PlaybackState.PLAYING) pause() else play()

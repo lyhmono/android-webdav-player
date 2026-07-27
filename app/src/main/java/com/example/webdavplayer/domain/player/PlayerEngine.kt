@@ -1,5 +1,6 @@
 package com.example.webdavplayer.domain.player
 
+import android.view.Surface
 import com.example.webdavplayer.domain.model.EngineListener
 import com.example.webdavplayer.domain.model.PlayableMedia
 import com.example.webdavplayer.domain.model.PlaybackState
@@ -52,4 +53,11 @@ interface PlayerEngine {
 
     /** 释放内核资源（切换内核或退出前调用）。 */
     fun release()
+
+    /**
+     * 绑定视频渲染 Surface（穿透抽象层直达内核）。
+     * UI 经 [PlayerRepository.setVideoSurface] → 本方法，**不**经过 MediaController / PlayerSurface
+     * （[com.example.webdavplayer.data.player.EngineMedia3Adapter] 仅作 SimpleBasePlayer 代理，不渲染）。
+     */
+    fun setVideoSurface(surface: Surface?)
 }
