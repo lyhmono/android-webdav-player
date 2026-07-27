@@ -3,6 +3,7 @@ package com.example.webdavplayer.data.player
 import android.content.Context
 import android.net.Uri
 import android.view.Surface
+import android.view.TextureView
 import androidx.media3.common.C
 import androidx.media3.common.MediaItem
 import androidx.media3.common.PlaybackException
@@ -26,8 +27,9 @@ import okhttp3.OkHttpClient
  * Media3 / ExoPlayer 内核实现（§1.2 默认内核）。
  * 仅负责「当前这一条媒体的解码渲染」，进度/列表由上层持有。
  *
- * 视频 Surface 穿透抽象层直达此内核：[setVideoSurface] 缓存 [pendingSurface]，
- * 在 [ensurePlayer] 构建 ExoPlayer 实例后立即绑定（并设定 [C.VIDEO_SCALING_MODE_SCALE_TO_FIT]）。
+ * 视频 Surface 穿透抽象层直达此内核：[setVideoSurface] 缓存 [pendingView]（TextureView），
+ * 在 [ensurePlayer] 构建 ExoPlayer 实例后立即把其 SurfaceTexture 包成 Surface 绑定
+ * （并设定 [C.VIDEO_SCALING_MODE_SCALE_TO_FIT]）。
  */
 @UnstableApi
 class ExoPlayerEngine(
@@ -39,7 +41,7 @@ class ExoPlayerEngine(
     private var listener: EngineListener? = null
     private var okHttpClient: OkHttpClient? = null
     private var state: PlaybackState = PlaybackState.IDLE
-    private var pendingSurface: Surface? = null
+    private var pendingView: TextureView? = null
     private val scope = CoroutineScope(Dispatchers.Main + SupervisorJob())
     private var progressJob: Job? = null
 
@@ -79,7 +81,7 @@ class ExoPlayerEngine(
             player = ExoPlayer.Builder(context).build().apply {
                 addListener(playerListener)
                 videoScalingMode = C.VIDEO_SCALING_MODE_SCALE_TO_FIT
-                pendingSurface?.let { setVideoSurface(it) }
+                pendingView?.let { setVideoSurface(it) }
             }
         }
     }
@@ -169,9 +171,10 @@ class ExoPlayerEngine(
 
     override fun getState(): PlaybackState = state
 
-    override fun setVideoSurface(surface: Surface?) {
-        pendingSurface = surface
-        player?.setVideoSurface(surface)
+    override fun setVideoSurface(view: TextureView?) {
+        pendingView = view
+        // 把 TextureView 的 SurfaceTexture 包成 Surface 交给 ExoPlayer（view 为 null 时解绑）。
+        player?.setVideoSurface(view?.surfaceTexture?.let { Surface(it) })
     }
 
     override fun release() {

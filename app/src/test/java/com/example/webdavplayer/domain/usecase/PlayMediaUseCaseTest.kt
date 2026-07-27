@@ -1,6 +1,6 @@
 package com.example.webdavplayer.domain.usecase
 
-import android.view.Surface
+import android.view.TextureView
 import com.example.webdavplayer.common.Result
 import com.example.webdavplayer.data.repository.PlaylistControllerImpl
 import com.example.webdavplayer.domain.model.EngineListener
@@ -57,7 +57,7 @@ class PlayMediaUseCaseTest {
         override fun setListener(listener: EngineListener?) {}
         override fun getState(): PlaybackState = PlaybackState.IDLE
         override fun release() {}
-        override fun setVideoSurface(surface: Surface?) {
+        override fun setVideoSurface(view: TextureView?) {
             // no-op: test fake
         }
     }

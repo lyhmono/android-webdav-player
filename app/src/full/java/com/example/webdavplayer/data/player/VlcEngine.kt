@@ -1,8 +1,7 @@
 package com.example.webdavplayer.data.player
 
 import android.content.Context
-import android.net.Uri
-import android.view.Surface
+import android.view.TextureView
 import com.example.webdavplayer.domain.model.EngineListener
 import com.example.webdavplayer.domain.model.PlayableMedia
 import com.example.webdavplayer.domain.model.PlaybackState
@@ -28,11 +27,15 @@ import javax.inject.Inject
  * 流式：使用传入 URI + 鉴权头；自签证书走 `:no-tls-check` 跳过校验
  * （由 [PlayableMedia.trustSelfSigned] 控制）。
  *
- * 视频 Surface 穿透抽象层直达内核：[setVideoSurface] 缓存 [pendingSurface]，
+ * 视频 Surface 穿透抽象层直达内核：[setVideoSurface] 缓存 [pendingView]（TextureView），
  * 在 [prepare] 创建 MediaPlayer 后（或绑定发生在 prepare 之前时）通过 [applyVideoSurface]
  * 绑定 libVLC 的 `IVLCVout`。
  *
- * ⚠️ best-effort：本文件属 `full` 风味，沙箱无法编译，需 full 风味真机核对 API 签名。
+ * libVLC 3.6.0 的 `IVLCVout.setVideoSurface` 只接受 `(Surface, SurfaceHolder)` 或
+ * `(SurfaceTexture)`，没有「裸 Surface 单参」重载；统一改用 `setVideoView(TextureView)`
+ * （TextureView 同时能满足 Media3 与 libVLC 两种绑定方式）。
+ *
+ * ⚠️ best-effort：本文件属 `full` 风味，需 full 风味真机核对 API 签名。
  */
 class VlcEngine @Inject constructor(
     private val context: Context,
@@ -42,7 +45,7 @@ class VlcEngine @Inject constructor(
     private var mediaPlayer: MediaPlayer? = null
     private var listener: EngineListener? = null
     private var state: PlaybackState = PlaybackState.IDLE
-    private var pendingSurface: Surface? = null
+    private var pendingView: TextureView? = null
     private var attached = false
     private val scope = CoroutineScope(Dispatchers.Main + SupervisorJob())
     private var progressJob: Job? = null
@@ -73,8 +76,8 @@ class VlcEngine @Inject constructor(
         if (mediaPlayer == null) {
             mediaPlayer = MediaPlayer(libVlc).apply { setEventListener(eventListener) }
         }
-        // 内核创建后重新绑定 prepare 之前已设置的 Surface。
-        pendingSurface?.let { applyVideoSurface(it) }
+        // 内核创建后重新绑定 prepare 之前已设置的视图。
+        pendingView?.let { applyVideoSurface(it) }
         val m = Media(libVlc, Uri.parse(media.uri))
         // libVLC 3.6.0 has no setHttpHeader(); pass custom headers as media options.
         media.headers.forEach { (k, v) -> m.addOption(":http-header=$k: $v") }
@@ -100,17 +103,17 @@ class VlcEngine @Inject constructor(
         mediaPlayer?.setRate(speed)
     }
 
-    override fun setVideoSurface(surface: Surface?) {
-        pendingSurface = surface
-        applyVideoSurface(surface)
+    override fun setVideoSurface(view: TextureView?) {
+        pendingView = view
+        applyVideoSurface(view)
     }
 
     /** 绑定/解绑 libVLC 的 IVLCVout（按 libVLC 3.6.0 API）。 */
-    private fun applyVideoSurface(surface: Surface?) {
+    private fun applyVideoSurface(view: TextureView?) {
         val mp = mediaPlayer ?: return
         val vout = mp.vlcVout
-        if (surface != null) {
-            vout.setVideoSurface(surface)
+        if (view != null) {
+            vout.setVideoView(view)
             if (!attached) {
                 vout.attachViews()
                 attached = true
@@ -130,7 +133,7 @@ class VlcEngine @Inject constructor(
     override fun release() {
         stopProgress()
         attached = false
-        pendingSurface = null
+        pendingView = null
         mediaPlayer?.release()
         mediaPlayer = null
         libVlc.release()

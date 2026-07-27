@@ -1,7 +1,7 @@
 package com.example.webdavplayer.data.repository
 
 import android.content.Context
-import android.view.Surface
+import android.view.TextureView
 import dagger.hilt.android.qualifiers.ApplicationContext
 import com.example.webdavplayer.data.player.ExoPlayerEngine
 import com.example.webdavplayer.data.player.PlayerEngineFactory
@@ -46,7 +46,7 @@ class PlayerRepositoryImpl @Inject constructor(
     /** 当前倍速（播放偏好，跨曲目 / 跨内核重建后重放）。可能从非主线程设置，需保证可见性。 */
     @Volatile
     private var currentSpeed: Float = 1.0f
-    private var videoSurface: Surface? = null
+    private var videoSurface: TextureView? = null
 
     override fun getEngineType(): EngineType = settingsRepository.getEngineType()
 
@@ -119,9 +119,9 @@ class PlayerRepositoryImpl @Inject constructor(
         engine = null
     }
 
-    override fun setVideoSurface(surface: Surface?) {
-        videoSurface = surface
-        engine?.setVideoSurface(surface)
+    override fun setVideoSurface(view: TextureView?) {
+        videoSurface = view
+        engine?.setVideoSurface(view)
     }
 
     /** 内核重建后重新绑定已缓存的 Surface（避免切换内核/重连后画面丢失）。 */

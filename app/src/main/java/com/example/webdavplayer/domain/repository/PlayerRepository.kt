@@ -1,6 +1,6 @@
 package com.example.webdavplayer.domain.repository
 
-import android.view.Surface
+import android.view.TextureView
 import com.example.webdavplayer.domain.model.EngineListener
 import com.example.webdavplayer.domain.model.EngineType
 import com.example.webdavplayer.domain.model.PlayableMedia
@@ -56,5 +56,5 @@ interface PlayerRepository {
      * 直接转发给当前 [com.example.webdavplayer.domain.player.PlayerEngine.setVideoSurface]，
      * 不经过 MediaController / PlayerSurface。
      */
-    fun setVideoSurface(surface: Surface?)
+    fun setVideoSurface(view: TextureView?)
 }

@@ -2,7 +2,7 @@ package com.example.webdavplayer.ui.player
 
 import android.content.ComponentName
 import android.content.Context
-import android.view.Surface
+import android.view.TextureView
 import androidx.core.content.ContextCompat
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
@@ -183,14 +183,14 @@ class PlayerViewModel @Inject constructor(
     fun seekTo(ms: Long) = mediaController?.seekTo(ms) ?: playerRepository.seekTo(ms)
 
     /**
-     * 绑定视频渲染 Surface（穿透抽象层直达单例引擎，不走 MediaController / PlayerSurface）。
-     * 由 [VideoSurfaceHost] 在 Surface 创建时调用。
+     * 绑定视频渲染视图（穿透抽象层直达单例引擎，不走 MediaController / PlayerSurface）。
+     * 由 [VideoSurfaceHost] 在视图创建时调用。Media3 内核会包成 Surface，libVLC 内核直接用 TextureView。
      */
-    fun attachVideoSurface(surface: Surface?) {
-        playerRepository.setVideoSurface(surface)
+    fun attachVideoSurface(view: TextureView?) {
+        playerRepository.setVideoSurface(view)
     }
 
-    /** 解绑视频 Surface（Surface 销毁时调用）。 */
+    /** 解绑视频视图（视图销毁时调用）。 */
     fun detachVideoSurface() {
         playerRepository.setVideoSurface(null)
     }
