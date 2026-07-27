@@ -4,6 +4,7 @@ import androidx.lifecycle.ViewModel
 import dagger.hilt.android.lifecycle.HiltViewModel
 import androidx.lifecycle.viewModelScope
 import com.example.webdavplayer.common.Result
+import com.example.webdavplayer.data.log.AppLogger
 import com.example.webdavplayer.domain.exception.CertUntrustedException
 import com.example.webdavplayer.domain.model.AuthType
 import com.example.webdavplayer.domain.model.ServerConfig
@@ -66,6 +67,7 @@ class ServerConfigViewModel @Inject constructor(
                         )
                     } else {
                         _lastError.value = t.message ?: t.toString()
+                        AppLogger.logException("ServerConfig", t)
                     }
                 }
             }

@@ -20,6 +20,7 @@ import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.Edit
 import androidx.compose.material.icons.filled.VideoLibrary
 import androidx.compose.material.icons.filled.CloudOff
+import androidx.compose.material.icons.filled.Info
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.FloatingActionButton
@@ -60,7 +61,16 @@ fun ServerListScreen(
     var toDelete by remember { mutableStateOf<String?>(null) }
 
     Scaffold(
-        topBar = { TopAppBar(title = { Text("服务器") }) },
+        topBar = {
+            TopAppBar(
+                title = { Text("服务器") },
+                actions = {
+                    IconButton(onClick = { navController.navigate("log") }) {
+                        Icon(Icons.Filled.Info, contentDescription = "日志")
+                    }
+                },
+            )
+        },
         floatingActionButton = {
             FloatingActionButton(
                 onClick = { navController.navigate("server_config") },
