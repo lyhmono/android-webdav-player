@@ -26,6 +26,7 @@ import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
@@ -157,7 +158,7 @@ fun PlayerControlBar(
             horizontalArrangement = Arrangement.Center,
             verticalAlignment = Alignment.CenterVertically,
         ) {
-            EngineType.values().filter { it != EngineType.IJK }.forEach { t ->
+            EngineType.values().forEach { t ->
                 FilterChip(
                     selected = engineType == t,
                     onClick = { onSwitchEngine(t) },
@@ -180,5 +181,4 @@ fun modeLabel(mode: PlayMode): String = when (mode) {
 fun engineLabel(type: EngineType): String = when (type) {
     EngineType.MEDIA3 -> "Media3 / ExoPlayer"
     EngineType.VLC -> "libVLC"
-    EngineType.IJK -> "IJK"
 }
