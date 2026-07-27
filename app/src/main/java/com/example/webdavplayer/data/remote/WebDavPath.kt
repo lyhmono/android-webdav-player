@@ -31,6 +31,25 @@ object WebDavPath {
         return if (segments.isEmpty()) "$b/" else (listOf(b) + segments).joinToString("/")
     }
 
+    /**
+     * 计算 WebDAV 根 URL：对 baseUrl + path 做防御性去重，
+     * 避免 baseUrl 末尾段与 path 首段重复（如 .../dav + /dav -> .../dav）。
+     *
+     * 例：`resolveRoot("http://host/dav", "dav")` -> `"http://host/dav/"`。
+     */
+    fun resolveRoot(baseUrl: String, path: String): String {
+        val b = baseUrl.trimEnd('/')
+        val p = normalize(path).trimStart('/')
+        val segs = p.split('/').filter { it.isNotEmpty() }
+        val lastBase = b.substringAfterLast('/')
+        val dedup = if (segs.isNotEmpty() && segs.first().equals(lastBase, ignoreCase = true)) {
+            segs.drop(1)
+        } else {
+            segs
+        }
+        return if (dedup.isEmpty()) "$b/" else (listOf(b) + dedup).joinToString("/")
+    }
+
     /** 取父目录（规范化的路径）。 */
     fun parentOf(path: String): String {
         val p = normalize(path)

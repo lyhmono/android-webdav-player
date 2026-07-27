@@ -1,5 +1,6 @@
 package com.example.webdavplayer.data.repository
 
+import com.example.webdavplayer.data.log.AppLogger
 import com.example.webdavplayer.data.remote.WebDavClient
 import com.example.webdavplayer.data.remote.WebDavPath
 import com.example.webdavplayer.domain.common.MediaConstants
@@ -45,41 +46,60 @@ class MediaResolverImpl @Inject constructor(
                 trustSelfSigned = false,
             )
         }
-        val cfg = serverRepository.getById(item.serverId)
-            ?: throw IllegalStateException("找不到服务器：${item.serverId}")
-        val uri = WebDavPath.join(cfg.baseUrl, item.path)
-        val headers = if (cfg.authType == AuthType.BASIC) {
-            mapOf("Authorization" to Credentials.basic(cfg.username, cfg.encryptedPassword))
-        } else {
-            emptyMap()
+        val cfg = try {
+            serverRepository.getById(item.serverId)
+        } catch (e: Exception) {
+            AppLogger.logException("MediaResolver", e)
+            throw e
+        } ?: run {
+            val err = IllegalStateException("找不到服务器：${item.serverId}")
+            AppLogger.logException("MediaResolver", err)
+            throw err
         }
-        return PlayableMedia(
-            uri = uri,
-            headers = headers,
-            name = item.name,
-            mediaType = item.mediaType,
-            serverId = item.serverId,
-            trustSelfSigned = cfg.trustSelfSigned,
-        )
+        try {
+            val uri = WebDavPath.join(WebDavPath.resolveRoot(cfg.baseUrl, cfg.path), item.path)
+            val headers = if (cfg.authType == AuthType.BASIC) {
+                mapOf("Authorization" to Credentials.basic(cfg.username, cfg.encryptedPassword))
+            } else {
+                emptyMap()
+            }
+            return PlayableMedia(
+                uri = uri,
+                headers = headers,
+                name = item.name,
+                mediaType = item.mediaType,
+                serverId = item.serverId,
+                trustSelfSigned = cfg.trustSelfSigned,
+            )
+        } catch (e: Exception) {
+            AppLogger.logException("MediaResolver", e)
+            throw e
+        }
     }
 
     override suspend fun discoverSubtitles(item: PlaylistItem): List<SubtitleTrack> =
         withContext(Dispatchers.IO) {
-            val cfg = serverRepository.getById(item.serverId) ?: return@withContext emptyList()
-            webDavClient.connect(cfg)
-            val parent = WebDavPath.parentOf(item.path)
-            val dir = webDavClient.listDirectory(parent)
-            val mediaName = WebDavPath.nameOf(item.path)
-            val baseName = mediaName.substringBeforeLast('.')
-            dir.filter { !it.isDirectory && MediaConstants.isSiblingSubtitle(it.name, baseName) }
-                .map { sub ->
-                    val fullPath = if (sub.parentPath == "/") "/${sub.name}" else "${sub.parentPath}/${sub.name}"
-                    SubtitleTrack(
-                        uri = WebDavPath.join(cfg.baseUrl, fullPath),
-                        mimeType = MediaConstants.subtitleMimeType(sub.name),
-                        language = MediaConstants.subtitleLanguageFromName(sub.name),
-                        label = sub.name,
-                    )
-                }
+            try {
+                val cfg = serverRepository.getById(item.serverId)
+                    ?: return@withContext emptyList()
+                webDavClient.connect(cfg)
+                val parent = WebDavPath.parentOf(item.path)
+                val dir = webDavClient.listDirectory(parent)
+                val mediaName = WebDavPath.nameOf(item.path)
+                val baseName = mediaName.substringBeforeLast('.')
+                dir.filter { !it.isDirectory && MediaConstants.isSiblingSubtitle(it.name, baseName) }
+                    .map { sub ->
+                        val fullPath = if (sub.parentPath == "/") "/${sub.name}" else "${sub.parentPath}/${sub.name}"
+                        SubtitleTrack(
+                            uri = WebDavPath.join(WebDavPath.resolveRoot(cfg.baseUrl, cfg.path), fullPath),
+                            mimeType = MediaConstants.subtitleMimeType(sub.name),
+                            language = MediaConstants.subtitleLanguageFromName(sub.name),
+                            label = sub.name,
+                        )
+                    }
+            } catch (e: Exception) {
+                AppLogger.logException("MediaResolver", e)
+                throw e
+            }
         }
 }
