@@ -135,6 +135,11 @@ class VlcEngine @Inject constructor(
 
     override fun getDurationMs(): Long = mediaPlayer?.length ?: 0L
 
+    /** libVLC 不暴露视频尺寸 API，当前统一返回 0（由上层 fallback 到默认比例）。 */
+    fun getVideoWidth(): Int = 0
+
+    fun getVideoHeight(): Int = 0
+
     override fun release() {
         stopProgress()
         attached = false

@@ -226,7 +226,7 @@ fun PlayerScreen(
         Box(Modifier.fillMaxSize().background(Color.Black)) {
             VideoContent(Modifier.fillMaxSize())
 
-            AnimatedVisibility(
+            androidx.compose.animation.AnimatedVisibility(
                 visible = controlsVisible,
                 enter = fadeIn(tween(200)),
                 exit = fadeOut(tween(300)),
@@ -648,7 +648,6 @@ fun PlayerScreen(
     }
 }
 
-// 保持 file-level 辅助函数不变（SubtitleChoiceRow、modeLabel、engineLabel、formatDuration 等）
 @Composable
 private fun SubtitleChoiceRow(label: String, onClick: () -> Unit) {
     ListItem(
@@ -657,4 +656,4 @@ private fun SubtitleChoiceRow(label: String, onClick: () -> Unit) {
     )
 }
 
-// 先从 PlayerControlBar 引用，自身不再重复声明
+// modeLabel / engineLabel 引用自同包 PlayerControlBar
