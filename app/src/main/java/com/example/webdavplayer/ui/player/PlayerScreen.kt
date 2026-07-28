@@ -11,6 +11,7 @@ import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.aspectRatio
+import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
@@ -121,7 +122,12 @@ fun PlayerScreen(
         }
     }
 
-    // scrubbing 本地状态：拖动期间不 seek，松手才提交到引擎。
+    // 自动播放：进入播放页时，如果列表有内容且当前无播放项，播第一首
+    LaunchedEffect(items) {
+        if (items.isNotEmpty() && currentItemId == null) {
+            playerVm.playItem(items.first())
+        }
+    }
     var isScrubbing by remember { mutableStateOf(false) }
     var scrubValue by remember { mutableStateOf(position.toFloat()) }
     val maxValue = duration.coerceAtLeast(1).toFloat()
@@ -247,12 +253,12 @@ fun PlayerScreen(
                 Text(title.ifEmpty { "未选择媒体" }, style = MaterialTheme.typography.titleLarge)
                 Text(stateLabel(state), style = MaterialTheme.typography.bodyMedium)
 
-                // 视频区（竖屏为固定比例框；音频不显示）。
+                // 视频区（竖屏撑满宽度，上半屏比例；音频不显示）。
                 if (isVideo) {
                     VideoArea(
                         Modifier
                             .fillMaxWidth()
-                            .aspectRatio(16f / 9f),
+                            .fillMaxHeight(0.4f),
                     )
                 }
 

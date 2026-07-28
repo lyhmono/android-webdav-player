@@ -11,6 +11,7 @@ import com.example.webdavplayer.data.remote.WebDavPath
 import com.example.webdavplayer.domain.model.PlaylistItem
 import com.example.webdavplayer.domain.model.RemoteFile
 import com.example.webdavplayer.domain.repository.CacheRepository
+import com.example.webdavplayer.domain.repository.PlaylistRepository
 import com.example.webdavplayer.domain.usecase.AddDirVideosToPlaylistUseCase
 import com.example.webdavplayer.domain.usecase.BrowseDirectoryUseCase
 import com.example.webdavplayer.domain.usecase.PlayMediaUseCase
@@ -39,6 +40,7 @@ class BrowseViewModel @Inject constructor(
     private val uploadUseCase: UploadFileUseCase,
     private val fileOps: RenameMoveDeleteUseCase,
     private val playMedia: PlayMediaUseCase,
+    private val playlistRepository: PlaylistRepository,
     private val networkMonitor: NetworkMonitor,
     private val cacheRepository: CacheRepository,
 ) : ViewModel() {
@@ -173,7 +175,7 @@ class BrowseViewModel @Inject constructor(
         }
     }
 
-    /** 直接点击媒体文件：播放。 */
+    /** 直接点击媒体文件：替换播放列表为该项，跳转到播放页。实际播放由 PlayerScreen 触发。 */
     fun playFile(file: RemoteFile) {
         val item = PlaylistItem(
             id = "${file.serverId}:${fullPath(file.name)}",
@@ -184,12 +186,9 @@ class BrowseViewModel @Inject constructor(
             durationMs = 0L,
             addedAt = System.currentTimeMillis(),
         )
+        // 不再直接调 playMedia，改为加入播放列表（清空旧列表），让 PlayerScreen 负责播放
         viewModelScope.launch {
-            val r = playMedia(item)
-            when (r) {
-                is Result.Success -> { /* 跳转由界面处理 */ }
-                is Result.Error -> _error.value = "播放失败：${r.throwable.message}"
-            }
+            playlistRepository.addItems(listOf(item), replace = true)
         }
     }
 
