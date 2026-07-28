@@ -364,7 +364,7 @@ fun PlayerScreen(
                 }
 
                 // 半透明控制层
-                AnimatedVisibility(
+                androidx.compose.animation.AnimatedVisibility(
                     visible = controlsVisible,
                     enter = fadeIn(tween(150)),
                     exit = fadeOut(tween(300)),
