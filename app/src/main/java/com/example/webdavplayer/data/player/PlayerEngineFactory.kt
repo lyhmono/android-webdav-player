@@ -13,12 +13,15 @@ import javax.inject.Singleton
  *
  * VLC 引擎（[VlcEngine]）仅在 `full` 风味中编译（见 src/full），
  * 此处通过反射加载，使 `lite` 风味（仅 Media3）也能编译通过。
+ *
+ * 标记为 `open` 仅供纯 JVM 单测子类化替换内核产出（验证 [com.example.webdavplayer.data.repository.PlayerRepositoryImpl]
+ * 的倍速重放契约），生产代码不应子类化。
  */
 @Singleton
-class PlayerEngineFactory @Inject constructor(
+open class PlayerEngineFactory @Inject constructor(
     private val streamingSource: WebDavStreamingSource,
 ) {
-    fun create(type: EngineType, context: Context): PlayerEngine = when (type) {
+    open fun create(type: EngineType, context: Context): PlayerEngine = when (type) {
         EngineType.MEDIA3 -> ExoPlayerEngine(context, streamingSource)
         EngineType.VLC -> createVlc(context)
     }

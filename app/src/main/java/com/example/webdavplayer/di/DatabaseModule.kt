@@ -5,6 +5,8 @@ import androidx.room.Room
 import androidx.room.migration.Migration
 import androidx.sqlite.db.SupportSQLiteDatabase
 import com.example.webdavplayer.data.local.AppDatabase
+import com.example.webdavplayer.data.local.dao.CachedMediaDao
+import com.example.webdavplayer.data.local.dao.DirectoryMetaDao
 import com.example.webdavplayer.data.local.dao.PlaybackProgressDao
 import com.example.webdavplayer.data.local.dao.PlaylistDao
 import com.example.webdavplayer.data.local.dao.PlaylistMetaDao
@@ -60,6 +62,9 @@ object DatabaseModule {
     fun provideRemoteFileDao(db: AppDatabase): RemoteFileDao = db.remoteFileDao()
 
     @Provides
+    fun provideDirectoryMetaDao(db: AppDatabase): DirectoryMetaDao = db.directoryMetaDao()
+
+    @Provides
     fun providePlaylistDao(db: AppDatabase): PlaylistDao = db.playlistDao()
 
     @Provides
@@ -70,4 +75,7 @@ object DatabaseModule {
 
     @Provides
     fun provideTrustedCertDao(db: AppDatabase): TrustedCertDao = db.trustedCertDao()
+
+    @Provides
+    fun provideCachedMediaDao(db: AppDatabase): CachedMediaDao = db.cachedMediaDao()
 }

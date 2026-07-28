@@ -19,6 +19,9 @@ interface PlaybackProgressDao {
     @Query("DELETE FROM playback_progress WHERE serverId = :s AND path = :p")
     suspend fun delete(s: String, p: String)
 
+    @Query("DELETE FROM playback_progress WHERE serverId = :serverId")
+    suspend fun deleteByServerId(serverId: String)
+
     @Query("DELETE FROM playback_progress")
     suspend fun clearAll()
 }

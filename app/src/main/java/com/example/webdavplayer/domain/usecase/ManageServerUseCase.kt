@@ -3,6 +3,8 @@ package com.example.webdavplayer.domain.usecase
 import com.example.webdavplayer.common.Result
 import com.example.webdavplayer.domain.model.ServerConfig
 import com.example.webdavplayer.domain.model.TrustedCert
+import com.example.webdavplayer.domain.repository.PlaybackProgressRepository
+import com.example.webdavplayer.domain.repository.PlaylistRepository
 import com.example.webdavplayer.domain.repository.ServerRepository
 import com.example.webdavplayer.domain.repository.SettingsRepository
 import com.example.webdavplayer.domain.repository.TrustedCertRepository
@@ -24,6 +26,8 @@ class ManageServerUseCase @Inject constructor(
     private val serverRepository: ServerRepository,
     private val trustedCertRepository: TrustedCertRepository,
     private val settingsRepository: SettingsRepository,
+    private val playlistRepository: PlaylistRepository,
+    private val playbackProgressRepository: PlaybackProgressRepository,
 ) {
     fun observeServers(): Flow<List<ServerConfig>> = serverRepository.observeAll()
     suspend fun listServers(): List<ServerConfig> = serverRepository.getAll()
@@ -35,10 +39,17 @@ class ManageServerUseCase @Inject constructor(
     /** 建立连接（触发信任校验），以 [Result] 返回。 */
     suspend fun connect(config: ServerConfig): Result<Unit> = serverRepository.connect(config)
 
-    /** 删除服务器并清理其信任证书；若删除的是当前服务器，同时清除当前选择。 */
+    /**
+     * 删除服务器并清理其全部归属数据：信任证书、播放列表项、播放断点；
+     * 若删除的恰是当前服务器，同时清除偏好中的 currentServerId，避免悬空引用。
+     */
     suspend fun removeServer(id: String) {
         serverRepository.delete(id)
         trustedCertRepository.removeByServer(id)
+        // H：清理该服务器残留的播放列表项与断点，避免孤儿行（表按 serverId 隔离，
+        // 既删除内存态也删除 Room 持久化行）。
+        playlistRepository.clearServer(id)
+        playbackProgressRepository.clearServer(id)
         // C5：若删除的恰是当前服务器，清除偏好中的 currentServerId，避免悬空引用。
         if (settingsRepository.getCurrentServerId() == id) {
             settingsRepository.setCurrentServerId(null)

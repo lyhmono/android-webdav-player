@@ -149,6 +149,32 @@ class PlaylistControllerImplTest {
         assertNull(controller.current())
     }
 
+    // ===== 删除当前项时索引兜底（§一致性） =====
+    @Test
+    fun sync_afterDeletingCurrentItem_keepsAliveItemAtSameSlot() {
+        controller.sync(items("A", "B", "C"))
+        controller.setCurrent(item("B")) // currentIndex = 1
+        // 删除当前项 B → [A, C]，应保留同槽位存活项 C（而非失步为 -1）
+        controller.sync(items("A", "C"))
+        assertEquals("C", controller.current()?.id)
+    }
+
+    @Test
+    fun sync_afterDeletingLastItem_keepsLastAvailable() {
+        controller.sync(items("A", "B", "C"))
+        controller.setCurrent(item("C")) // 末项 currentIndex = 2
+        controller.sync(items("A", "B"))
+        assertEquals("B", controller.current()?.id) // 兜底到末项
+    }
+
+    @Test
+    fun sync_afterDeletingOnlyItem_currentBecomesNull() {
+        controller.sync(items("A"))
+        controller.setCurrent(item("A"))
+        controller.sync(emptyList())
+        assertNull(controller.current())
+    }
+
     // ===== 空列表防御 =====
     @Test
     fun emptyList_nextAndPreviousReturnNull() {

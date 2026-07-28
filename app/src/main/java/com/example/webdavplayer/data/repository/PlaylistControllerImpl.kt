@@ -21,14 +21,27 @@ class PlaylistControllerImpl @Inject constructor() : PlaylistController {
     private var mode: PlayMode = PlayMode.SEQUENTIAL
 
     override fun sync(items: List<PlaylistItem>) {
-        val currentId = this.items.getOrNull(currentIndex)?.id
+        val oldIndex = currentIndex
+        val currentId = this.items.getOrNull(oldIndex)?.id
         this.items = items
-        currentIndex = if (currentId != null) {
-            items.indexOfFirst { it.id == currentId }
-        } else {
-            -1
+        currentIndex = when {
+            currentId != null -> {
+                val idx = items.indexOfFirst { it.id == currentId }
+                if (idx >= 0) {
+                    idx
+                } else {
+                    // 当前项已被删除：兜底到原槽位（被删项之后的项会前移补齐该槽位），
+                    // 使控制器仍指向一个有效项而不至于失步为 -1（§一致性）。
+                    fallbackIndex(oldIndex, items)
+                }
+            }
+            else -> -1
         }
     }
+
+    /** 当前项被删除时的兜底索引：保持原槽位；列表为空返回 -1。 */
+    private fun fallbackIndex(oldIndex: Int, items: List<PlaylistItem>): Int =
+        if (items.isEmpty()) -1 else oldIndex.coerceIn(0, items.lastIndex)
 
     override fun setMode(mode: PlayMode) {
         this.mode = mode

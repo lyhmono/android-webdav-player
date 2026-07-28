@@ -2,6 +2,7 @@ package com.example.webdavplayer.ui.player
 
 import android.content.ComponentName
 import android.content.Context
+import android.view.TextureView
 import androidx.core.content.ContextCompat
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
@@ -18,6 +19,7 @@ import com.example.webdavplayer.domain.model.MediaType
 import com.example.webdavplayer.domain.model.PlayMode
 import com.example.webdavplayer.domain.model.PlaybackState
 import com.example.webdavplayer.domain.model.PlaylistItem
+import com.example.webdavplayer.domain.model.SubtitleTrack
 import com.example.webdavplayer.domain.player.PlaylistController
 import com.example.webdavplayer.domain.repository.PlayerRepository
 import com.example.webdavplayer.domain.repository.PlaylistRepository
@@ -44,6 +46,10 @@ import javax.inject.Inject
  *   也不再在 [onCleared] 中 [PlayerRepository.release]（否则后台播放会被打断）。
  * - 播放状态/进度来自 [MediaController]（会话背后是 [PlaybackService] 的引擎）；
  * - 播放控制命令转发给 [MediaController]（失败时回退到 [PlayerRepository] 直连同一单例引擎）。
+ *
+ * 视频 Surface 穿透抽象层**直达单例引擎**：[attachVideoSurface] / [detachVideoSurface]
+ * 直连 [PlayerRepository.setVideoSurface]，**不**走 MediaController / PlayerSurface
+ * （[com.example.webdavplayer.data.player.EngineMedia3Adapter] 仅作 SimpleBasePlayer 代理，不渲染）。
  *
  * 进度与顺序真相源仍在 [PlaylistController]（由观察 PlaylistRepository 驱动）。
  */
@@ -74,9 +80,17 @@ class PlayerViewModel @Inject constructor(
     private val _engineType = MutableStateFlow<EngineType>(EngineType.MEDIA3)
     val engineType: StateFlow<EngineType> = _engineType.asStateFlow()
 
+    /** 当前播放倍速（1.0 = 正常）。 */
+    private val _speed = MutableStateFlow(1.0f)
+    val speed: StateFlow<Float> = _speed.asStateFlow()
+
     /** 当前媒体类型（用于视频手势层门控，C4）。 */
     private val _currentMediaType = MutableStateFlow(MediaType.OTHER)
     val currentMediaType: StateFlow<MediaType> = _currentMediaType.asStateFlow()
+
+    /** 当前媒体的可选字幕轨列表（P2，来自 [PlayMediaUseCase] 发现结果）。 */
+    private val _subtitles = MutableStateFlow<List<SubtitleTrack>>(emptyList())
+    val subtitles: StateFlow<List<SubtitleTrack>> = _subtitles.asStateFlow()
 
     val items: StateFlow<List<PlaylistItem>> = playlistRepository.observeItems()
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
@@ -90,6 +104,10 @@ class PlayerViewModel @Inject constructor(
     /** 连接到后台 [PlaybackService] 的 MediaSession 的 MediaController。 */
     private var mediaController: MediaController? = null
     private val controllerFuture: ListenableFuture<MediaController>
+
+    /** MediaController（即 Media3 引擎播放器）。视频渲染走 [attachVideoSurface] 穿透路径，不经过 PlayerView。 */
+    private val _controller = MutableStateFlow<androidx.media3.common.Player?>(null)
+    val controller: StateFlow<androidx.media3.common.Player?> = _controller.asStateFlow()
 
     init {
         _engineType.value = playerRepository.getEngineType()
@@ -117,6 +135,7 @@ class PlayerViewModel @Inject constructor(
             return
         }
         mediaController = controller
+        _controller.value = controller
         controller.addListener(playerListener)
         syncFromController(controller)
     }
@@ -132,6 +151,7 @@ class PlayerViewModel @Inject constructor(
         _position.value = pos
         _duration.value = dur
         _state.value = mapControllerState(controller)
+        _speed.value = controller.playbackParameters.speed
         _currentMediaType.value = playlistController.current()?.mediaType ?: MediaType.OTHER
     }
 
@@ -170,7 +190,8 @@ class PlayerViewModel @Inject constructor(
         viewModelScope.launch {
             when (val r = playMedia(item)) {
                 is Result.Success -> {
-                    _resumedPosition.value = r.data
+                    _subtitles.value = r.data.subtitles
+                    _resumedPosition.value = r.data.resumedPositionMs
                     /* 状态由 MediaController 监听驱动 */
                 }
                 is Result.Error -> _state.value = PlaybackState.ERROR
@@ -189,8 +210,64 @@ class PlayerViewModel @Inject constructor(
 
     fun seekTo(ms: Long) = mediaController?.seekTo(ms) ?: playerRepository.seekTo(ms)
 
+    /**
+     * 绑定视频渲染视图（穿透抽象层直达单例引擎，不走 MediaController / PlayerSurface）。
+     * 由 [VideoSurfaceHost] 在视图创建时调用。Media3 内核会包成 Surface，libVLC 内核直接用 TextureView。
+     */
+    fun attachVideoSurface(view: TextureView?) {
+        playerRepository.setVideoSurface(view)
+    }
+
+    /** 解绑视频视图（视图销毁时调用）。 */
+    fun detachVideoSurface() {
+        playerRepository.setVideoSurface(null)
+    }
+
     fun togglePlay() {
         if (_state.value == PlaybackState.PLAYING) pause() else play()
+    }
+
+    /** 设置播放倍速（优先经 MediaController 统一通道，无控制器时回退直连引擎）。 */
+    fun setSpeed(speed: Float) {
+        _speed.value = speed
+        mediaController?.setPlaybackSpeed(speed) ?: playerRepository.setSpeed(speed)
+    }
+
+    /**
+     * 选择字幕语言（null = 关闭）。优先经 MediaController 统一通道，
+     * 无控制器时回退直连仓库（再转发到内核）。
+     */
+    fun selectSubtitle(language: String?) {
+        val controller = mediaController
+        if (controller != null) {
+            val params = controller.trackSelectionParameters.buildUpon()
+            if (language == null) {
+                params.setTrackTypeDisabled(C.TRACK_TYPE_TEXT, true)
+            } else {
+                params.setPreferredTextLanguage(language)
+                    .setTrackTypeDisabled(C.TRACK_TYPE_TEXT, false)
+            }
+            controller.setTrackSelectionParameters(params.build())
+        } else {
+            playerRepository.selectSubtitle(language)
+        }
+    }
+
+    /**
+     * 启用字幕（不指定语言）。用于无语言后缀的字幕（language 为 null）：
+     * 仅解除文本轨禁用，由播放器自动选第一条可用文本轨。优先经 MediaController。
+     */
+    fun enableSubtitles() {
+        val controller = mediaController
+        if (controller != null) {
+            controller.setTrackSelectionParameters(
+                controller.trackSelectionParameters.buildUpon()
+                    .setTrackTypeDisabled(C.TRACK_TYPE_TEXT, false)
+                    .build(),
+            )
+        } else {
+            playerRepository.enableSubtitles()
+        }
     }
 
     fun next() {

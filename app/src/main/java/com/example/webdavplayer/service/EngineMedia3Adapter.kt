@@ -3,6 +3,7 @@ package com.example.webdavplayer.service
 import androidx.media3.common.C
 import androidx.media3.common.MediaItem
 import androidx.media3.common.MediaMetadata
+import androidx.media3.common.PlaybackParameters
 import androidx.media3.common.Player
 import androidx.media3.common.SimpleBasePlayer
 import androidx.media3.common.SimpleBasePlayer.MediaItemData
@@ -80,6 +81,10 @@ class EngineMedia3Adapter(
     @Volatile
     private var durationMs: Long = 0L
 
+    /** 当前播放倍速（1.0 = 正常），由 [handleSetPlaybackParameters] 更新并经 State 回报。 */
+    @Volatile
+    private var currentSpeed: Float = 1.0f
+
     /** 供外部读取当前播放位置（用于暂停/结束时 flush 进度）。 */
     val currentPositionMs: Long get() = positionMs
 
@@ -153,6 +158,7 @@ class EngineMedia3Adapter(
             .setPlaybackState(mapState(engineState))
             .setCurrentMediaItemIndex(currentIndex)
             .setContentPositionMs(positionMs)
+            .setPlaybackParameters(PlaybackParameters(currentSpeed))
             .setPlaylist(mediaItemData)
             .build()
     }
@@ -161,6 +167,13 @@ class EngineMedia3Adapter(
     override fun handleSetPlayWhenReady(playWhenReady: Boolean): ListenableFuture<*> {
         if (playWhenReady) playerRepository.play() else playerRepository.pause()
         return ImmediateFuture(playWhenReady)
+    }
+
+    @UnstableApi
+    override fun handleSetPlaybackParameters(playbackParameters: PlaybackParameters): ListenableFuture<*> {
+        currentSpeed = playbackParameters.speed
+        playerRepository.setSpeed(playbackParameters.speed)
+        return ImmediateFuture(Unit)
     }
 
     @UnstableApi
@@ -189,6 +202,11 @@ class EngineMedia3Adapter(
         return ImmediateFuture(Unit)
     }
 
+    // 视频 Surface 不走 SimpleBasePlayer 的钩子：本项目把 TextureView 经
+    // PlayerViewModel.attachVideoSurface 直达单例引擎（ExoPlayer / VLC）渲染，
+    // 与 PlayerView 的表面路由解耦，因此无需 override 视频输出 handler
+    // （且 1.2.0/1.5.1 的编译期 api jar 未暴露该 @UnstableApi 方法，不可 override）。
+
     /** 声明本代理支持的命令集合。 */
     private fun buildCommands(): Player.Commands = Player.Commands.Builder()
         .add(Player.COMMAND_PLAY_PAUSE)
@@ -197,6 +215,7 @@ class EngineMedia3Adapter(
         .add(Player.COMMAND_SEEK_TO_PREVIOUS_MEDIA_ITEM)
         .add(Player.COMMAND_GET_CURRENT_MEDIA_ITEM)
         .add(Player.COMMAND_GET_TIMELINE)
+        .add(Player.COMMAND_SET_SPEED_AND_PITCH)
         .build()
 
     /** 领域 [PlaybackState] → Media3 [Player] 状态。 */

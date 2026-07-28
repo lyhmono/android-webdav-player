@@ -67,6 +67,7 @@ fun ServerConfigScreen(
     var password by remember { mutableStateOf("") }
     var authType by remember { mutableStateOf(AuthType.BASIC) }
     var trustSelf by remember { mutableStateOf(false) }
+    var path by remember { mutableStateOf("") }
 
     // 编辑模式：加载已有配置填充表单
     LaunchedEffect(serverId) {
@@ -78,6 +79,7 @@ fun ServerConfigScreen(
                 password = config.encryptedPassword
                 authType = config.authType
                 trustSelf = config.trustSelfSigned
+                path = config.path
             }
         }
     }
@@ -119,6 +121,13 @@ fun ServerConfigScreen(
                 value = url,
                 onValueChange = { url = it },
                 label = { Text("服务器地址") },
+                modifier = Modifier.fillMaxWidth(),
+                keyboardOptions = KeyboardOptions(autoCorrect = false),
+            )
+            OutlinedTextField(
+                value = path,
+                onValueChange = { path = it },
+                label = { Text("WebDAV 路径（可选，如 /dav 或 /remote.php/dav/files/用户名）") },
                 modifier = Modifier.fillMaxWidth(),
                 keyboardOptions = KeyboardOptions(autoCorrect = false),
             )
@@ -173,6 +182,7 @@ fun ServerConfigScreen(
                         id = serverId ?: UUID.randomUUID().toString(),
                         name = name.ifEmpty { url },
                         baseUrl = url,
+                        path = path,
                         username = username,
                         encryptedPassword = password,
                         authType = authType,

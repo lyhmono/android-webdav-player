@@ -26,4 +26,8 @@ interface RemoteFileDao {
 
     @Query("DELETE FROM remote_files WHERE serverId = :serverId")
     suspend fun clearServer(serverId: String)
+
+    /** 目录已缓存条目数（§1.3 优化：判断缓存是否非空，配合 TTL 决定是否刷新）。 */
+    @Query("SELECT COUNT(*) FROM remote_files WHERE serverId = :serverId AND parentPath = :parentPath")
+    suspend fun countDirectory(serverId: String, parentPath: String): Int
 }

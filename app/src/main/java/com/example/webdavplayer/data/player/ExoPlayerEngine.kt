@@ -1,6 +1,11 @@
 package com.example.webdavplayer.data.player
 
 import android.content.Context
+import android.net.Uri
+import android.view.Surface
+import android.view.TextureView
+import androidx.media3.common.C
+import androidx.media3.common.MediaItem
 import androidx.media3.common.PlaybackException
 import androidx.media3.common.Player
 import androidx.media3.common.util.UnstableApi
@@ -21,6 +26,10 @@ import okhttp3.OkHttpClient
 /**
  * Media3 / ExoPlayer 内核实现（§1.2 默认内核）。
  * 仅负责「当前这一条媒体的解码渲染」，进度/列表由上层持有。
+ *
+ * 视频 Surface 穿透抽象层直达此内核：[setVideoSurface] 缓存 [pendingView]（TextureView），
+ * 在 [ensurePlayer] 构建 ExoPlayer 实例后立即把其 SurfaceTexture 包成 Surface 绑定
+ * （并设定 [C.VIDEO_SCALING_MODE_SCALE_TO_FIT]）。
  */
 @UnstableApi
 class ExoPlayerEngine(
@@ -32,6 +41,7 @@ class ExoPlayerEngine(
     private var listener: EngineListener? = null
     private var okHttpClient: OkHttpClient? = null
     private var state: PlaybackState = PlaybackState.IDLE
+    private var pendingView: TextureView? = null
     private val scope = CoroutineScope(Dispatchers.Main + SupervisorJob())
     private var progressJob: Job? = null
 
@@ -68,7 +78,11 @@ class ExoPlayerEngine(
 
     private fun ensurePlayer() {
         if (player == null) {
-            player = ExoPlayer.Builder(context).build().apply { addListener(playerListener) }
+            player = ExoPlayer.Builder(context).build().apply {
+                addListener(playerListener)
+                videoScalingMode = C.VIDEO_SCALING_MODE_SCALE_TO_FIT
+                pendingView?.let { setVideoSurface(it) }
+            }
         }
     }
 
@@ -79,11 +93,34 @@ class ExoPlayerEngine(
 
     override fun prepare(media: PlayableMedia) {
         ensurePlayer()
-        val client = okHttpClient
-            ?: throw IllegalStateException("OkHttpClient 未注入，无法流式播放")
-        val source = streamingSource.createExoMediaSource(client, media)
-        player!!.setMediaSource(source)
+        if (media.uri.startsWith("http", ignoreCase = true)) {
+            val client = okHttpClient
+                ?: throw IllegalStateException("OkHttpClient 未注入，无法流式播放")
+            val source = streamingSource.createExoMediaSource(client, media)
+            player!!.setMediaSource(source)
+        } else {
+            // 本地文件（离线缓存）：直接设置 URI；字幕以外部文本轨附带，不走流式数据源。
+            val item = MediaItem.Builder()
+                .setUri(media.uri)
+                .setSubtitleConfigurations(
+                    media.subtitles.map { sub ->
+                        MediaItem.SubtitleConfiguration.Builder(Uri.parse(sub.uri))
+                            .setMimeType(sub.mimeType)
+                            .setLanguage(sub.language)
+                            .setLabel(sub.label)
+                            .build()
+                    },
+                )
+                .build()
+            player!!.setMediaItem(item)
+        }
         player!!.prepare()
+        // 字幕默认关闭：避免主媒体带字幕时自动显示，由用户经「字幕」菜单显式开启。
+        player!!.setTrackSelectionParameters(
+            player!!.trackSelectionParameters.buildUpon()
+                .setTrackTypeDisabled(C.TRACK_TYPE_TEXT, true)
+                .build(),
+        )
         updateState(PlaybackState.PREPARING)
     }
 
@@ -99,14 +136,50 @@ class ExoPlayerEngine(
         player?.seekTo(positionMs)
     }
 
+    override fun setSpeed(speed: Float) {
+        // ExoPlayer 通过 playbackParameters 表达倍速（pitch 保持默认 1.0）。
+        player?.setPlaybackSpeed(speed)
+    }
+
+    override fun selectSubtitle(language: String?) {
+        val p = player ?: return
+        val params = p.trackSelectionParameters.buildUpon()
+        if (language == null) {
+            // 关闭字幕：禁用文本轨。
+            params.setTrackTypeDisabled(C.TRACK_TYPE_TEXT, true)
+        } else {
+            // 按语言选择文本轨；若无可匹配语言则保持禁用状态由播放器择一。
+            params.setPreferredTextLanguage(language)
+                .setTrackTypeDisabled(C.TRACK_TYPE_TEXT, false)
+        }
+        p.setTrackSelectionParameters(params.build())
+    }
+
+    override fun enableSubtitles() {
+        val p = player ?: return
+        // 不指定语言：仅解除文本轨禁用，由播放器自动选第一条可用文本轨。
+        p.setTrackSelectionParameters(
+            p.trackSelectionParameters.buildUpon()
+                .setTrackTypeDisabled(C.TRACK_TYPE_TEXT, false)
+                .build(),
+        )
+    }
+
     override fun setListener(listener: EngineListener?) {
         this.listener = listener
     }
 
     override fun getState(): PlaybackState = state
 
+    override fun setVideoSurface(view: TextureView?) {
+        pendingView = view
+        // 把 TextureView 的 SurfaceTexture 包成 Surface 交给 ExoPlayer（view 为 null 时解绑）。
+        player?.setVideoSurface(view?.surfaceTexture?.let { Surface(it) })
+    }
+
     override fun release() {
         stopProgress()
+        player?.setVideoSurface(null)
         player?.release()
         player = null
         updateState(PlaybackState.IDLE)

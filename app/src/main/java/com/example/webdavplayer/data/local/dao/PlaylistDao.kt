@@ -28,6 +28,9 @@ interface PlaylistDao {
     @Query("DELETE FROM playlist_items WHERE id = :id")
     suspend fun deleteById(id: String)
 
+    @Query("DELETE FROM playlist_items WHERE serverId = :serverId")
+    suspend fun deleteByServerId(serverId: String)
+
     @Query("DELETE FROM playlist_items")
     suspend fun clear()
 }

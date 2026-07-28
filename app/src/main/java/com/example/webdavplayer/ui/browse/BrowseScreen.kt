@@ -32,6 +32,8 @@ import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.Folder
 import androidx.compose.material.icons.filled.Clear
 import androidx.compose.material.icons.filled.InsertDriveFile
+import androidx.compose.material.icons.filled.Movie
+import androidx.compose.material.icons.filled.MusicNote
 import androidx.compose.material.icons.filled.QueueMusic
 import androidx.compose.material.icons.filled.Search
 import androidx.compose.material.icons.filled.Settings
@@ -58,6 +60,7 @@ import androidx.compose.material.pullrefresh.rememberPullRefreshState
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableLongStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
@@ -70,12 +73,14 @@ import androidx.navigation.NavBackStackEntry
 import androidx.navigation.NavHostController
 import androidx.paging.compose.collectAsLazyPagingItems
 import com.example.webdavplayer.data.remote.WebDavPath
+import com.example.webdavplayer.domain.common.FileFormatter
 import com.example.webdavplayer.domain.model.RemoteFile
 import com.example.webdavplayer.ui.common.EmptyView
 import com.example.webdavplayer.ui.common.LoadingView
 import com.example.webdavplayer.ui.player.PlayerViewModel
 import com.example.webdavplayer.ui.theme.Spacing
 import com.example.webdavplayer.ui.playlist.PlaylistViewModel
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.first
 import okio.source
 import java.net.URLDecoder
@@ -96,6 +101,7 @@ fun BrowseScreen(
     val message by viewModel.message.collectAsStateWithLifecycle()
     val videosAdded by viewModel.videosAdded.collectAsStateWithLifecycle()
     val isOnline by viewModel.isOnline.collectAsStateWithLifecycle()
+    val lastRefreshedAt by viewModel.lastRefreshedAt.collectAsStateWithLifecycle()
 
     val lazyItems = viewModel.directoryFlow.collectAsLazyPagingItems()
 
@@ -167,7 +173,33 @@ fun BrowseScreen(
     Scaffold(
         topBar = {
             TopAppBar(
-                title = { Text(path) },
+                title = {
+                    Column {
+                        Text(path)
+                        // 每秒驱动一次重组，让"更新于 Xs 前"随时间自动刷新。
+                        var nowTick by remember { mutableLongStateOf(0L) }
+                        LaunchedEffect(Unit) {
+                            while (true) {
+                                delay(1000)
+                                nowTick++
+                            }
+                        }
+                        val agoSecs = lastRefreshedAt?.let { (System.currentTimeMillis() - it) / 1000 }
+                        // nowTick 仅用于触发重组；读取保证 recomposition 发生。
+                        @Suppress("UNUSED_VARIABLE") val tick = nowTick
+                        if (agoSecs != null) {
+                            val agoText = when {
+                                agoSecs < 60 -> "${agoSecs}s"
+                                agoSecs < 3600 -> "${agoSecs / 60}m"
+                                else -> "${agoSecs / 3600}h"
+                            }
+                            Text(
+                                text = "缓存 · 更新于 $agoText 前",
+                                style = MaterialTheme.typography.labelSmall,
+                            )
+                        }
+                    }
+                },
                 navigationIcon = {
                     IconButton(onClick = {
                         if (path == "/") {
@@ -413,6 +445,10 @@ fun BrowseScreen(
                     dismissButton = {
                         Row {
                             TextButton(onClick = {
+                                viewModel.downloadFile(viewModel.fullPath(file.name))
+                                fileAction = null
+                            }) { Text("下载") }
+                            TextButton(onClick = {
                                 moveText = file.parentPath
                                 showMove = true
                             }) { Text("移动") }
@@ -517,15 +553,21 @@ private fun FileRow(
             val sub = if (file.isDirectory) {
                 "目录"
             } else {
-                "${file.mediaType} · ${file.size} 字节"
+                "${FileFormatter.mediaTypeLabel(file.mediaType)} · ${FileFormatter.formatSize(file.size)}"
             }
             Text(sub)
         },
         leadingContent = {
-            Icon(
-                if (file.isDirectory) Icons.Filled.Folder else Icons.Filled.InsertDriveFile,
-                contentDescription = null,
-            )
+            val icon = if (file.isDirectory) {
+                Icons.Filled.Folder
+            } else {
+                when (file.mediaType) {
+                    com.example.webdavplayer.domain.model.MediaType.VIDEO -> Icons.Filled.Movie
+                    com.example.webdavplayer.domain.model.MediaType.AUDIO -> Icons.Filled.MusicNote
+                    com.example.webdavplayer.domain.model.MediaType.OTHER -> Icons.Filled.InsertDriveFile
+                }
+            }
+            Icon(icon, contentDescription = null)
         },
         modifier = modifier
             .fillMaxWidth()
