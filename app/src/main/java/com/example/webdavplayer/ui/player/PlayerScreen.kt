@@ -52,6 +52,7 @@ import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.navigation.NavHostController
 import com.example.webdavplayer.BuildConfig
+import com.example.webdavplayer.domain.model.EngineType
 import com.example.webdavplayer.domain.model.MediaType
 import com.example.webdavplayer.domain.model.PlaybackState
 import com.example.webdavplayer.ui.common.SectionHeader
@@ -80,6 +81,8 @@ fun PlayerScreen(
     val mediaType by playerVm.currentMediaType.collectAsStateWithLifecycle()
     val speed by playerVm.speed.collectAsStateWithLifecycle()
     val subtitles by playerVm.subtitles.collectAsStateWithLifecycle()
+    // Media3 引擎的 MediaController（PlayerView 绑定），VLC 路径不依赖它。
+    val controller by playerVm.controller.collectAsStateWithLifecycle()
 
     val isVlcAvailable = BuildConfig.FLAVOR == "full"
     val isPlaying = state == PlaybackState.PLAYING
@@ -108,16 +111,26 @@ fun PlayerScreen(
         playerVm.seekTo((position + delta).coerceIn(0, duration.coerceAtLeast(1)))
     }
 
-    /** 视频区：SurfaceHost + 手势层（手势层限定在本视频区内，不遮挡控制条）。 */
+    /** 视频区：按内核切换渲染方式（手势层限定在本视频区内，不遮挡控制条）。 */
     @Composable
     fun VideoArea(videoModifier: Modifier) {
         if (isVideo) {
             Box(videoModifier) {
-                VideoSurfaceHost(
-                    modifier = Modifier.fillMaxSize(),
-                    onSurfaceReady = { playerVm.attachVideoSurface(it) },
-                    onSurfaceDestroyed = { playerVm.detachVideoSurface() },
-                )
+                val useVlc = engineType == EngineType.VLC && isVlcAvailable
+                if (useVlc) {
+                    // VLC 引擎：保留 TextureView 穿透路径（VideoSurfaceHost → playerVm.attachVideoSurface）
+                    VideoSurfaceHost(
+                        modifier = Modifier.fillMaxSize(),
+                        onSurfaceReady = { playerVm.attachVideoSurface(it) },
+                        onSurfaceDestroyed = { playerVm.detachVideoSurface() },
+                    )
+                } else {
+                    // Media3 引擎：官方 PlayerView（经 MediaController/adapter 渲染，TextureView 模式）
+                    Media3PlayerSurface(
+                        player = controller,
+                        modifier = Modifier.fillMaxSize(),
+                    )
+                }
                 if (showGesture) {
                     VideoGestureLayer(
                         modifier = Modifier.fillMaxSize(),

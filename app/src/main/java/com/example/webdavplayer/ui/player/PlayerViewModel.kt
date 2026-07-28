@@ -100,6 +100,10 @@ class PlayerViewModel @Inject constructor(
     private var mediaController: MediaController? = null
     private val controllerFuture: ListenableFuture<MediaController>
 
+    /** MediaController（即 Media3 引擎播放器），供 Compose 的 [Media3PlayerSurface] 绑定渲染。 */
+    private val _controller = MutableStateFlow<androidx.media3.common.Player?>(null)
+    val controller: StateFlow<androidx.media3.common.Player?> = _controller.asStateFlow()
+
     init {
         _engineType.value = playerRepository.getEngineType()
         val sessionToken = SessionToken(context, ComponentName(context, PlaybackService::class.java))
@@ -126,6 +130,7 @@ class PlayerViewModel @Inject constructor(
             return
         }
         mediaController = controller
+        _controller.value = controller
         controller.addListener(playerListener)
         syncFromController(controller)
     }

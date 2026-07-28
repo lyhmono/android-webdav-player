@@ -9,6 +9,8 @@ import androidx.media3.common.SimpleBasePlayer
 import androidx.media3.common.SimpleBasePlayer.MediaItemData
 import androidx.media3.common.SimpleBasePlayer.PeriodData
 import androidx.media3.common.util.UnstableApi
+import android.view.Surface
+import android.view.TextureView
 import com.example.webdavplayer.domain.model.PlaybackState
 import com.example.webdavplayer.domain.model.PlaylistItem
 import com.example.webdavplayer.domain.player.PlaylistController
@@ -202,6 +204,36 @@ class EngineMedia3Adapter(
         return ImmediateFuture(Unit)
     }
 
+    @UnstableApi
+    override fun handleSetVideoTextureView(textureView: TextureView?): ListenableFuture<*> {
+        // Media3 路径走 PlayerView 的 TextureView：把它转交给共享单例引擎的 Surface 穿透入口，
+        // 让视频帧直达引擎（VLC 路径走 VideoSurfaceHost，两条路互不干扰）。
+        playerRepository.setVideoSurface(textureView)
+        return ImmediateFuture(Unit)
+    }
+
+    @UnstableApi
+    override fun handleClearVideoTextureView(textureView: TextureView?): ListenableFuture<*> {
+        // PlayerView 解绑 TextureView：清空引擎的 Surface。
+        playerRepository.setVideoSurface(null)
+        return ImmediateFuture(Unit)
+    }
+
+    @UnstableApi
+    override fun handleSetVideoSurface(surface: Surface?): ListenableFuture<*> {
+        // Media3 路径强制使用 TextureView（见 PlayerView.SURFACE_TYPE_TEXTURE_VIEW），
+        // Surface 入口不会被走到；不转发，直接返回已完成。
+        return ImmediateFuture(Unit)
+    }
+
+    @UnstableApi
+    override fun handleClearVideoSurface(surface: Surface?): ListenableFuture<*> {
+        // 与 setVideoSurface 同理：Surface 路径不会用到，清空统一走 clearVideoTextureView。
+        // 这里保守地清空引擎 Surface，避免遗留旧 TextureView 引用。
+        playerRepository.setVideoSurface(null)
+        return ImmediateFuture(Unit)
+    }
+
     /** 声明本代理支持的命令集合。 */
     private fun buildCommands(): Player.Commands = Player.Commands.Builder()
         .add(Player.COMMAND_PLAY_PAUSE)
@@ -211,6 +243,10 @@ class EngineMedia3Adapter(
         .add(Player.COMMAND_GET_CURRENT_MEDIA_ITEM)
         .add(Player.COMMAND_GET_TIMELINE)
         .add(Player.COMMAND_SET_SPEED_AND_PITCH)
+        // 视频 Surface 穿透必需：SimpleBasePlayer.setVideoTextureView 内部会用
+        // shouldHandleCommand(COMMAND_SET_VIDEO_SURFACE) 门控，若未声明该命令则直接 no-op，
+        // handleSetVideoTextureView 永远不会被调用（视频框出不来的根因之一）。
+        .add(Player.COMMAND_SET_VIDEO_SURFACE)
         .build()
 
     /** 领域 [PlaybackState] → Media3 [Player] 状态。 */
