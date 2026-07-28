@@ -215,7 +215,7 @@ class PlayerViewModel @Inject constructor(
         }
     }
 
-    /** 从 [PlayerRepository] 直接轮询进度/状态，直到 MediaController 连接成功接管。 */
+    /** 从 [PlayerRepository] 直接轮询进度/状态/视频比例，持续运行不中断。 */
     private fun startDirectPolling() {
         coroutineJob?.cancel()
         coroutineJob = viewModelScope.launch {
