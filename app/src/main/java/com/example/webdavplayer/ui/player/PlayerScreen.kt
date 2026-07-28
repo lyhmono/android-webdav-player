@@ -229,7 +229,7 @@ fun PlayerScreen(
                     }
 
                     // 半透明控制叠加层（点击视频区切换显示/隐藏）
-                    AnimatedVisibility(
+                    androidx.compose.animation.AnimatedVisibility(
                         visible = !controlsVisible || !isPlaying,
                         enter = fadeIn(tween(200)),
                         exit = fadeOut(tween(300)),
