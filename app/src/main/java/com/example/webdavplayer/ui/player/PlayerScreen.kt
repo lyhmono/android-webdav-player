@@ -636,13 +636,4 @@ private fun SubtitleChoiceRow(label: String, onClick: () -> Unit) {
     )
 }
 
-fun modeLabel(mode: PlayMode): String = when (mode) {
-    PlayMode.SEQUENTIAL -> "顺序"
-    PlayMode.LOOP -> "循环"
-    PlayMode.SHUFFLE -> "随机"
-}
-
-fun engineLabel(type: EngineType): String = when (type) {
-    EngineType.MEDIA3 -> "Media3"
-    EngineType.VLC -> "libVLC"
-}
+// 先从 PlayerControlBar 引用，自身不再重复声明
