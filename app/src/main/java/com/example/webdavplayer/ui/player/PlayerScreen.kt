@@ -110,7 +110,7 @@ fun PlayerScreen(
 
     var menuExpanded by remember { mutableStateOf(false) }
     var showSubtitleDialog by remember { mutableStateOf(false) }
-    var controlsVisible by remember { mutableStateOf(true) }
+    var controlsHidden by remember { mutableStateOf(false) }
 
     val snackbarHostState = remember { SnackbarHostState() }
 
@@ -209,7 +209,7 @@ fun PlayerScreen(
                         .fillMaxWidth()
                         .fillMaxHeight(0.45f)
                         .background(Color.Black)
-                        .clickable { controlsVisible = !controlsVisible },
+                        .clickable { controlsHidden = !controlsHidden },
                 ) {
                     if (isVideo) {
                         VideoArea(Modifier.fillMaxSize())
@@ -228,9 +228,9 @@ fun PlayerScreen(
                         }
                     }
 
-                    // 半透明控制叠加层（点击视频区切换显示/隐藏）
+                    // 半透明控制叠加层（点击视频区切换显示/隐藏；暂停时始终显示）
                     androidx.compose.animation.AnimatedVisibility(
-                        visible = !controlsVisible || !isPlaying,
+                        visible = !controlsHidden || !isPlaying,
                         enter = fadeIn(tween(200)),
                         exit = fadeOut(tween(300)),
                     ) {
