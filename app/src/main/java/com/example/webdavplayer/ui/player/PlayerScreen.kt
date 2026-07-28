@@ -13,7 +13,6 @@ import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.aspectRatio
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
-import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.lazy.LazyColumn
@@ -248,12 +247,12 @@ fun PlayerScreen(
                 Text(title.ifEmpty { "未选择媒体" }, style = MaterialTheme.typography.titleLarge)
                 Text(stateLabel(state), style = MaterialTheme.typography.bodyMedium)
 
-                // 视频区（竖屏撑满宽度，高度自适应 fillMaxHeight 0.4 比例；音频不显示）。
+                // 视频区（竖屏为固定比例框；音频不显示）。
                 if (isVideo) {
                     VideoArea(
                         Modifier
                             .fillMaxWidth()
-                            .fillMaxHeight(0.4f),
+                            .aspectRatio(16f / 9f),
                     )
                 }
 
