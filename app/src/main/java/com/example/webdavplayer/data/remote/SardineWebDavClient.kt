@@ -194,7 +194,13 @@ class SardineWebDavClient @Inject constructor(
 
     private fun mapResource(res: DavResource, serverId: String, parentPath: String): RemoteFile {
         val href = res.href?.toString() ?: ""
-        val name = href.substringAfterLast('/').ifEmpty { href }
+        // 目录 href 常以 '/' 结尾（/dav/xxx/ 或完整 URL），直接取最后一段会得到空串并退回整个 href，
+        // 导致把 /dav 前缀拼进浏览路径（/dav/dav/...）；且名称是 URL 编码（%XX）会显示乱码。
+        // 统一处理：去末尾斜杠 -> URL 解码 -> 取最后一段作为显示名。
+        val decodedHref = runCatching {
+            java.net.URLDecoder.decode(href.trimEnd('/'), Charsets.UTF_8.name())
+        }.getOrDefault(href.trimEnd('/'))
+        val name = decodedHref.substringAfterLast('/').ifEmpty { decodedHref }
         val contentType = res.contentType ?: ""
         return RemoteFile(
             id = "$serverId:$parentPath/$name",
