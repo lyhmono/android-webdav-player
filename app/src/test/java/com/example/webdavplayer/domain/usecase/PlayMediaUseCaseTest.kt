@@ -56,6 +56,8 @@ class PlayMediaUseCaseTest {
         override fun setSpeed(speed: Float) {}
         override fun setListener(listener: EngineListener?) {}
         override fun getState(): PlaybackState = PlaybackState.IDLE
+        override fun getCurrentPosition(): Long = 0L
+        override fun getDurationMs(): Long = 0L
         override fun release() {}
         override fun setVideoSurface(view: TextureView?) {
             // no-op: test fake
