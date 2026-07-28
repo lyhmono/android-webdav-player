@@ -53,6 +53,7 @@ import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
+import androidx.compose.runtime.SideEffect
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -144,9 +145,11 @@ fun PlayerScreen(
             controlsVisible = false
         }
     }
-    // 暂停时强制显示
-    if (!isPlaying && !controlsVisible) {
-        controlsVisible = true
+    // 暂停时强制显示（SideEffect 避免重组循环）
+    SideEffect {
+        if (!isPlaying && !controlsVisible) {
+            controlsVisible = true
+        }
     }
 
     val snackbarHostState = remember { SnackbarHostState() }

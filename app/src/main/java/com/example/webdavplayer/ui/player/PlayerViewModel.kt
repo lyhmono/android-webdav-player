@@ -105,6 +105,9 @@ class PlayerViewModel @Inject constructor(
     /** 直连引擎轮询协程（在 MediaController 接管前使用）。 */
     private var coroutineJob: Job? = null
 
+    /** 当前 playItem 协程（用于防重入取消）。 */
+    private var playJob: Job? = null
+
     val mode: StateFlow<PlayMode> = playlistRepository.observeMode()
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), PlayMode.SEQUENTIAL)
 
@@ -159,7 +162,8 @@ class PlayerViewModel @Inject constructor(
             0L
         }
         _position.value = pos
-        _duration.value = dur
+        // 仅在 duration 有实际值时更新，避免覆盖 engine 直连轮询的正值
+        if (dur > 0) _duration.value = dur
         _state.value = mapControllerState(controller)
         _speed.value = controller.playbackParameters.speed
         _currentMediaType.value = playlistController.current()?.mediaType ?: MediaType.OTHER
@@ -195,9 +199,10 @@ class PlayerViewModel @Inject constructor(
 
     /** 播放某一列表项（直连共享单例引擎；服务侧监听会回灌状态到 MediaController）。 */
     fun playItem(item: PlaylistItem) {
+        playJob?.cancel()
         _title.value = item.name
         _currentItemId.value = item.id
-        viewModelScope.launch {
+        playJob = viewModelScope.launch {
             when (val r = playMedia(item)) {
                 is Result.Success -> {
                     _subtitles.value = r.data.subtitles
