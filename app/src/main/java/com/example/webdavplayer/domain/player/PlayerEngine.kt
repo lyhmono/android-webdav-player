@@ -51,6 +51,12 @@ interface PlayerEngine {
     /** 当前状态快照。 */
     fun getState(): PlaybackState
 
+    /** 当前播放位置（毫秒）。 */
+    fun getCurrentPosition(): Long
+
+    /** 当前媒体总时长（毫秒）。 */
+    fun getDurationMs(): Long
+
     /** 释放内核资源（切换内核或退出前调用）。 */
     fun release()
 

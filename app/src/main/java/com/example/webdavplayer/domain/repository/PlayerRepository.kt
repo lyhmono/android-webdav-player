@@ -49,6 +49,13 @@ interface PlayerRepository {
     fun enableSubtitles() { /* no-op by default */ }
 
     fun getState(): PlaybackState
+
+    /** 获取当前播放引擎实时进度（毫秒），不依赖 MediaController。 */
+    fun getCurrentPosition(): Long
+
+    /** 获取当前播放引擎总时长（毫秒），不依赖 MediaController。 */
+    fun getDurationMs(): Long
+
     fun release()
 
     /**

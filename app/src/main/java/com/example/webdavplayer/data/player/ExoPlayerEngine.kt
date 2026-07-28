@@ -171,6 +171,10 @@ class ExoPlayerEngine(
 
     override fun getState(): PlaybackState = state
 
+    override fun getCurrentPosition(): Long = player?.currentPosition ?: 0L
+
+    override fun getDurationMs(): Long = player?.duration ?: 0L
+
     override fun setVideoSurface(view: TextureView?) {
         pendingView = view
         // 把 TextureView 的 SurfaceTexture 包成 Surface 交给 ExoPlayer（view 为 null 时解绑）。

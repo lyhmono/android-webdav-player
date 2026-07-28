@@ -1,6 +1,7 @@
 package com.example.webdavplayer.ui.player
 
 import android.graphics.SurfaceTexture
+import android.view.Gravity
 import android.view.TextureView
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Modifier
@@ -13,13 +14,12 @@ import androidx.compose.ui.viewinterop.AndroidView
  * - [TextureView.SurfaceTextureListener.onSurfaceTextureAvailable] → [onSurfaceReady]（绑定到引擎）；
  * - [TextureView.SurfaceTextureListener.onSurfaceTextureDestroyed] → [onSurfaceDestroyed]（解绑）。
  *
- * 使用 TextureView（而非 SurfaceView）是因为 libVLC 的 `IVLCVout.setVideoSurface` 只接受
- * `(Surface, SurfaceHolder)` 或 `(SurfaceTexture)`，没有「裸 Surface 单参」重载；统一用 TextureView
- * 可同时满足 Media3（把 SurfaceTexture 包成 Surface）与 libVLC（直接 `setVideoView(TextureView)`）。
+ * 为确保视频不拉伸变形，LayoutParams 设为 MATCH_PARENT 宽度 +
+ * WRAP_CONTENT 高度，让 TextureView 根据视频实际分辨率在容器内保持比例。
  *
- * @param modifier 外层布局修饰（在 PlayerScreen 中传入视频区 Modifier）。
- * @param onSurfaceReady 视频视图就绪（创建）时回调，参数为可用的 [TextureView]。
- * @param onSurfaceDestroyed 视频视图销毁（离屏）时回调。
+ * @param modifier 外层布局修饰。
+ * @param onSurfaceReady 视频视图就绪时回调，参数为可用的 [TextureView]。
+ * @param onSurfaceDestroyed 视频视图销毁时回调。
  */
 @Composable
 fun VideoSurfaceHost(
@@ -31,6 +31,10 @@ fun VideoSurfaceHost(
         modifier = modifier,
         factory = { ctx ->
             TextureView(ctx).apply {
+                layoutParams = android.widget.FrameLayout.LayoutParams(
+                    android.widget.FrameLayout.LayoutParams.MATCH_PARENT,
+                    android.widget.FrameLayout.LayoutParams.MATCH_PARENT,
+                ).apply { gravity = android.view.Gravity.CENTER }
                 surfaceTextureListener = object : TextureView.SurfaceTextureListener {
                     override fun onSurfaceTextureAvailable(
                         surface: SurfaceTexture,
@@ -44,20 +48,20 @@ fun VideoSurfaceHost(
                         surface: SurfaceTexture,
                         width: Int,
                         height: Int,
-                    ) {
-                        // 视频尺寸变化无需额外处理，内核按 surfaceTexture 渲染。
-                    }
+                    ) { /* no-op */ }
 
                     override fun onSurfaceTextureDestroyed(surface: SurfaceTexture): Boolean {
                         onSurfaceDestroyed()
                         return true
                     }
 
-                    override fun onSurfaceTextureUpdated(surface: SurfaceTexture) {
-                        // 每帧更新无需处理。
-                    }
+                    override fun onSurfaceTextureUpdated(surface: SurfaceTexture) { /* no-op */ }
                 }
             }
+        },
+        update = { view ->
+            // ensure layout updated
+            view.requestLayout()
         },
     )
 }

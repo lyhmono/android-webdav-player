@@ -53,6 +53,7 @@ import androidx.compose.material3.SnackbarHostState
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -62,7 +63,10 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalConfiguration
+import android.content.pm.ActivityInfo
+import com.example.webdavplayer.ui.common.findActivity
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.navigation.NavHostController
@@ -111,6 +115,20 @@ fun PlayerScreen(
     val isLandscape = configuration.orientation == android.content.res.Configuration.ORIENTATION_LANDSCAPE
     var isFullScreen by remember { mutableStateOf(false) }
     val fullscreen = isFullScreen || isLandscape
+
+    // 全屏方向：强制横屏；退出恢复竖屏
+    val context = LocalContext.current
+    val activity = context.findActivity()
+    DisposableEffect(isFullScreen) {
+        if (isFullScreen) {
+            activity?.requestedOrientation = ActivityInfo.SCREEN_ORIENTATION_SENSOR_LANDSCAPE
+        }
+        onDispose {
+            if (isFullScreen) {
+                activity?.requestedOrientation = ActivityInfo.SCREEN_ORIENTATION_UNSPECIFIED
+            }
+        }
+    }
 
     val isVideo = mediaType == MediaType.VIDEO
     val showGesture = isVideo
@@ -347,13 +365,11 @@ fun PlayerScreen(
         // ── 竖屏：视频区上半部 + 控制列表下半部 ──
         val scrollState = rememberScrollState()
         Column(Modifier.fillMaxSize().background(MaterialTheme.colorScheme.background)) {
-            // 视频区：宽度撑满，高度计算实际比例（不拉伸变形）
-            // 用固定高度 + 内容缩放让引擎自己处理比例
-            val videoFraction = if (isVideo) 0.42f else 0.2f
+            // 视频区：宽度撑满，引擎内部 fit 模式保持比例，不强制定高
             Box(
                 Modifier
                     .fillMaxWidth()
-                    .weight(videoFraction)
+                    .weight(1f)
                     .background(Color.Black)
                     .clickable { controlsVisible = !controlsVisible },
             ) {

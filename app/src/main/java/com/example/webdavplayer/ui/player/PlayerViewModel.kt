@@ -35,6 +35,9 @@ import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.delay
+import kotlinx.coroutines.Job
+import kotlinx.coroutines.isActive
 import javax.inject.Inject
 
 /**
@@ -94,6 +97,9 @@ class PlayerViewModel @Inject constructor(
 
     val items: StateFlow<List<PlaylistItem>> = playlistRepository.observeItems()
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
+
+    /** 直连引擎轮询协程（在 MediaController 接管前使用）。 */
+    private var coroutineJob: Job? = null
 
     val mode: StateFlow<PlayMode> = playlistRepository.observeMode()
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), PlayMode.SEQUENTIAL)
@@ -192,9 +198,28 @@ class PlayerViewModel @Inject constructor(
                 is Result.Success -> {
                     _subtitles.value = r.data.subtitles
                     _resumedPosition.value = r.data.resumedPositionMs
-                    /* 状态由 MediaController 监听驱动 */
+                    // 在 MediaController 连上之前，从引擎直接轮询进度
+                    startDirectPolling()
                 }
                 is Result.Error -> _state.value = PlaybackState.ERROR
+            }
+        }
+    }
+
+    /** 从 [PlayerRepository] 直接轮询进度/状态，直到 MediaController 连接成功接管。 */
+    private fun startDirectPolling() {
+        coroutineJob?.cancel()
+        coroutineJob = viewModelScope.launch {
+            while (isActive) {
+                val state = playerRepository.getState()
+                if (state != _state.value) _state.value = state
+                _position.value = playerRepository.getCurrentPosition()
+                val dur = playerRepository.getDurationMs()
+                if (dur > 0 && dur != _duration.value) _duration.value = dur
+                if (mediaController != null) {
+                    break  // MediaController 已接管，停止轮询
+                }
+                delay(200)
             }
         }
     }

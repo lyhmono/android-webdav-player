@@ -114,6 +114,10 @@ class PlayerRepositoryImpl @Inject constructor(
 
     override fun getState(): PlaybackState = engine?.getState() ?: PlaybackState.IDLE
 
+    override fun getCurrentPosition(): Long = engine?.getCurrentPosition() ?: 0L
+
+    override fun getDurationMs(): Long = engine?.getDurationMs() ?: 0L
+
     override fun release() {
         engine?.release()
         engine = null

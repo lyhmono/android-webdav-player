@@ -131,6 +131,10 @@ class VlcEngine @Inject constructor(
 
     override fun getState(): PlaybackState = state
 
+    override fun getCurrentPosition(): Long = mediaPlayer?.time ?: 0L
+
+    override fun getDurationMs(): Long = mediaPlayer?.length ?: 0L
+
     override fun release() {
         stopProgress()
         attached = false
