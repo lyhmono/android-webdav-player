@@ -56,6 +56,9 @@ interface PlayerRepository {
     /** 获取当前播放引擎总时长（毫秒），不依赖 MediaController。 */
     fun getDurationMs(): Long
 
+    /** 当前视频宽高比（width/height），无视频时返回 0。 */
+    fun getVideoAspectRatio(): Float
+
     fun release()
 
     /**

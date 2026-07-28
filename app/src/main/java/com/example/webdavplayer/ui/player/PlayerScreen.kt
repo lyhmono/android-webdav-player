@@ -15,6 +15,7 @@ import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.aspectRatio
 import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
@@ -107,6 +108,7 @@ fun PlayerScreen(
     val resumedPosition by playerVm.resumedPosition.collectAsStateWithLifecycle()
     val currentItemId by playerVm.currentItemId.collectAsStateWithLifecycle()
     val speed by playerVm.speed.collectAsStateWithLifecycle()
+    val videoAspectRatio by playerVm.videoAspectRatio.collectAsStateWithLifecycle()
     val subtitles by playerVm.subtitles.collectAsStateWithLifecycle()
     val isVlcAvailable = BuildConfig.FLAVOR == "full"
     val isPlaying = state == PlaybackState.PLAYING
@@ -119,14 +121,14 @@ fun PlayerScreen(
     // 全屏方向：强制横屏；退出恢复竖屏
     val context = LocalContext.current
     val activity = context.findActivity()
-    DisposableEffect(isFullScreen) {
-        if (isFullScreen) {
+    DisposableEffect(fullscreen) {
+        if (fullscreen) {
             activity?.requestedOrientation = ActivityInfo.SCREEN_ORIENTATION_SENSOR_LANDSCAPE
+        } else {
+            activity?.requestedOrientation = ActivityInfo.SCREEN_ORIENTATION_PORTRAIT
         }
         onDispose {
-            if (isFullScreen) {
-                activity?.requestedOrientation = ActivityInfo.SCREEN_ORIENTATION_UNSPECIFIED
-            }
+            activity?.requestedOrientation = ActivityInfo.SCREEN_ORIENTATION_UNSPECIFIED
         }
     }
 
@@ -364,12 +366,14 @@ fun PlayerScreen(
     } else {
         // ── 竖屏：视频区上半部 + 控制列表下半部 ──
         val scrollState = rememberScrollState()
+        // 视频区高度：有视频比例时用 aspectRatio 保持不拉伸，否则默认 16:9
+        val aspectRatio = if (videoAspectRatio > 0) videoAspectRatio else 16f / 9f
         Column(Modifier.fillMaxSize().background(MaterialTheme.colorScheme.background)) {
-            // 视频区：宽度撑满，引擎内部 fit 模式保持比例，不强制定高
+            // 视频区：宽度撑满 + aspectRatio 保持视频原始比例
             Box(
                 Modifier
                     .fillMaxWidth()
-                    .weight(1f)
+                    .aspectRatio(aspectRatio)
                     .background(Color.Black)
                     .clickable { controlsVisible = !controlsVisible },
             ) {

@@ -80,6 +80,10 @@ class PlayerViewModel @Inject constructor(
     private val _duration = MutableStateFlow(0L)
     val duration: StateFlow<Long> = _duration.asStateFlow()
 
+    /** 当前视频宽高比（width/height），0 表示无视频或未知。用于 UI 层保持原始比例不拉伸。 */
+    private val _videoAspectRatio = MutableStateFlow(0f)
+    val videoAspectRatio: StateFlow<Float> = _videoAspectRatio.asStateFlow()
+
     private val _engineType = MutableStateFlow<EngineType>(EngineType.MEDIA3)
     val engineType: StateFlow<EngineType> = _engineType.asStateFlow()
 
@@ -215,10 +219,9 @@ class PlayerViewModel @Inject constructor(
                 if (state != _state.value) _state.value = state
                 _position.value = playerRepository.getCurrentPosition()
                 val dur = playerRepository.getDurationMs()
-                if (dur > 0 && dur != _duration.value) _duration.value = dur
-                if (mediaController != null) {
-                    break  // MediaController 已接管，停止轮询
-                }
+                if (dur > 0) _duration.value = dur
+                val ratio = playerRepository.getVideoAspectRatio()
+                if (ratio > 0 && ratio != _videoAspectRatio.value) _videoAspectRatio.value = ratio
                 delay(200)
             }
         }

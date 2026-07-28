@@ -74,6 +74,10 @@ class ExoPlayerEngine(
             updateState(PlaybackState.ERROR)
             listener?.onError(error)
         }
+
+        override fun onVideoSizeChanged(videoSize: androidx.media3.common.VideoSize) {
+            listener?.onVideoSizeChanged(videoSize.width, videoSize.height)
+        }
     }
 
     private fun ensurePlayer() {
@@ -173,7 +177,13 @@ class ExoPlayerEngine(
 
     override fun getCurrentPosition(): Long = player?.currentPosition ?: 0L
 
-    override fun getDurationMs(): Long = player?.duration ?: 0L
+    override fun getDurationMs(): Long = player?.duration?.takeIf { it > 0 } ?: 0L
+
+    /** 当前视频宽度（像素），0 表示无视频或未就绪。 */
+    fun getVideoWidth(): Int = player?.videoSize?.width ?: 0
+
+    /** 当前视频高度（像素），0 表示无视频或未就绪。 */
+    fun getVideoHeight(): Int = player?.videoSize?.height ?: 0
 
     override fun setVideoSurface(view: TextureView?) {
         pendingView = view

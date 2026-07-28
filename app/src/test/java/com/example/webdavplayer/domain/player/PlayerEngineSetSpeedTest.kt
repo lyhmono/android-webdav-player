@@ -92,6 +92,7 @@ class PlayerEngineSetSpeedTest {
         override fun getState(): PlaybackState = PlaybackState.IDLE
         override fun getCurrentPosition(): Long = 0L
         override fun getDurationMs(): Long = 0L
+        override fun getVideoAspectRatio(): Float = 0f
         override fun release() = Unit
         override fun setVideoSurface(view: TextureView?) {
             // no-op: test fake
@@ -129,6 +130,7 @@ class PlayerEngineSetSpeedTest {
         override fun getState(): PlaybackState = engine.getState()
         override fun getCurrentPosition(): Long = engine.getCurrentPosition()
         override fun getDurationMs(): Long = engine.getDurationMs()
+        override fun getVideoAspectRatio(): Float = 0f
         override fun release() = Unit
         override fun setVideoSurface(view: TextureView?) {
             // no-op: test fake
