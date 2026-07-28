@@ -1,11 +1,7 @@
 package com.example.webdavplayer.ui.player
 
-import android.app.Activity
-import android.content.Context
-import android.content.ContextWrapper
 import android.media.AudioManager
 import android.view.Window
-import androidx.activity.ComponentActivity
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.core.tween
 import androidx.compose.animation.fadeIn
@@ -14,17 +10,16 @@ import androidx.compose.foundation.gestures.detectDragGestures
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
-import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.sizeIn
 import androidx.compose.material.icons.Icons
-import androidx.compose.material3.Icon
 import androidx.compose.material.icons.filled.BrightnessMedium
 import androidx.compose.material.icons.filled.FastForward
 import androidx.compose.material.icons.filled.Replay
 import androidx.compose.material.icons.filled.VolumeOff
 import androidx.compose.material.icons.filled.VolumeUp
+import androidx.compose.material3.Icon
 import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
@@ -45,6 +40,7 @@ import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.unit.dp
+import com.example.webdavplayer.ui.common.findActivity
 import com.example.webdavplayer.ui.theme.Spacing
 import kotlin.math.roundToInt
 import kotlinx.coroutines.delay
@@ -62,6 +58,10 @@ import kotlinx.coroutines.delay
  * 本层在手势进行中叠加一个居中的「亮度 / 音量 / 快退」提示 HUD（见下方 [AnimatedVisibility]），
  * 提供即时视觉反馈，松手后自动淡出，不影响手势捕获。
  *
+ * 注意：本层**不再**自带 `.fillMaxSize()` 全覆盖；[modifier] 由调用方传入（即视频区 Modifier），
+ * 从而只覆盖视频区、不遮挡控制条。
+ *
+ * @param modifier 视频区 Modifier（由 PlayerScreen 传入，限定本层覆盖区域）。
  * @param isVideo 当前是否为视频（非视频不消费手势，直接返回）。
  * @param durationMs 当前媒体总时长（用于把横向位移换算成毫秒增量）。
  * @param onSeekBy 快进/快退增量（毫秒，正数前进/负数后退）。
@@ -119,7 +119,6 @@ fun VideoGestureLayer(
 
     Box(
         modifier = modifier
-            .fillMaxSize()
             .pointerInput(Unit) {
                 detectDragGestures(
                     onDragStart = { start: Offset ->
@@ -216,16 +215,6 @@ fun VideoGestureLayer(
             }
         }
     }
-}
-
-/** 从 Context 向上查找 ComponentActivity（用于获取 Window 调节亮度）。 */
-private fun Context.findActivity(): ComponentActivity? {
-    var ctx = this
-    while (ctx is ContextWrapper) {
-        if (ctx is ComponentActivity) return ctx
-        ctx = ctx.baseContext
-    }
-    return null
 }
 
 private const val ZONE_NONE = -1

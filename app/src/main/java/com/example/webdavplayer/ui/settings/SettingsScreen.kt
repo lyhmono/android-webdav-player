@@ -34,6 +34,8 @@ import androidx.navigation.NavHostController
 import com.example.webdavplayer.BuildConfig
 import com.example.webdavplayer.domain.model.EngineType
 import com.example.webdavplayer.domain.model.TrustedCert
+import com.example.webdavplayer.domain.common.FileFormatter
+import com.example.webdavplayer.domain.model.CachedMedia
 import com.example.webdavplayer.ui.player.PlayerViewModel
 import com.example.webdavplayer.ui.playlist.PlaylistViewModel
 import com.example.webdavplayer.ui.common.SectionHeader
@@ -50,6 +52,7 @@ fun SettingsScreen(
 ) {
     val engineType by viewModel.engineType.collectAsStateWithLifecycle()
     val certs by viewModel.certs.collectAsStateWithLifecycle()
+    val cached by viewModel.cachedMedia.collectAsStateWithLifecycle()
     val isVlcAvailable = BuildConfig.FLAVOR == "full"
 
     Scaffold(
@@ -80,6 +83,28 @@ fun SettingsScreen(
                         label = { Text(engineLabel(t)) },
                         enabled = if (t == EngineType.VLC) isVlcAvailable else true,
                     )
+                }
+            }
+
+            SectionHeader("离线缓存")
+            if (cached.isEmpty()) {
+                Text(
+                    "暂无",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
+            } else {
+                LazyColumn(
+                    Modifier.fillMaxWidth().weight(1f),
+                    verticalArrangement = Arrangement.spacedBy(Spacing.xs),
+                ) {
+                    items(cached, key = { it.id }) { m ->
+                        CachedRow(
+                            cached = m,
+                            onRemove = { viewModel.deleteCache(m.id) },
+                            modifier = Modifier.animateItemPlacement(),
+                        )
+                    }
                 }
             }
 
@@ -120,6 +145,24 @@ private fun CertRow(
         trailingContent = {
             IconButton(onClick = onRemove) {
                 Icon(Icons.Filled.Delete, "移除")
+            }
+        },
+        modifier = modifier.fillMaxWidth(),
+    )
+}
+
+@Composable
+private fun CachedRow(
+    cached: CachedMedia,
+    onRemove: () -> Unit,
+    modifier: Modifier = Modifier,
+) {
+    ListItem(
+        headlineContent = { Text(cached.name) },
+        supportingContent = { Text("${FileFormatter.formatSize(cached.size)} · ${cached.path}") },
+        trailingContent = {
+            IconButton(onClick = onRemove) {
+                Icon(Icons.Filled.Delete, "删除缓存")
             }
         },
         modifier = modifier.fillMaxWidth(),

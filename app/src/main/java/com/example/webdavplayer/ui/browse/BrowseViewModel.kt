@@ -10,11 +10,13 @@ import com.example.webdavplayer.data.network.NetworkMonitor
 import com.example.webdavplayer.data.remote.WebDavPath
 import com.example.webdavplayer.domain.model.PlaylistItem
 import com.example.webdavplayer.domain.model.RemoteFile
+import com.example.webdavplayer.domain.repository.CacheRepository
 import com.example.webdavplayer.domain.usecase.AddDirVideosToPlaylistUseCase
 import com.example.webdavplayer.domain.usecase.BrowseDirectoryUseCase
 import com.example.webdavplayer.domain.usecase.PlayMediaUseCase
 import com.example.webdavplayer.domain.usecase.RenameMoveDeleteUseCase
 import com.example.webdavplayer.domain.usecase.UploadFileUseCase
+import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
@@ -28,6 +30,7 @@ import javax.inject.Inject
  * 浏览页 ViewModel（§6 T06 / T07）。
  * 目录分页流来自 Room；刷新/增删改走对应 UseCase。
  */
+@OptIn(ExperimentalCoroutinesApi::class)
 @HiltViewModel
 class BrowseViewModel @Inject constructor(
     savedStateHandle: SavedStateHandle,
@@ -37,6 +40,7 @@ class BrowseViewModel @Inject constructor(
     private val fileOps: RenameMoveDeleteUseCase,
     private val playMedia: PlayMediaUseCase,
     private val networkMonitor: NetworkMonitor,
+    private val cacheRepository: CacheRepository,
 ) : ViewModel() {
 
     val serverId: String = savedStateHandle.get<String>("serverId") ?: ""
@@ -59,23 +63,48 @@ class BrowseViewModel @Inject constructor(
     private val _videosAdded = MutableStateFlow<Int?>(null)
     val videosAdded: StateFlow<Int?> = _videosAdded.asStateFlow()
 
+    /** 目录缓存最后刷新时间戳（毫秒），供 UI 显示“更新于 Xs 前”（§1.3 优化）。 */
+    private val _lastRefreshedAt = MutableStateFlow<Long?>(null)
+    val lastRefreshedAt: StateFlow<Long?> = _lastRefreshedAt.asStateFlow()
+
     /** 当前目录分页流（来自 Room 缓存，§1.3）。 */
     val directoryFlow: Flow<PagingData<RemoteFile>> =
         _path.flatMapLatest { p -> browseUseCase(serverId, p) }
 
     fun loadDirectory(p: String) {
         _path.value = WebDavPath.normalize(p)
-        refresh(_path.value)
+        refreshStale(_path.value)
     }
 
-    private fun refresh(p: String) {
+    /** 缓存优先刷新（§1.3 优化）：秒显 Room 缓存，仅超龄/为空才打 PROPFIND。 */
+    private fun refreshStale(p: String) {
         viewModelScope.launch {
             _isLoading.value = true
             _error.value = null
-            when (val r = browseUseCase.refresh(serverId, p)) {
+            when (val r = browseUseCase.refreshIfStale(serverId, p)) {
                 is Result.Success -> { /* 缓存已更新 */ }
                 is Result.Error -> _error.value = r.throwable.message ?: "加载失败"
             }
+            // 无论是否触发了网络刷新，都同步一次“最后刷新时间”（秒显缓存时也应有值）。
+            _lastRefreshedAt.value = browseUseCase.lastRefreshedAt(serverId, p)
+            _isLoading.value = false
+        }
+    }
+
+    /**
+     * 强制刷新当前目录（忽略 TTL）。
+     * 重命名/移动/删除/上传等变更操作成功后调用，使 Room 缓存立即与服务器对齐、
+     * Paging3 自动失效并展示最新列表（§一致性修复：避免变更后当前目录残留陈旧条目）。
+     */
+    private fun forceRefreshCurrentDir() {
+        viewModelScope.launch {
+            _isLoading.value = true
+            _error.value = null
+            when (val r = browseUseCase.refresh(serverId, _path.value)) {
+                is Result.Success -> { /* 缓存已更新 */ }
+                is Result.Error -> _error.value = r.throwable.message ?: "刷新失败"
+            }
+            _lastRefreshedAt.value = browseUseCase.lastRefreshedAt(serverId, _path.value)
             _isLoading.value = false
         }
     }
@@ -99,7 +128,10 @@ class BrowseViewModel @Inject constructor(
     fun upload(parentPath: String, fileName: String, source: Source, size: Long?) {
         viewModelScope.launch {
             when (val r = uploadUseCase(serverId, parentPath, fileName, source, size)) {
-                is Result.Success -> _message.value = "上传成功"
+                is Result.Success -> {
+                    _message.value = "上传成功"
+                    forceRefreshCurrentDir()
+                }
                 is Result.Error -> _error.value = r.throwable.message ?: "上传失败"
             }
         }
@@ -108,7 +140,10 @@ class BrowseViewModel @Inject constructor(
     fun rename(fromPath: String, toName: String) {
         viewModelScope.launch {
             when (val r = fileOps.rename(serverId, fromPath, toName)) {
-                is Result.Success -> _message.value = "重命名成功"
+                is Result.Success -> {
+                    _message.value = "重命名成功"
+                    forceRefreshCurrentDir()
+                }
                 is Result.Error -> _error.value = r.throwable.message ?: "重命名失败"
             }
         }
@@ -117,7 +152,10 @@ class BrowseViewModel @Inject constructor(
     fun move(fromPath: String, toPath: String) {
         viewModelScope.launch {
             when (val r = fileOps.move(serverId, fromPath, toPath)) {
-                is Result.Success -> _message.value = "移动成功"
+                is Result.Success -> {
+                    _message.value = "移动成功"
+                    forceRefreshCurrentDir()
+                }
                 is Result.Error -> _error.value = r.throwable.message ?: "移动失败"
             }
         }
@@ -126,7 +164,10 @@ class BrowseViewModel @Inject constructor(
     fun delete(path: String) {
         viewModelScope.launch {
             when (val r = fileOps.delete(serverId, path)) {
-                is Result.Success -> _message.value = "已删除"
+                is Result.Success -> {
+                    _message.value = "已删除"
+                    forceRefreshCurrentDir()
+                }
                 is Result.Error -> _error.value = r.throwable.message ?: "删除失败"
             }
         }
@@ -162,5 +203,15 @@ class BrowseViewModel @Inject constructor(
 
     fun consumeVideosAdded() {
         _videosAdded.value = null
+    }
+
+    /** 下载当前文件到本地离线缓存（P2）。 */
+    fun downloadFile(path: String) {
+        viewModelScope.launch {
+            when (val r = cacheRepository.download(serverId, path)) {
+                is Result.Success -> _message.value = "已下载到本地：${r.data.name}"
+                is Result.Error -> _error.value = r.throwable.message ?: "下载失败"
+            }
+        }
     }
 }

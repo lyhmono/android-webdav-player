@@ -22,6 +22,8 @@ class PlaybackProgressRepositoryImpl @Inject constructor(
 
     override suspend fun clear(serverId: String, path: String) = dao.delete(serverId, path)
 
+    override suspend fun clearServer(serverId: String) = dao.deleteByServerId(serverId)
+
     override suspend fun clearAll() = dao.clearAll()
 }
 

@@ -21,4 +21,21 @@ class BrowseDirectoryUseCase @Inject constructor(
     /** 触发远端刷新（PROPFIND Depth:1 → 写 Room）。应在 viewModelScope 中调用。 */
     suspend fun refresh(serverId: String, path: String): Result<Unit> =
         com.example.webdavplayer.common.Result.runCatching { repository.refreshDirectory(serverId, path) }
+
+    /**
+     * 缓存优先刷新（§1.3 优化）：仅当缓存为空或超龄才打 PROPFIND。
+     * 进目录时调用，秒显 Room 缓存并避免每次导航都整目录重拉。
+     */
+    suspend fun refreshIfStale(
+        serverId: String,
+        path: String,
+        maxAgeMs: Long = BrowseRepository.DEFAULT_STALE_MS,
+    ): Result<Unit> =
+        com.example.webdavplayer.common.Result.runCatching {
+            repository.refreshIfStale(serverId, path, maxAgeMs)
+        }
+
+    /** 取目录最后一次成功刷新的时间戳（毫秒）；从未刷新过返回 null。 */
+    suspend fun lastRefreshedAt(serverId: String, path: String): Long? =
+        repository.getLastRefreshedAt(serverId, path)
 }

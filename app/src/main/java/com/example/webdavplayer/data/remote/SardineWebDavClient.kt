@@ -1,5 +1,6 @@
 package com.example.webdavplayer.data.remote
 
+import com.example.webdavplayer.data.log.AppLogger
 import com.example.webdavplayer.domain.exception.CertUntrustedException
 import com.example.webdavplayer.domain.model.AuthType
 import com.example.webdavplayer.domain.model.MediaType
@@ -35,6 +36,8 @@ class SardineWebDavClient @Inject constructor(
 
     @Volatile private var client: OkHttpClient? = null
     @Volatile private var activeConfig: ServerConfig? = null
+    /** 当前连接已采纳的信任指纹集合（用于 connect 幂等判定）。 */
+    @Volatile private var activeFingerprints: Set<String>? = null
 
     private fun requireClient(): OkHttpClient =
         client ?: throw IllegalStateException("尚未连接：请先调用 connect(config)")
@@ -44,6 +47,12 @@ class SardineWebDavClient @Inject constructor(
 
     override suspend fun connect(config: ServerConfig) = withContext(Dispatchers.IO) {
         val fingerprints = trustedCertRepository.getFingerprints(config.id).toSet()
+        // 幂等（§性能优化）：同一服务器（配置相等）且信任指纹集合未变时，复用既有 OkHttpClient，
+        // 跳过 SSL 上下文重建与“握手探测”PROPFIND，避免每次操作都多打一次网络往返。
+        // 配置变化（改名/baseUrl/凭据/自签开关）或信任指纹变化（用户新信任证书）则重建。
+        if (client != null && activeConfig == config && activeFingerprints == fingerprints) {
+            return@withContext
+        }
         val trustManager = SelfSignedTrustManager(
             delegate = SelfSignedTrustManager.systemDefault(),
             trustedFingerprints = fingerprints,
@@ -76,8 +85,9 @@ class SardineWebDavClient @Inject constructor(
         // 触发一次握手以校验信任（失败即捕获指纹供确认弹窗）
         val probe = OkHttpSardine(built)
         try {
-            probe.list(config.baseUrl, 0)
+            probe.list(WebDavPath.resolveRoot(config.baseUrl, config.path), 0)
         } catch (e: Exception) {
+            AppLogger.e("WebDav", "connect 握手探测失败(baseUrl=${config.baseUrl}, path=${config.path}): ${e.message}")
             val info = trustManager.lastSeenCert
             if (info != null) {
                 throw CertUntrustedException(info.sha256, info.issuer)
@@ -87,67 +97,110 @@ class SardineWebDavClient @Inject constructor(
 
         client = built
         activeConfig = config
+        activeFingerprints = fingerprints
     }
 
     override suspend fun listDirectory(path: String, depth: Int): List<RemoteFile> =
         withContext(Dispatchers.IO) {
-            val cfg = requireConfig()
-            val sardine = OkHttpSardine(requireClient())
-            val url = WebDavPath.join(cfg.baseUrl, path)
-            val resources = sardine.list(url, depth)
-            val parent = WebDavPath.normalize(path)
-            resources.asSequence()
-                .drop(1) // 首个元素是目录自身
-                .map { mapResource(it, cfg.id, parent) }
-                .toList()
+            try {
+                val cfg = requireConfig()
+                val sardine = OkHttpSardine(requireClient())
+                val url = WebDavPath.join(WebDavPath.resolveRoot(cfg.baseUrl, cfg.path), path)
+                val resources = sardine.list(url, depth)
+                val parent = WebDavPath.normalize(path)
+                resources.asSequence()
+                    .drop(1) // 首个元素是目录自身
+                    .map { mapResource(it, cfg.id, parent) }
+                    .toList()
+            } catch (e: Exception) {
+                AppLogger.logException("WebDav", e)
+                throw e
+            }
         }
 
     override suspend fun openStream(path: String): Source = withContext(Dispatchers.IO) {
-        val cfg = requireConfig()
-        val sardine = OkHttpSardine(requireClient())
-        val input = sardine.get(WebDavPath.join(cfg.baseUrl, path))
-        input.source()
+        try {
+            val cfg = requireConfig()
+            val sardine = OkHttpSardine(requireClient())
+            val input = sardine.get(WebDavPath.join(WebDavPath.resolveRoot(cfg.baseUrl, cfg.path), path))
+            input.source()
+        } catch (e: Exception) {
+            AppLogger.logException("WebDav", e)
+            throw e
+        }
     }
 
     override suspend fun upload(path: String, source: Source, size: Long?) =
         withContext(Dispatchers.IO) {
-            val cfg = requireConfig()
-            val sardine = OkHttpSardine(requireClient())
-            val url = WebDavPath.join(cfg.baseUrl, path)
-            val contentType = guessContentType(path)
-            val bytes = Buffer().apply { writeAll(source) }.readByteArray()
-            sardine.put(url, bytes, contentType)
+            try {
+                val cfg = requireConfig()
+                val sardine = OkHttpSardine(requireClient())
+                val url = WebDavPath.join(WebDavPath.resolveRoot(cfg.baseUrl, cfg.path), path)
+                val contentType = guessContentType(path)
+                val bytes = Buffer().apply { writeAll(source) }.readByteArray()
+                sardine.put(url, bytes, contentType)
+            } catch (e: Exception) {
+                AppLogger.logException("WebDav", e)
+                throw e
+            }
         }
 
     override suspend fun rename(from: String, to: String) = withContext(Dispatchers.IO) {
-        val cfg = requireConfig()
-        val parent = WebDavPath.parentOf(from)
-        val targetName = WebDavPath.nameOf(to) // to 为目标名称
-        val toPath = if (parent == "/") "/$targetName" else "$parent/$targetName"
-        val sardine = OkHttpSardine(requireClient())
-        sardine.move(WebDavPath.join(cfg.baseUrl, from), WebDavPath.join(cfg.baseUrl, toPath))
+        try {
+            val cfg = requireConfig()
+            val parent = WebDavPath.parentOf(from)
+            val targetName = WebDavPath.nameOf(to) // to 为目标名称
+            val toPath = if (parent == "/") "/$targetName" else "$parent/$targetName"
+            val sardine = OkHttpSardine(requireClient())
+            sardine.move(
+                WebDavPath.join(WebDavPath.resolveRoot(cfg.baseUrl, cfg.path), from),
+                WebDavPath.join(WebDavPath.resolveRoot(cfg.baseUrl, cfg.path), toPath),
+            )
+        } catch (e: Exception) {
+            AppLogger.logException("WebDav", e)
+            throw e
+        }
     }
 
     override suspend fun move(from: String, to: String) = withContext(Dispatchers.IO) {
-        val cfg = requireConfig()
-        // [to] 为目标目录相对路径，文件名取自 [from]
-        val name = WebDavPath.nameOf(from)
-        val dest = if (to == "/") "/$name" else "$to/$name"
-        val sardine = OkHttpSardine(requireClient())
-        sardine.move(WebDavPath.join(cfg.baseUrl, from), WebDavPath.join(cfg.baseUrl, dest))
+        try {
+            val cfg = requireConfig()
+            // [to] 为目标目录相对路径，文件名取自 [from]
+            val name = WebDavPath.nameOf(from)
+            val dest = if (to == "/") "/$name" else "$to/$name"
+            val sardine = OkHttpSardine(requireClient())
+            sardine.move(
+                WebDavPath.join(WebDavPath.resolveRoot(cfg.baseUrl, cfg.path), from),
+                WebDavPath.join(WebDavPath.resolveRoot(cfg.baseUrl, cfg.path), dest),
+            )
+        } catch (e: Exception) {
+            AppLogger.logException("WebDav", e)
+            throw e
+        }
     }
 
     override suspend fun delete(path: String) = withContext(Dispatchers.IO) {
-        val cfg = requireConfig()
-        val sardine = OkHttpSardine(requireClient())
-        sardine.delete(WebDavPath.join(cfg.baseUrl, path))
+        try {
+            val cfg = requireConfig()
+            val sardine = OkHttpSardine(requireClient())
+            sardine.delete(WebDavPath.join(WebDavPath.resolveRoot(cfg.baseUrl, cfg.path), path))
+        } catch (e: Exception) {
+            AppLogger.logException("WebDav", e)
+            throw e
+        }
     }
 
     override fun getOkHttpClient(): OkHttpClient = requireClient()
 
     private fun mapResource(res: DavResource, serverId: String, parentPath: String): RemoteFile {
         val href = res.href?.toString() ?: ""
-        val name = href.substringAfterLast('/').ifEmpty { href }
+        // 目录 href 常以 '/' 结尾（/dav/xxx/ 或完整 URL），直接取最后一段会得到空串并退回整个 href，
+        // 导致把 /dav 前缀拼进浏览路径（/dav/dav/...）；且名称是 URL 编码（%XX）会显示乱码。
+        // 统一处理：去末尾斜杠 -> URL 解码 -> 取最后一段作为显示名。
+        val decodedHref = runCatching {
+            java.net.URLDecoder.decode(href.trimEnd('/'), Charsets.UTF_8.name())
+        }.getOrDefault(href.trimEnd('/'))
+        val name = decodedHref.substringAfterLast('/').ifEmpty { decodedHref }
         val contentType = res.contentType ?: ""
         return RemoteFile(
             id = "$serverId:$parentPath/$name",

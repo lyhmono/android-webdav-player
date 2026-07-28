@@ -23,6 +23,9 @@ interface PlaylistRepository {
     /** 清空。 */
     suspend fun clear()
 
+    /** C2/H：删除某一服务器的全部播放列表项（删除服务器时清理孤儿行）。 */
+    suspend fun clearServer(serverId: String)
+
     /** 观察播放模式。 */
     fun observeMode(): Flow<PlayMode>
 

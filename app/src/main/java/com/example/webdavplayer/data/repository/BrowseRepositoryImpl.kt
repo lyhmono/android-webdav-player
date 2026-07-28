@@ -4,7 +4,9 @@ import androidx.paging.Pager
 import androidx.paging.PagingConfig
 import androidx.paging.PagingData
 import androidx.paging.map
+import com.example.webdavplayer.data.local.dao.DirectoryMetaDao
 import com.example.webdavplayer.data.local.dao.RemoteFileDao
+import com.example.webdavplayer.data.local.entity.DirectoryMetaEntity
 import com.example.webdavplayer.data.local.entity.toDomain
 import com.example.webdavplayer.data.local.entity.toEntity
 import com.example.webdavplayer.data.remote.WebDavClient
@@ -28,6 +30,7 @@ import javax.inject.Singleton
 class BrowseRepositoryImpl @Inject constructor(
     private val webDavClient: WebDavClient,
     private val remoteFileDao: RemoteFileDao,
+    private val directoryMetaDao: DirectoryMetaDao,
     private val serverRepository: ServerRepository,
 ) : BrowseRepository {
 
@@ -46,7 +49,50 @@ class BrowseRepositoryImpl @Inject constructor(
         val files = webDavClient.listDirectory(norm, 1)
         remoteFileDao.clearDirectory(serverId, norm)
         remoteFileDao.upsertAll(files.map { it.toEntity() })
+        // 记录本次成功刷新的时间戳，供 TTL 条件刷新判断（§1.3 优化）。
+        directoryMetaDao.upsert(
+            DirectoryMetaEntity(
+                id = metaId(serverId, norm),
+                serverId = serverId,
+                parentPath = norm,
+                lastRefreshedAt = System.currentTimeMillis(),
+            ),
+        )
     }
+
+    override suspend fun refreshIfStale(
+        serverId: String,
+        path: String,
+        maxAgeMs: Long,
+    ) = withContext(Dispatchers.IO) {
+        if (isCacheFresh(serverId, path, maxAgeMs)) return@withContext
+        refreshDirectory(serverId, path)
+    }
+
+    override suspend fun isCacheFresh(
+        serverId: String,
+        path: String,
+        maxAgeMs: Long,
+    ): Boolean = withContext(Dispatchers.IO) {
+        val norm = WebDavPath.normalize(path)
+        val meta = directoryMetaDao.get(serverId, norm) ?: return@withContext false
+        if (System.currentTimeMillis() - meta.lastRefreshedAt > maxAgeMs) return@withContext false
+        // 已刷新且未超龄，还需缓存非空才视为可用。
+        remoteFileDao.countDirectory(serverId, norm) > 0
+    }
+
+    override suspend fun getLastRefreshedAt(serverId: String, path: String): Long? =
+        withContext(Dispatchers.IO) {
+            directoryMetaDao.get(serverId, WebDavPath.normalize(path))?.lastRefreshedAt
+        }
+
+    override suspend fun invalidateDirectory(serverId: String, path: String) =
+        withContext(Dispatchers.IO) {
+            directoryMetaDao.clearDirectory(serverId, WebDavPath.normalize(path))
+        }
+
+    /** 目录元数据复合主键：`"$serverId::$parentPath"`。 */
+    private fun metaId(serverId: String, parentPath: String): String = "$serverId::$parentPath"
 
     override suspend fun listDirectory(serverId: String, path: String): List<RemoteFile> =
         withContext(Dispatchers.IO) {
@@ -61,6 +107,8 @@ class BrowseRepositoryImpl @Inject constructor(
                 ?: throw IllegalStateException("server not found: $serverId")
             webDavClient.connect(cfg)
             webDavClient.rename(WebDavPath.normalize(fromPath), toName)
+            // 一致性：改名发生在同一父目录，使其缓存失效以便下次刷新反映新名称。
+            invalidateDirectory(serverId, WebDavPath.parentOf(fromPath))
         }
 
     override suspend fun move(serverId: String, fromPath: String, toPath: String) =
@@ -69,6 +117,9 @@ class BrowseRepositoryImpl @Inject constructor(
                 ?: throw IllegalStateException("server not found: $serverId")
             webDavClient.connect(cfg)
             webDavClient.move(WebDavPath.normalize(fromPath), WebDavPath.normalize(toPath))
+            // 一致性：源目录（文件移出）与目标目录（文件移入）均需失效。
+            invalidateDirectory(serverId, WebDavPath.parentOf(fromPath))
+            invalidateDirectory(serverId, WebDavPath.parentOf(toPath))
         }
 
     override suspend fun delete(serverId: String, path: String) = withContext(Dispatchers.IO) {
@@ -76,6 +127,8 @@ class BrowseRepositoryImpl @Inject constructor(
             ?: throw IllegalStateException("server not found: $serverId")
         webDavClient.connect(cfg)
         webDavClient.delete(WebDavPath.normalize(path))
+        // 一致性：被删条目的父目录需失效。
+        invalidateDirectory(serverId, WebDavPath.parentOf(path))
     }
 
     override suspend fun upload(
@@ -88,5 +141,7 @@ class BrowseRepositoryImpl @Inject constructor(
             ?: throw IllegalStateException("server not found: $serverId")
         webDavClient.connect(cfg)
         webDavClient.upload(WebDavPath.normalize(path), source, size)
+        // 一致性：上传落地的父目录需失效。
+        invalidateDirectory(serverId, WebDavPath.parentOf(path))
     }
 }

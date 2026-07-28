@@ -1,12 +1,20 @@
 package com.example.webdavplayer.data.repository
 
+import com.example.webdavplayer.data.log.AppLogger
+import com.example.webdavplayer.data.remote.WebDavClient
 import com.example.webdavplayer.data.remote.WebDavPath
+import com.example.webdavplayer.domain.common.MediaConstants
 import com.example.webdavplayer.domain.model.AuthType
 import com.example.webdavplayer.domain.model.PlayableMedia
 import com.example.webdavplayer.domain.model.PlaylistItem
+import com.example.webdavplayer.domain.model.SubtitleTrack
+import com.example.webdavplayer.domain.repository.CacheRepository
 import com.example.webdavplayer.domain.repository.MediaResolver
 import com.example.webdavplayer.domain.repository.ServerRepository
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.withContext
 import okhttp3.Credentials
+import java.io.File
 import javax.inject.Inject
 import javax.inject.Singleton
 
@@ -15,28 +23,83 @@ import javax.inject.Singleton
  *
  * 构建流式 URI（baseUrl + 规范化路径）、Basic 鉴权头（Digest 由共享 OkHttp 拦截器处理）、
  * 以及 libVLC 所需的 TLS 跳过开关（§8）。
+ *
+ * P2 增强：若本地已缓存该文件，直接返回 file:// 本地路径，走离线播放。
  */
 @Singleton
 class MediaResolverImpl @Inject constructor(
     private val serverRepository: ServerRepository,
+    private val cacheRepository: CacheRepository,
+    private val webDavClient: WebDavClient,
 ) : MediaResolver {
 
     override suspend fun resolve(item: PlaylistItem): PlayableMedia {
-        val cfg = serverRepository.getById(item.serverId)
-            ?: throw IllegalStateException("找不到服务器：${item.serverId}")
-        val uri = WebDavPath.join(cfg.baseUrl, item.path)
-        val headers = if (cfg.authType == AuthType.BASIC) {
-            mapOf("Authorization" to Credentials.basic(cfg.username, cfg.encryptedPassword))
-        } else {
-            emptyMap()
+        // P2：离线缓存优先 — 命中则用本地文件，不走网络。
+        val cached = cacheRepository.getLocalFilePath(item.serverId, item.path)
+        if (cached != null && File(cached).exists()) {
+            return PlayableMedia(
+                uri = "file://$cached",
+                headers = emptyMap(),
+                name = item.name,
+                mediaType = item.mediaType,
+                serverId = item.serverId,
+                trustSelfSigned = false,
+            )
         }
-        return PlayableMedia(
-            uri = uri,
-            headers = headers,
-            name = item.name,
-            mediaType = item.mediaType,
-            serverId = item.serverId,
-            trustSelfSigned = cfg.trustSelfSigned,
-        )
+        val cfg = try {
+            serverRepository.getById(item.serverId)
+        } catch (e: Exception) {
+            AppLogger.logException("MediaResolver", e)
+            throw e
+        } ?: run {
+            val err = IllegalStateException("找不到服务器：${item.serverId}")
+            AppLogger.logException("MediaResolver", err)
+            throw err
+        }
+        try {
+            val uri = WebDavPath.join(WebDavPath.resolveRoot(cfg.baseUrl, cfg.path), item.path)
+            val headers = if (cfg.authType == AuthType.BASIC) {
+                mapOf("Authorization" to Credentials.basic(cfg.username, cfg.encryptedPassword))
+            } else {
+                emptyMap()
+            }
+            return PlayableMedia(
+                uri = uri,
+                headers = headers,
+                name = item.name,
+                mediaType = item.mediaType,
+                serverId = item.serverId,
+                trustSelfSigned = cfg.trustSelfSigned,
+            )
+        } catch (e: Exception) {
+            AppLogger.logException("MediaResolver", e)
+            throw e
+        }
     }
+
+    override suspend fun discoverSubtitles(item: PlaylistItem): List<SubtitleTrack> =
+        withContext(Dispatchers.IO) {
+            try {
+                val cfg = serverRepository.getById(item.serverId)
+                    ?: return@withContext emptyList()
+                webDavClient.connect(cfg)
+                val parent = WebDavPath.parentOf(item.path)
+                val dir = webDavClient.listDirectory(parent)
+                val mediaName = WebDavPath.nameOf(item.path)
+                val baseName = mediaName.substringBeforeLast('.')
+                dir.filter { !it.isDirectory && MediaConstants.isSiblingSubtitle(it.name, baseName) }
+                    .map { sub ->
+                        val fullPath = if (sub.parentPath == "/") "/${sub.name}" else "${sub.parentPath}/${sub.name}"
+                        SubtitleTrack(
+                            uri = WebDavPath.join(WebDavPath.resolveRoot(cfg.baseUrl, cfg.path), fullPath),
+                            mimeType = MediaConstants.subtitleMimeType(sub.name),
+                            language = MediaConstants.subtitleLanguageFromName(sub.name),
+                            label = sub.name,
+                        )
+                    }
+            } catch (e: Exception) {
+                AppLogger.logException("MediaResolver", e)
+                throw e
+            }
+        }
 }

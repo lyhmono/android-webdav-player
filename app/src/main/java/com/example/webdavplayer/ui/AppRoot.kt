@@ -20,6 +20,7 @@ import com.example.webdavplayer.ui.playlist.PlaylistViewModel
 import com.example.webdavplayer.ui.servers.ServerConfigScreen
 import com.example.webdavplayer.ui.servers.ServerListScreen
 import com.example.webdavplayer.ui.settings.SettingsScreen
+import com.example.webdavplayer.ui.log.LogScreen
 import com.example.webdavplayer.ui.theme.WebDavPlayerTheme
 
 /** 应用根：主题 + 导航宿主 + 跨屏共享的播放器/播放列表状态。 */
@@ -73,6 +74,9 @@ fun AppRoot() {
                 }
                 composable("settings") {
                     SettingsScreen(navController, playerVm, playlistVm)
+                }
+                composable("log") {
+                    LogScreen(navController)
                 }
             }
         }

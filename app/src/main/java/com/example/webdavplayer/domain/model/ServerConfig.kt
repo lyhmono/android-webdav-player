@@ -16,4 +16,5 @@ data class ServerConfig(
     val authType: AuthType,
     val trustSelfSigned: Boolean,
     val createdAt: Long,
+    val path: String = "",
 )
