@@ -128,10 +128,10 @@ dependencies {
     implementation("com.github.thegrizzlylabs:sardine-android:v0.9")
 
     // ===== Media3（ExoPlayer 默认内核 + 后台媒体会话） =====
-    implementation("androidx.media3:media3-exoplayer:1.2.0")
-    implementation("androidx.media3:media3-ui:1.2.0")
-    implementation("androidx.media3:media3-session:1.2.0")
-    implementation("androidx.media3:media3-datasource-okhttp:1.2.0")
+    implementation("androidx.media3:media3-exoplayer:1.5.1")
+    implementation("androidx.media3:media3-ui:1.5.1")
+    implementation("androidx.media3:media3-session:1.5.1")
+    implementation("androidx.media3:media3-datasource-okhttp:1.5.1")
 
     // ===== libVLC（备选内核，仅 full 风味） =====
     "fullImplementation"("org.videolan.android:libvlc-all:3.6.0")

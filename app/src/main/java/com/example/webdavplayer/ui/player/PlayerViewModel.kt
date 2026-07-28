@@ -100,7 +100,7 @@ class PlayerViewModel @Inject constructor(
     private var mediaController: MediaController? = null
     private val controllerFuture: ListenableFuture<MediaController>
 
-    /** MediaController（即 Media3 引擎播放器），供 Compose 的 [Media3PlayerSurface] 绑定渲染。 */
+    /** MediaController（即 Media3 引擎播放器）。视频渲染走 [attachVideoSurface] 穿透路径，不经过 PlayerView。 */
     private val _controller = MutableStateFlow<androidx.media3.common.Player?>(null)
     val controller: StateFlow<androidx.media3.common.Player?> = _controller.asStateFlow()
 

@@ -52,7 +52,6 @@ import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.navigation.NavHostController
 import com.example.webdavplayer.BuildConfig
-import com.example.webdavplayer.domain.model.EngineType
 import com.example.webdavplayer.domain.model.MediaType
 import com.example.webdavplayer.domain.model.PlaybackState
 import com.example.webdavplayer.ui.common.SectionHeader
@@ -81,9 +80,6 @@ fun PlayerScreen(
     val mediaType by playerVm.currentMediaType.collectAsStateWithLifecycle()
     val speed by playerVm.speed.collectAsStateWithLifecycle()
     val subtitles by playerVm.subtitles.collectAsStateWithLifecycle()
-    // Media3 引擎的 MediaController（PlayerView 绑定），VLC 路径不依赖它。
-    val controller by playerVm.controller.collectAsStateWithLifecycle()
-
     val isVlcAvailable = BuildConfig.FLAVOR == "full"
     val isPlaying = state == PlaybackState.PLAYING
 
@@ -116,21 +112,15 @@ fun PlayerScreen(
     fun VideoArea(videoModifier: Modifier) {
         if (isVideo) {
             Box(videoModifier) {
-                val useVlc = engineType == EngineType.VLC && isVlcAvailable
-                if (useVlc) {
-                    // VLC 引擎：保留 TextureView 穿透路径（VideoSurfaceHost → playerVm.attachVideoSurface）
-                    VideoSurfaceHost(
-                        modifier = Modifier.fillMaxSize(),
-                        onSurfaceReady = { playerVm.attachVideoSurface(it) },
-                        onSurfaceDestroyed = { playerVm.detachVideoSurface() },
-                    )
-                } else {
-                    // Media3 引擎：官方 PlayerView（经 MediaController/adapter 渲染，TextureView 模式）
-                    Media3PlayerSurface(
-                        player = controller,
-                        modifier = Modifier.fillMaxSize(),
-                    )
-                }
+                // 双内核统一走 VideoSurfaceHost 穿透路径：TextureView → playerVm.attachVideoSurface
+                // → PlayerRepository.setVideoSurface → 当前引擎（ExoPlayer / VLC）。不再依赖
+                // PlayerView / MediaController 的视频表面钩子（Media3 的 SimpleBasePlayer 该钩子
+                // 在本编译环境下不可 override，而 VLC 早已证明此直连路径可行）。
+                VideoSurfaceHost(
+                    modifier = Modifier.fillMaxSize(),
+                    onSurfaceReady = { playerVm.attachVideoSurface(it) },
+                    onSurfaceDestroyed = { playerVm.detachVideoSurface() },
+                )
                 if (showGesture) {
                     VideoGestureLayer(
                         modifier = Modifier.fillMaxSize(),
