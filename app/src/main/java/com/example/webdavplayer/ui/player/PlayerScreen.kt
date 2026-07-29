@@ -4,6 +4,7 @@ package com.example.webdavplayer.ui.player
 
 import android.content.pm.ActivityInfo
 import androidx.compose.animation.core.tween
+import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.combinedClickable
@@ -78,7 +79,7 @@ private val playbackSpeeds = listOf(0.5f, 0.75f, 1.0f, 1.25f, 1.5f, 2.0f)
 /** 控制栏自动隐藏时长 */
 private const val CONTROLS_AUTO_HIDE_MS = 3000L
 
-@OptIn(ExperimentalMaterial3Api::class)
+@OptIn(ExperimentalMaterial3Api::class, ExperimentalFoundationApi::class)
 @Composable
 fun PlayerScreen(
     navController: NavHostController,
