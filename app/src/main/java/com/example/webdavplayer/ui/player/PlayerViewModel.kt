@@ -50,9 +50,7 @@ import javax.inject.Inject
  * - 播放状态/进度来自 [MediaController]（会话背后是 [PlaybackService] 的引擎）；
  * - 播放控制命令转发给 [MediaController]（失败时回退到 [PlayerRepository] 直连同一单例引擎）。
  *
- * 视频 Surface 穿透抽象层**直达单例引擎**：[attachVideoSurface] / [detachVideoSurface]
- * 直连 [PlayerRepository.setVideoSurface]，**不**走 MediaController / PlayerSurface
- * （[com.example.webdavplayer.data.player.EngineMedia3Adapter] 仅作 SimpleBasePlayer 代理，不渲染）。
+// PlayerView 通过 player = mediaController 绑定渲染，不再需要手动穿透 Surface。
  *
  * 进度与顺序真相源仍在 [PlaylistController]（由观察 PlaylistRepository 驱动）。
  */

@@ -9,7 +9,7 @@ import com.example.webdavplayer.domain.model.PlaybackState
  * 播放内核抽象（§4.2 / §8）。
  *
  * 上层（UI / 领域）**永远不直接引用 ExoPlayer / LibVLC**，一切经此接口。
- * 具体实现见 [com.example.webdavplayer.data.player.ExoPlayerEngine] 与 `VlcEngine`（full 风味）。
+ * 具体实现见 [com.example.webdavplayer.data.player.ExoPlayerEngine]。
  * 内核只负责“当前这一条媒体的解码渲染”，进度与播放列表由 [com.example.webdavplayer.domain.player.PlaylistController] 持有。
  */
 interface PlayerEngine {

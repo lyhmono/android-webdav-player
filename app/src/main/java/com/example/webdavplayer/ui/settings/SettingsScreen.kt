@@ -31,9 +31,9 @@ import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.navigation.NavHostController
-import com.example.webdavplayer.BuildConfig
 import com.example.webdavplayer.domain.model.EngineType
 import com.example.webdavplayer.domain.model.TrustedCert
+import com.example.webdavplayer.ui.common.SectionHeader
 import com.example.webdavplayer.domain.common.FileFormatter
 import com.example.webdavplayer.domain.model.CachedMedia
 import com.example.webdavplayer.ui.player.PlayerViewModel
@@ -53,7 +53,6 @@ fun SettingsScreen(
     val engineType by viewModel.engineType.collectAsStateWithLifecycle()
     val certs by viewModel.certs.collectAsStateWithLifecycle()
     val cached by viewModel.cachedMedia.collectAsStateWithLifecycle()
-    val isVlcAvailable = BuildConfig.FLAVOR == "full"
 
     Scaffold(
         topBar = {
@@ -81,7 +80,7 @@ fun SettingsScreen(
                         selected = engineType == t,
                         onClick = { playerVm.switchEngine(t) },
                         label = { Text(engineLabel(t)) },
-                        enabled = if (t == EngineType.VLC) isVlcAvailable else true,
+                        enabled = t != EngineType.VLC,
                     )
                 }
             }
