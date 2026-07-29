@@ -4,11 +4,9 @@ package com.example.webdavplayer.ui.player
 
 import android.content.pm.ActivityInfo
 import androidx.compose.animation.core.tween
-import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.combinedClickable
-import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -79,7 +77,7 @@ private val playbackSpeeds = listOf(0.5f, 0.75f, 1.0f, 1.25f, 1.5f, 2.0f)
 /** 控制栏自动隐藏时长 */
 private const val CONTROLS_AUTO_HIDE_MS = 3000L
 
-@OptIn(ExperimentalMaterial3Api::class, ExperimentalFoundationApi::class)
+@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun PlayerScreen(
     navController: NavHostController,
@@ -159,7 +157,7 @@ fun PlayerScreen(
                     modifier = Modifier.fillMaxSize(),
                 )
 
-                // 手势层（亮度/音量/快进退，独占拖拽）
+                // 手势层（亮度/音量/快进退 + 点击切换控制栏）
                 VideoGestureLayer(
                     modifier = Modifier.fillMaxSize(),
                     isVideo = true,
@@ -167,36 +165,36 @@ fun PlayerScreen(
                     onSeekBy = { delta ->
                         playerVm.seekTo((position + delta).coerceIn(0, duration.coerceAtLeast(1)))
                     },
+                    onToggleControls = { controlsVisible = !controlsVisible },
                 )
 
-                // 点击视频区域切换控制栏显隐（A1：点击背景而不是控制栏）
-                Box(
-                    Modifier
-                        .fillMaxSize()
-                        .clickable(
-                            interactionSource = remember { MutableInteractionSource() },
-                            indication = null,
-                        ) { controlsVisible = !controlsVisible },
+                // 控制层（U1：去掉 clickable Box，改由 VGL 的 onToggleControls 驱动）
+                androidx.compose.animation.AnimatedVisibility(
+                    visible = controlsVisible,
+                    enter = androidx.compose.animation.fadeIn(animationSpec = tween(200)),
+                    exit = androidx.compose.animation.fadeOut(animationSpec = tween(200)),
                 ) {
-                    androidx.compose.animation.AnimatedVisibility(
-                        visible = controlsVisible,
-                        enter = androidx.compose.animation.fadeIn(animationSpec = tween(200)),
-                        exit = androidx.compose.animation.fadeOut(animationSpec = tween(200)),
-                    ) {
-                        PlayerControls(
-                            title = title,
-                            isPlaying = isPlaying,
-                            positionMs = seekPosition ?: position,
-                            durationMs = duration,
-                            onBack = { navController.popBackStack() },
-                            onTogglePlay = { playerVm.togglePlay() },
-                            onSeekTo = { playerVm.seekTo(it) },
-                            onSeeking = { seekPosition = it },
-                            onSeekFinished = { seekPosition = null; playerVm.seekTo(it) },
-                            onPrev = { playerVm.previous() },
-                            onNext = { playerVm.next() },
-                            onMore = { menuExpanded = true },
-                        )
+                    PlayerControls(
+                        title = title,
+                        isPlaying = isPlaying,
+                        positionMs = seekPosition ?: position,
+                        durationMs = duration,
+                        onBack = { navController.popBackStack() },
+                        onTogglePlay = { playerVm.togglePlay() },
+                        onSeekTo = { playerVm.seekTo(it) },
+                        onSeeking = { seekPosition = it },
+                        onSeekFinished = { seekPosition = null; playerVm.seekTo(it) },
+                        onPrev = { playerVm.previous() },
+                        onNext = { playerVm.next() },
+                        onMore = { menuExpanded = true },
+                    )
+                }
+
+                // U2：控制栏自动隐藏计时器（用户交互时重置）
+                LaunchedEffect(controlsVisible) {
+                    if (controlsVisible) {
+                        delay(CONTROLS_AUTO_HIDE_MS)
+                        controlsVisible = false
                     }
                 }
             } else if (!isVideo) {

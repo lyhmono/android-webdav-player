@@ -7,6 +7,7 @@ import androidx.compose.animation.core.tween
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
 import androidx.compose.foundation.gestures.detectDragGestures
+import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -65,6 +66,7 @@ import kotlinx.coroutines.delay
  * @param isVideo 当前是否为视频（非视频不消费手势，直接返回）。
  * @param durationMs 当前媒体总时长（用于把横向位移换算成毫秒增量）。
  * @param onSeekBy 快进/快退增量（毫秒，正数前进/负数后退）。
+ * @param onToggleControls 单击视频区时切换控制栏显隐（方案 B：U1 修复）。
  */
 @Composable
 fun VideoGestureLayer(
@@ -72,6 +74,7 @@ fun VideoGestureLayer(
     isVideo: Boolean,
     durationMs: Long,
     onSeekBy: (deltaMs: Long) -> Unit,
+    onToggleControls: (() -> Unit)? = null,
 ) {
     if (!isVideo) return
 
@@ -98,6 +101,7 @@ fun VideoGestureLayer(
     // 使用 rememberUpdatedState，确保手势闭包始终读取最新的时长与回调（pointerInput(Unit) 不会重订阅）。
     val durationMsState = rememberUpdatedState(durationMs)
     val onSeekByState = rememberUpdatedState(onSeekBy)
+    val onToggleControlsState = rememberUpdatedState(onToggleControls)
 
     // 单次拖拽的分区（在 onDragStart 中决定，整段拖拽保持不变）。
     var dragZone by remember { mutableIntStateOf(ZONE_NONE) }
@@ -119,6 +123,12 @@ fun VideoGestureLayer(
 
     Box(
         modifier = modifier
+            .pointerInput(onToggleControls) {
+                if (onToggleControlsState.value == null) return@pointerInput
+                detectTapGestures(
+                    onTap = { onToggleControlsState.value?.invoke() },
+                )
+            }
             .pointerInput(Unit) {
                 detectDragGestures(
                     onDragStart = { start: Offset ->
