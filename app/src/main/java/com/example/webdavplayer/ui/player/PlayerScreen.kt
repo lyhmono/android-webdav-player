@@ -71,6 +71,7 @@ import com.example.webdavplayer.ui.common.modeLabel
 import com.example.webdavplayer.ui.common.stateLabel
 import com.example.webdavplayer.ui.playlist.PlaylistViewModel
 import com.example.webdavplayer.ui.theme.Spacing
+import kotlinx.coroutines.delay
 
 private val playbackSpeeds = listOf(0.5f, 0.75f, 1.0f, 1.25f, 1.5f, 2.0f)
 
