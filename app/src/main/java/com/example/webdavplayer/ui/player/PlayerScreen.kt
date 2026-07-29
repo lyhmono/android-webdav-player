@@ -173,7 +173,7 @@ fun PlayerScreen(
                             indication = null,
                         ) { controlsVisible = !controlsVisible },
                 ) {
-                    AnimatedVisibility(
+                    androidx.compose.animation.AnimatedVisibility(
                         visible = controlsVisible,
                         enter = fadeIn(),
                         exit = fadeOut(),
