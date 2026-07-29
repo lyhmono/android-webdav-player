@@ -138,11 +138,11 @@ dependencies {
     implementation("com.github.thegrizzlylabs:sardine-android:v0.9")
 
     // ===== Media3（ExoPlayer + UI + 后台媒体会话） =====
-    implementation("androidx.media3:media3-exoplayer:1.5.1")
-    implementation("androidx.media3:media3-ui:1.5.1")
-    implementation("androidx.media3:media3-ui-compose:1.5.1")
-    implementation("androidx.media3:media3-session:1.5.1")
-    implementation("androidx.media3:media3-datasource-okhttp:1.5.1")
+    implementation("androidx.media3:media3-exoplayer:1.7.0")
+    implementation("androidx.media3:media3-ui:1.7.0")
+    implementation("androidx.media3:media3-ui-compose:1.7.0")
+    implementation("androidx.media3:media3-session:1.7.0")
+    implementation("androidx.media3:media3-datasource-okhttp:1.7.0")
 
     // ===== 协程 =====
     implementation("org.jetbrains.kotlinx:kotlinx-coroutines-android:1.7.3")
