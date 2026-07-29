@@ -25,7 +25,6 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.ArrowBack
 import androidx.compose.material.icons.filled.AudioFile
 import androidx.compose.material.icons.filled.MoreVert
-import androidx.compose.material.icons.filled.Pause
 import androidx.compose.material.icons.filled.PlayArrow
 import androidx.compose.material.icons.filled.VideoLibrary
 import androidx.compose.material3.AlertDialog
@@ -212,7 +211,7 @@ fun PlayerScreen(
                             modifier = Modifier.size(72.dp),
                         ) {
                             Icon(
-                                if (isPlaying) Pause else Icons.Filled.PlayArrow,
+                                if (isPlaying) Icons.Filled.Pause else Icons.Filled.PlayArrow,
                                 "播放",
                                 modifier = Modifier.size(48.dp),
                                 tint = Color.White,
