@@ -1,8 +1,5 @@
 package com.example.webdavplayer.ui.player
 
-import androidx.compose.animation.AnimatedVisibility
-import androidx.compose.animation.fadeIn
-import androidx.compose.animation.fadeOut
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -54,6 +51,8 @@ fun PlayerControls(
     onBack: () -> Unit,
     onTogglePlay: () -> Unit,
     onSeekTo: (Long) -> Unit,
+    onSeeking: (Long) -> Unit = {},
+    onSeekFinished: (Long) -> Unit = { onSeekTo(it) },
     onPrev: () -> Unit,
     onNext: () -> Unit,
     onMore: () -> Unit,
@@ -122,7 +121,13 @@ fun PlayerControls(
             Slider(
                 value = if (durationMs > 0) positionMs.toFloat() / durationMs else 0f,
                 onValueChange = { ratio ->
-                    if (durationMs > 0) onSeekTo((ratio * durationMs).toLong())
+                    if (durationMs > 0) onSeeking((ratio * durationMs).toLong())
+                },
+                onValueChangeFinished = {
+                    if (durationMs > 0) {
+                        val finalPos = ((it ?: 0f) * durationMs).toLong()
+                        onSeekFinished(finalPos)
+                    }
                 },
                 valueRange = 0f..1f,
                 colors = SliderDefaults.colors(
