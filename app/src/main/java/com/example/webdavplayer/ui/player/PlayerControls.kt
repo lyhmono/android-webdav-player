@@ -25,6 +25,9 @@ import androidx.compose.material3.SliderDefaults
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
@@ -58,6 +61,9 @@ fun PlayerControls(
     onMore: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
+    // 跟踪拖动过程中的最新位置（onValueChangeFinished 不再传递值）
+    var seekPosition by remember { mutableStateOf<Long?>(null) }
+
     Box(modifier.fillMaxSize().background(Color.Black.copy(alpha = 0.4f))) {
         // 顶部
         Row(
@@ -119,13 +125,18 @@ fun PlayerControls(
                 .padding(horizontal = 16.dp, vertical = 12.dp),
         ) {
             Slider(
-                value = if (durationMs > 0) positionMs.toFloat() / durationMs else 0f,
+                value = if (durationMs > 0) (seekPosition ?: positionMs).toFloat() / durationMs else 0f,
                 onValueChange = { ratio ->
-                    if (durationMs > 0) onSeeking((ratio * durationMs).toLong())
-                },
-                onValueChangeFinished = { finalValue ->
                     if (durationMs > 0) {
-                        val finalPos = ((finalValue ?: 0f) * durationMs).toLong()
+                        val newPos = (ratio * durationMs).toLong()
+                        seekPosition = newPos
+                        onSeeking(newPos)
+                    }
+                },
+                onValueChangeFinished = {
+                    if (durationMs > 0) {
+                        val finalPos = seekPosition ?: positionMs
+                        seekPosition = null
                         onSeekFinished(finalPos)
                     }
                 },
@@ -140,7 +151,7 @@ fun PlayerControls(
                 modifier = Modifier.fillMaxWidth(),
                 horizontalArrangement = Arrangement.SpaceBetween,
             ) {
-                Text(formatDuration(positionMs), color = Color.White, style = MaterialTheme.typography.labelSmall)
+                Text(formatDuration(seekPosition ?: positionMs), color = Color.White, style = MaterialTheme.typography.labelSmall)
                 Text(formatDuration(durationMs), color = Color.White, style = MaterialTheme.typography.labelSmall)
             }
         }

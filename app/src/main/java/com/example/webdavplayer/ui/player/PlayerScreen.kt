@@ -223,7 +223,7 @@ fun PlayerScreen(
                             Slider(
                                 value = if (duration > 0) (seekPosition ?: position).toFloat() / duration else 0f,
                                 onValueChange = { ratio -> seekPosition = (ratio * duration).toLong() },
-                                onValueChangeFinished = { finalValue -> seekPosition = null; playerVm.seekTo(((finalValue ?: 0f) * duration).toLong()) },
+                                onValueChangeFinished = { val finalPos = seekPosition ?: position; seekPosition = null; playerVm.seekTo(finalPos) },
                                 valueRange = 0f..1f,
                                 colors = SliderDefaults.colors(
                                     thumbColor = MaterialTheme.colorScheme.primary,
