@@ -123,9 +123,9 @@ fun PlayerControls(
                 onValueChange = { ratio ->
                     if (durationMs > 0) onSeeking((ratio * durationMs).toLong())
                 },
-                onValueChangeFinished = {
+                onValueChangeFinished = { finalValue ->
                     if (durationMs > 0) {
-                        val finalPos = ((it ?: 0f) * durationMs).toLong()
+                        val finalPos = ((finalValue ?: 0f) * durationMs).toLong()
                         onSeekFinished(finalPos)
                     }
                 },

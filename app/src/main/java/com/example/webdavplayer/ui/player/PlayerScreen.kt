@@ -25,6 +25,7 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.ArrowBack
 import androidx.compose.material.icons.filled.AudioFile
 import androidx.compose.material.icons.filled.MoreVert
+import androidx.compose.material.icons.filled.Pause
 import androidx.compose.material.icons.filled.PlayArrow
 import androidx.compose.material.icons.filled.VideoLibrary
 import androidx.compose.material3.AlertDialog
@@ -211,7 +212,7 @@ fun PlayerScreen(
                             modifier = Modifier.size(72.dp),
                         ) {
                             Icon(
-                                if (isPlaying) androidx.compose.material.icons.filled.Pause else Icons.Filled.PlayArrow,
+                                if (isPlaying) Pause else Icons.Filled.PlayArrow,
                                 "播放",
                                 modifier = Modifier.size(48.dp),
                                 tint = Color.White,
@@ -222,7 +223,7 @@ fun PlayerScreen(
                             Slider(
                                 value = if (duration > 0) (seekPosition ?: position).toFloat() / duration else 0f,
                                 onValueChange = { ratio -> seekPosition = (ratio * duration).toLong() },
-                                onValueChangeFinished = { seekPosition = null; playerVm.seekTo(((it ?: 0f) * duration).toLong()) },
+                                onValueChangeFinished = { finalValue -> seekPosition = null; playerVm.seekTo(((finalValue ?: 0f) * duration).toLong()) },
                                 valueRange = 0f..1f,
                                 colors = SliderDefaults.colors(
                                     thumbColor = MaterialTheme.colorScheme.primary,
