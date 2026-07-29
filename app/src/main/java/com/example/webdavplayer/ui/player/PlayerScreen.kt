@@ -128,6 +128,8 @@ fun PlayerScreen(
     var controlsVisible by rememberSaveable { mutableStateOf(true) }
     // 进度条拖动的临时位置（A3 防抖）
     var seekPosition by remember { mutableStateOf<Long?>(null) }
+    // U2：自动隐藏 token——每次用户交互（点视频区/点控制栏按钮/拖进度条）都自增，重置 3 秒计时
+    var controlsHideToken by remember { mutableStateOf(0) }
 
     LaunchedEffect(isOnline) {
         if (!isOnline) snackbarHostState.showSnackbar("网络已断开")
@@ -167,7 +169,10 @@ fun PlayerScreen(
                     onSeekBy = { delta ->
                         playerVm.seekTo((position + delta).coerceIn(0, duration.coerceAtLeast(1)))
                     },
-                    onToggleControls = { controlsVisible = !controlsVisible },
+                    onToggleControls = {
+                        controlsVisible = !controlsVisible
+                        if (controlsVisible) controlsHideToken++
+                    },
                 )
 
                 // 控制层（U1：去掉 clickable Box，改由 VGL 的 onToggleControls 驱动）
@@ -182,19 +187,25 @@ fun PlayerScreen(
                         positionMs = seekPosition ?: position,
                         durationMs = duration,
                         onBack = { navController.popBackStack() },
-                        onTogglePlay = { playerVm.togglePlay() },
+                        onTogglePlay = { playerVm.togglePlay(); controlsHideToken++ },
                         onSeekTo = { playerVm.seekTo(it) },
-                        onSeeking = { seekPosition = it },
-                        onSeekFinished = { seekPosition = null; playerVm.seekTo(it) },
-                        onPrev = { playerVm.previous() },
-                        onNext = { playerVm.next() },
+                        onSeeking = { seekPosition = it; controlsHideToken++ },
+                        onSeekFinished = { seekPosition = null; playerVm.seekTo(it); controlsHideToken++ },
+                        onPrev = { playerVm.previous(); controlsHideToken++ },
+                        onNext = { playerVm.next(); controlsHideToken++ },
                         onMore = { menuExpanded = true },
                     )
                 }
 
-                // U2：控制栏自动隐藏计时器（用户交互时重置）
+                // U2：控制栏自动隐藏计时器——任何用户交互（token 变化）都重置 3 秒倒计时
                 LaunchedEffect(controlsVisible) {
                     if (controlsVisible) {
+                        delay(CONTROLS_AUTO_HIDE_MS)
+                        controlsVisible = false
+                    }
+                }
+                LaunchedEffect(controlsHideToken) {
+                    if (controlsHideToken > 0 && controlsVisible) {
                         delay(CONTROLS_AUTO_HIDE_MS)
                         controlsVisible = false
                     }
