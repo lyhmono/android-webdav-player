@@ -1,8 +1,11 @@
-@file:OptIn(ExperimentalFoundationApi::class)
+@file:OptIn(ExperimentalFoundationApi::class, UnstableApi::class)
 
 package com.example.webdavplayer.ui.player
 
 import android.content.pm.ActivityInfo
+import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.animation.fadeIn
+import androidx.compose.animation.fadeOut
 import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
@@ -17,7 +20,6 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
-import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
@@ -52,17 +54,15 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.unit.dp
-import androidx.compose.ui.viewinterop.AndroidView
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
-import androidx.media3.ui.AspectRatioFrameLayout
-import androidx.media3.ui.PlayerView
+import androidx.media3.common.util.UnstableApi
+import androidx.media3.ui.compose.PlayerSurface
+import androidx.media3.ui.compose.SURFACE_TYPE_SURFACE_VIEW
 import androidx.navigation.NavHostController
-import com.example.webdavplayer.domain.model.EngineType
 import com.example.webdavplayer.domain.model.MediaType
 import com.example.webdavplayer.domain.model.PlayMode
 import com.example.webdavplayer.domain.model.PlaybackState
 import com.example.webdavplayer.ui.common.SectionHeader
-import com.example.webdavplayer.ui.common.engineLabel
 import com.example.webdavplayer.ui.common.findActivity
 import com.example.webdavplayer.ui.common.formatDuration
 import com.example.webdavplayer.ui.common.modeLabel
@@ -71,6 +71,9 @@ import com.example.webdavplayer.ui.playlist.PlaylistViewModel
 import com.example.webdavplayer.ui.theme.Spacing
 
 private val playbackSpeeds = listOf(0.5f, 0.75f, 1.0f, 1.25f, 1.5f, 2.0f)
+
+/** 控制栏自动隐藏时长 */
+private const val CONTROLS_AUTO_HIDE_MS = 3000L
 
 @OptIn(ExperimentalMaterial3Api::class, ExperimentalFoundationApi::class)
 @Composable
@@ -118,6 +121,9 @@ fun PlayerScreen(
     var showSubtitleDialog by remember { mutableStateOf(false) }
     val snackbarHostState = remember { SnackbarHostState() }
 
+    // 控制栏显隐
+    var controlsVisible by remember { mutableStateOf(true) }
+
     LaunchedEffect(isOnline) {
         if (!isOnline) snackbarHostState.showSnackbar("网络已断开")
     }
@@ -137,31 +143,18 @@ fun PlayerScreen(
 
     ImmersiveModeEffect(enabled = isFullScreen)
 
-    // ===== 竖屏：PlayerView + 下半部信息 =====
+    // ===== 视频区：PlayerSurface + 自定义控制层 + 手势层 =====
     Column(Modifier.fillMaxSize().background(MaterialTheme.colorScheme.background)) {
-        // 视频区 — PlayerView 自动处理比例 + 控制条
         Box(Modifier.fillMaxWidth().weight(1f).background(Color.Black)) {
             if (isVideo && mediaController != null) {
-                AndroidView(
+                // 方案 B：Media3 Compose 原生 PlayerSurface
+                PlayerSurface(
+                    player = mediaController,
+                    surfaceType = SURFACE_TYPE_SURFACE_VIEW,
                     modifier = Modifier.fillMaxSize(),
-                    factory = { ctx ->
-                        PlayerView(ctx).apply {
-                            player = mediaController
-                            useController = true
-                            controllerShowTimeoutMs = 3000
-                            controllerAutoShow = true
-                            resizeMode = AspectRatioFrameLayout.RESIZE_MODE_FIT
-                            setShowBuffering(PlayerView.SHOW_BUFFERING_ALWAYS)
-                            setShowNextButton(false)
-                            setShowPreviousButton(false)
-                            setShowSubtitleButton(false)
-                            setControllerOnFullScreenModeChangedListener {
-                                isFullScreen = it
-                            }
-                        }
-                    },
                 )
-                // 手势层
+
+                // 手势层（亮度/音量/快进退，独占拖拽；不挡控制层 tap）
                 VideoGestureLayer(
                     modifier = Modifier.fillMaxSize(),
                     isVideo = true,
@@ -170,6 +163,35 @@ fun PlayerScreen(
                         playerVm.seekTo((position + delta).coerceIn(0, duration.coerceAtLeast(1)))
                     },
                 )
+
+                // 自定义控制层 + 点击切换显隐
+                Box(
+                    Modifier
+                        .fillMaxSize()
+                        .clickable(
+                            interactionSource = remember { androidx.compose.foundation.interaction.MutableInteractionSource() },
+                            indication = null,
+                        ) { controlsVisible = !controlsVisible },
+                ) {
+                    AnimatedVisibility(
+                        visible = controlsVisible,
+                        enter = fadeIn(),
+                        exit = fadeOut(),
+                    ) {
+                        PlayerControls(
+                            title = title,
+                            isPlaying = isPlaying,
+                            positionMs = position,
+                            durationMs = duration,
+                            onBack = { navController.popBackStack() },
+                            onTogglePlay = { playerVm.togglePlay() },
+                            onSeekTo = { playerVm.seekTo(it) },
+                            onPrev = { playerVm.previous() },
+                            onNext = { playerVm.next() },
+                            onMore = { menuExpanded = true },
+                        )
+                    }
+                }
             } else if (!isVideo) {
                 Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
                     Icon(Icons.Filled.AudioFile, "音频", modifier = Modifier.size(100.dp), tint = Color.White.copy(alpha = 0.25f))
@@ -183,7 +205,7 @@ fun PlayerScreen(
             }
         }
 
-        // 下半部
+        // 下半部信息区（竖屏可见；横屏全屏时自动隐藏因为 weight=0 被挤掉）
         Column(
             Modifier.weight(1f).verticalScroll(rememberScrollState()).padding(horizontal = Spacing.lg, vertical = Spacing.md),
             verticalArrangement = Arrangement.spacedBy(Spacing.sm),
