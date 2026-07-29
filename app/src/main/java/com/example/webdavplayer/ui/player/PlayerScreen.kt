@@ -62,8 +62,10 @@ import com.example.webdavplayer.domain.model.MediaType
 import com.example.webdavplayer.domain.model.PlayMode
 import com.example.webdavplayer.domain.model.PlaybackState
 import com.example.webdavplayer.ui.common.SectionHeader
+import com.example.webdavplayer.ui.common.engineLabel
 import com.example.webdavplayer.ui.common.findActivity
 import com.example.webdavplayer.ui.common.formatDuration
+import com.example.webdavplayer.ui.common.modeLabel
 import com.example.webdavplayer.ui.common.stateLabel
 import com.example.webdavplayer.ui.playlist.PlaylistViewModel
 import com.example.webdavplayer.ui.theme.Spacing
@@ -273,13 +275,4 @@ private fun SubtitleChoiceRow(label: String, onClick: () -> Unit) {
     ListItem(headlineContent = { Text(label) }, modifier = Modifier.fillMaxWidth().clickable(onClick = onClick))
 }
 
-fun modeLabel(mode: PlayMode): String = when (mode) {
-    PlayMode.SEQUENTIAL -> "顺序"
-    PlayMode.LOOP -> "循环"
-    PlayMode.SHUFFLE -> "随机"
-}
-
-fun engineLabel(type: EngineType): String = when (type) {
-    EngineType.MEDIA3 -> "Media3"
-    EngineType.VLC -> "libVLC"
-}
+// modeLabel / engineLabel / stateLabel / formatDuration 引用自 ui.common.Labels
