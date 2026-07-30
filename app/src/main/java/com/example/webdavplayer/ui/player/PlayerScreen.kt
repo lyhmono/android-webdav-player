@@ -161,19 +161,31 @@ fun PlayerScreen(
                     modifier = Modifier.fillMaxSize(),
                 )
 
-                // 手势层（亮度/音量/快进退 + 点击切换控制栏）
-                VideoGestureLayer(
-                    modifier = Modifier.fillMaxSize(),
-                    isVideo = true,
-                    durationMs = duration,
-                    onSeekBy = { delta ->
-                        playerVm.seekTo((position + delta).coerceIn(0, duration.coerceAtLeast(1)))
-                    },
-                    onToggleControls = {
-                        controlsVisible = !controlsVisible
-                        if (controlsVisible) controlsHideToken++
-                    },
-                )
+                // 手势层（亮度/音量/快进退 + 点击切换控制栏）— 仅横屏/全屏叠加
+                if (fullscreen) {
+                    VideoGestureLayer(
+                        modifier = Modifier.fillMaxSize(),
+                        isVideo = true,
+                        durationMs = duration,
+                        onSeekBy = { delta ->
+                            playerVm.seekTo((position + delta).coerceIn(0, duration.coerceAtLeast(1)))
+                        },
+                        onToggleControls = {
+                            controlsVisible = !controlsVisible
+                            if (controlsVisible) controlsHideToken++
+                        },
+                    )
+                } else {
+                    // 竖屏：仅点击切换控制栏（无亮度/音量/快进手势）
+                    Box(
+                        Modifier
+                            .fillMaxSize()
+                            .clickable(
+                                interactionSource = remember { androidx.compose.foundation.interaction.MutableInteractionSource() },
+                                indication = null,
+                            ) { controlsVisible = !controlsVisible; if (controlsVisible) controlsHideToken++ },
+                    )
+                }
 
                 // 控制层（U1：去掉 clickable Box，改由 VGL 的 onToggleControls 驱动）
                 androidx.compose.animation.AnimatedVisibility(
@@ -192,19 +204,13 @@ fun PlayerScreen(
                         onSeekFinished = { seekPosition = null; playerVm.seekTo(it); controlsHideToken++ },
                         onPrev = { playerVm.previous(); controlsHideToken++ },
                         onNext = { playerVm.next(); controlsHideToken++ },
-                        onMore = { menuExpanded = true },
+                        onMore = { menuExpanded = true; controlsHideToken++ },
                     )
                 }
 
                 // U2：控制栏自动隐藏计时器——任何用户交互（token 变化）都重置 3 秒倒计时
-                LaunchedEffect(controlsVisible) {
+                LaunchedEffect(controlsVisible, controlsHideToken) {
                     if (controlsVisible) {
-                        delay(CONTROLS_AUTO_HIDE_MS)
-                        controlsVisible = false
-                    }
-                }
-                LaunchedEffect(controlsHideToken) {
-                    if (controlsHideToken > 0 && controlsVisible) {
                         delay(CONTROLS_AUTO_HIDE_MS)
                         controlsVisible = false
                     }
