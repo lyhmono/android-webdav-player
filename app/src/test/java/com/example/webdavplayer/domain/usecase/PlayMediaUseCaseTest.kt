@@ -1,6 +1,5 @@
 package com.example.webdavplayer.domain.usecase
 
-import android.view.TextureView
 import com.example.webdavplayer.common.Result
 import com.example.webdavplayer.data.repository.PlaylistControllerImpl
 import com.example.webdavplayer.domain.model.EngineListener
@@ -60,9 +59,6 @@ class PlayMediaUseCaseTest {
         override fun getDurationMs(): Long = 0L
         override fun getVideoAspectRatio(): Float = 0f
         override fun release() {}
-        override fun setVideoSurface(view: TextureView?) {
-            // no-op: test fake
-        }
     }
 
     private class FakeProgressRepository(var saved: PlaybackProgress? = null) :

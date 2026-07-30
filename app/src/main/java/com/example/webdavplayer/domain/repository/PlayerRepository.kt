@@ -1,6 +1,5 @@
 package com.example.webdavplayer.domain.repository
 
-import android.view.TextureView
 import com.example.webdavplayer.domain.model.EngineListener
 import com.example.webdavplayer.domain.model.EngineType
 import com.example.webdavplayer.domain.model.PlayableMedia
@@ -60,11 +59,4 @@ interface PlayerRepository {
     fun getVideoAspectRatio(): Float
 
     fun release()
-
-    /**
-     * 绑定视频渲染 Surface（穿透抽象层直达内核）。
-     * 直接转发给当前 [com.example.webdavplayer.domain.player.PlayerEngine.setVideoSurface]，
-     * 不经过 MediaController / PlayerSurface。
-     */
-    fun setVideoSurface(view: TextureView?)
 }

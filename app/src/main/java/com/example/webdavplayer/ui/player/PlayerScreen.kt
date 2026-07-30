@@ -188,7 +188,6 @@ fun PlayerScreen(
                         durationMs = duration,
                         onBack = { navController.popBackStack() },
                         onTogglePlay = { playerVm.togglePlay(); controlsHideToken++ },
-                        onSeekTo = { playerVm.seekTo(it) },
                         onSeeking = { seekPosition = it; controlsHideToken++ },
                         onSeekFinished = { seekPosition = null; playerVm.seekTo(it); controlsHideToken++ },
                         onPrev = { playerVm.previous(); controlsHideToken++ },

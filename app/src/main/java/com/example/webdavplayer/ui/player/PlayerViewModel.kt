@@ -2,7 +2,6 @@ package com.example.webdavplayer.ui.player
 
 import android.content.ComponentName
 import android.content.Context
-import android.view.TextureView
 import androidx.core.content.ContextCompat
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
@@ -78,10 +77,6 @@ class PlayerViewModel @Inject constructor(
     private val _duration = MutableStateFlow(0L)
     val duration: StateFlow<Long> = _duration.asStateFlow()
 
-    /** 当前视频宽高比（width/height），0 表示无视频或未知。用于 UI 层保持原始比例不拉伸。 */
-    private val _videoAspectRatio = MutableStateFlow(0f)
-    val videoAspectRatio: StateFlow<Float> = _videoAspectRatio.asStateFlow()
-
     private val _engineType = MutableStateFlow<EngineType>(EngineType.MEDIA3)
     val engineType: StateFlow<EngineType> = _engineType.asStateFlow()
 
@@ -116,7 +111,7 @@ class PlayerViewModel @Inject constructor(
     private var mediaController: MediaController? = null
     private val controllerFuture: ListenableFuture<MediaController>
 
-    /** MediaController（即 Media3 引擎播放器）。视频渲染走 [attachVideoSurface] 穿透路径，不经过 PlayerView。 */
+    /** MediaController（即 Media3 引擎播放器）。视频渲染由 media3-ui-compose PlayerSurface 直接绑定（方案 B）。 */
     private val _controller = MutableStateFlow<androidx.media3.common.Player?>(null)
     val controller: StateFlow<androidx.media3.common.Player?> = _controller.asStateFlow()
 
@@ -223,8 +218,6 @@ class PlayerViewModel @Inject constructor(
                 _position.value = playerRepository.getCurrentPosition()
                 val dur = playerRepository.getDurationMs()
                 if (dur > 0) _duration.value = dur
-                val ratio = playerRepository.getVideoAspectRatio()
-                if (ratio > 0 && ratio != _videoAspectRatio.value) _videoAspectRatio.value = ratio
                 delay(200)
             }
         }
@@ -240,19 +233,6 @@ class PlayerViewModel @Inject constructor(
     fun pause() = mediaController?.pause() ?: playerRepository.pause()
 
     fun seekTo(ms: Long) = mediaController?.seekTo(ms) ?: playerRepository.seekTo(ms)
-
-    /**
-     * 绑定视频渲染视图（穿透抽象层直达单例引擎，不走 MediaController / PlayerSurface）。
-     * 由 [VideoSurfaceHost] 在视图创建时调用。Media3 内核会包成 Surface，libVLC 内核直接用 TextureView。
-     */
-    fun attachVideoSurface(view: TextureView?) {
-        playerRepository.setVideoSurface(view)
-    }
-
-    /** 解绑视频视图（视图销毁时调用）。 */
-    fun detachVideoSurface() {
-        playerRepository.setVideoSurface(null)
-    }
 
     fun togglePlay() {
         if (_state.value == PlaybackState.PLAYING) pause() else play()

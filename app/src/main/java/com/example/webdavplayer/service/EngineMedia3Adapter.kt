@@ -202,10 +202,8 @@ class EngineMedia3Adapter(
         return ImmediateFuture(Unit)
     }
 
-    // 视频 Surface 不走 SimpleBasePlayer 的钩子：本项目把 TextureView 经
-    // PlayerViewModel.attachVideoSurface 直达单例引擎（ExoPlayer / VLC）渲染，
-    // 与 PlayerView 的表面路由解耦，因此无需 override 视频输出 handler
-    // （且 1.2.0/1.5.1 的编译期 api jar 未暴露该 @UnstableApi 方法，不可 override）。
+    // 视频 Surface 由 media3-ui-compose PlayerSurface 直接绑定 MediaController（方案 B），
+    // 不走 SimpleBasePlayer 的钩子，无需 override 视频输出 handler。
 
     /** 声明本代理支持的命令集合。 */
     private fun buildCommands(): Player.Commands = Player.Commands.Builder()
