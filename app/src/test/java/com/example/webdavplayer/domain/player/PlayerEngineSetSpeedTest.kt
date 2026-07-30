@@ -125,7 +125,6 @@ class PlayerEngineSetSpeedTest {
         override fun getState(): PlaybackState = engine.getState()
         override fun getCurrentPosition(): Long = engine.getCurrentPosition()
         override fun getDurationMs(): Long = engine.getDurationMs()
-        override fun getVideoAspectRatio(): Float = 0f
         override fun release() = Unit
     }
 }

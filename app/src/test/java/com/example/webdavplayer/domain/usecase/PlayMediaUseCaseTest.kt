@@ -57,7 +57,6 @@ class PlayMediaUseCaseTest {
         override fun getState(): PlaybackState = PlaybackState.IDLE
         override fun getCurrentPosition(): Long = 0L
         override fun getDurationMs(): Long = 0L
-        override fun getVideoAspectRatio(): Float = 0f
         override fun release() {}
     }
 

@@ -12,6 +12,8 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.ArrowBack
+import androidx.compose.material.icons.filled.Fullscreen
+import androidx.compose.material.icons.filled.FullscreenExit
 import androidx.compose.material.icons.filled.MoreVert
 import androidx.compose.material.icons.filled.Pause
 import androidx.compose.material.icons.filled.PlayArrow
@@ -58,6 +60,8 @@ fun PlayerControls(
     onPrev: () -> Unit,
     onNext: () -> Unit,
     onMore: () -> Unit,
+    onToggleFullscreen: () -> Unit = {},
+    isFullscreen: Boolean = false,
     modifier: Modifier = Modifier,
 ) {
     // 跟踪拖动过程中的最新位置（onValueChangeFinished 不再传递值）
@@ -87,6 +91,13 @@ fun PlayerControls(
             }
             IconButton(onClick = onMore) {
                 Icon(Icons.Filled.MoreVert, "更多", tint = Color.White)
+            }
+            IconButton(onClick = onToggleFullscreen) {
+                Icon(
+                    if (isFullscreen) Icons.Filled.FullscreenExit else Icons.Filled.Fullscreen,
+                    "全屏",
+                    tint = Color.White,
+                )
             }
         }
 

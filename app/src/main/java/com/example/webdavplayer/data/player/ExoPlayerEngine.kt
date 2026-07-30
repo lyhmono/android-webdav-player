@@ -174,12 +174,6 @@ class ExoPlayerEngine(
 
     override fun getDurationMs(): Long = player?.duration?.takeIf { it > 0 } ?: 0L
 
-    /** 当前视频宽度（像素），0 表示无视频或未就绪。 */
-    fun getVideoWidth(): Int = player?.videoSize?.width ?: 0
-
-    /** 当前视频高度（像素），0 表示无视频或未就绪。 */
-    fun getVideoHeight(): Int = player?.videoSize?.height ?: 0
-
     override fun release() {
         stopProgress()
         player?.release()

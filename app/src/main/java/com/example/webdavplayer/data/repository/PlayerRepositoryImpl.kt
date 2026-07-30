@@ -115,13 +115,6 @@ class PlayerRepositoryImpl @Inject constructor(
 
     override fun getDurationMs(): Long = engine?.getDurationMs() ?: 0L
 
-    override fun getVideoAspectRatio(): Float {
-        val exo = engine as? ExoPlayerEngine ?: return 0f
-        val w = exo.getVideoWidth()
-        val h = exo.getVideoHeight()
-        return if (w > 0 && h > 0) w.toFloat() / h else 0f
-    }
-
     override fun release() {
         engine?.release()
         engine = null

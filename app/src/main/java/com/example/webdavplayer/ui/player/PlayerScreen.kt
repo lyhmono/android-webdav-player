@@ -148,7 +148,7 @@ fun PlayerScreen(
         }
     }
 
-    ImmersiveModeEffect(enabled = isFullScreen)
+    ImmersiveModeEffect(enabled = fullscreen)
 
     // ===== 视频区：PlayerSurface + 自定义控制层 + 手势层 =====
     Column(Modifier.fillMaxSize().background(MaterialTheme.colorScheme.background)) {
@@ -205,6 +205,8 @@ fun PlayerScreen(
                         onPrev = { playerVm.previous(); controlsHideToken++ },
                         onNext = { playerVm.next(); controlsHideToken++ },
                         onMore = { menuExpanded = true; controlsHideToken++ },
+                        onToggleFullscreen = { isFullScreen = !isFullScreen; controlsHideToken++ },
+                        isFullscreen = fullscreen,
                     )
                 }
 
