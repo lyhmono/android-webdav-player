@@ -24,9 +24,9 @@ import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.ArrowBack
 import androidx.compose.material.icons.filled.AudioFile
-import androidx.compose.material.icons.filled.Image as ImageIcon
 import androidx.compose.material.icons.filled.MoreVert
 import androidx.compose.material.icons.filled.Pause
+import androidx.compose.material.icons.filled.Photo
 import androidx.compose.material.icons.filled.PlayArrow
 import androidx.compose.material.icons.filled.VideoLibrary
 import androidx.compose.material3.AlertDialog
@@ -337,7 +337,7 @@ fun PlayerScreen(
                                     when (item.mediaType) {
                                         MediaType.VIDEO -> Icons.Filled.VideoLibrary
                                         MediaType.AUDIO -> Icons.Filled.AudioFile
-                                        MediaType.IMAGE -> Icons.Filled.Image
+                                        MediaType.IMAGE -> Icons.Filled.Photo
                                         MediaType.OTHER -> Icons.Filled.VideoLibrary
                                     },
                                     null, tint = if (isCurrent) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant)
