@@ -57,6 +57,7 @@ class PlayMediaUseCaseTest {
         override fun getState(): PlaybackState = PlaybackState.IDLE
         override fun getCurrentPosition(): Long = 0L
         override fun getDurationMs(): Long = 0L
+        override fun setVideoSurface(surface: android.view.Surface?) {}
         override fun release() {}
     }
 
@@ -80,7 +81,7 @@ class PlayMediaUseCaseTest {
     )
 
     @Test
-    fun play_resumesFromSavedProgress_whenPositionPositive() = runBlocking {
+    fun play_doesNotResume_whenSavedProgressExists() = runBlocking {
         val player = FakePlayerRepository()
         val useCase = PlayMediaUseCase(
             player,
@@ -92,8 +93,9 @@ class PlayMediaUseCaseTest {
         val r = useCase(item("/a.mp4"))
 
         assertTrue("应返回成功", r is Result.Success)
-        // 顺序：prepare → seek(断点) → play
-        assertEquals(listOf("prepare", "seek:12000", "play"), player.events)
+        // 观看进度已禁用：即使有断点也一律从头播放（prepare → play，不 seek）
+        assertEquals(listOf("prepare", "play"), player.events)
+        assertNull(player.lastSeekTo)
     }
 
     @Test

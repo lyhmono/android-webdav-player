@@ -202,8 +202,34 @@ class EngineMedia3Adapter(
         return ImmediateFuture(Unit)
     }
 
-    // 视频 Surface 由 media3-ui-compose PlayerSurface 直接绑定 MediaController（方案 B），
-    // 不走 SimpleBasePlayer 的钩子，无需 override 视频输出 handler。
+    // ===== 视频渲染 Surface 转发（方案 B 核心修复）=====
+    // PlayerSurface 绑定 MediaController 后，MediaSession 会把 setVideoSurfaceView / setVideoSurface
+    // 调用路由到本代理。SimpleBasePlayer 本身不渲染，必须把 Surface 转发给真正解码渲染的
+    // 底层内核（ExoPlayerEngine.setVideoSurface），否则「有声音没画面」。
+
+    @UnstableApi
+    override fun handleSetVideoOutput(surface: android.view.Surface?): ListenableFuture<*> {
+        playerRepository.setVideoSurface(surface)
+        return ImmediateFuture(Unit)
+    }
+
+    @UnstableApi
+    override fun handleSetVideoOutput(surfaceHolder: android.view.SurfaceHolder?): ListenableFuture<*> {
+        playerRepository.setVideoSurface(surfaceHolder?.surface)
+        return ImmediateFuture(Unit)
+    }
+
+    @UnstableApi
+    override fun handleSetVideoOutput(textureView: android.view.TextureView?): ListenableFuture<*> {
+        playerRepository.setVideoSurface(textureView?.surfaceTexture?.let { android.view.Surface(it) })
+        return ImmediateFuture(Unit)
+    }
+
+    @UnstableApi
+    override fun handleClearVideoOutput(): ListenableFuture<*> {
+        playerRepository.setVideoSurface(null)
+        return ImmediateFuture(Unit)
+    }
 
     /** 声明本代理支持的命令集合。 */
     private fun buildCommands(): Player.Commands = Player.Commands.Builder()

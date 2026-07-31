@@ -55,5 +55,8 @@ interface PlayerRepository {
     /** 获取当前播放引擎总时长（毫秒），不依赖 MediaController。 */
     fun getDurationMs(): Long
 
+    /** 绑定视频渲染 Surface（PlayerSurface → MediaController → MediaSession → 本接口 → 底层内核）。 */
+    fun setVideoSurface(surface: android.view.Surface?)
+
     fun release()
 }

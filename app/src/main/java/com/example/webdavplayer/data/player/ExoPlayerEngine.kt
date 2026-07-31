@@ -2,6 +2,7 @@ package com.example.webdavplayer.data.player
 
 import android.content.Context
 import android.net.Uri
+import android.view.Surface
 import androidx.media3.common.C
 import androidx.media3.common.MediaItem
 import androidx.media3.common.PlaybackException
@@ -38,6 +39,8 @@ class ExoPlayerEngine(
     private var listener: EngineListener? = null
     private var okHttpClient: OkHttpClient? = null
     private var state: PlaybackState = PlaybackState.IDLE
+    /** 待绑定视频 Surface（PlayerSurface 经 MediaSession → adapter 转发而来），ensurePlayer 后立即绑定。 */
+    private var pendingSurface: Surface? = null
     private val scope = CoroutineScope(Dispatchers.Main + SupervisorJob())
     private var progressJob: Job? = null
 
@@ -81,8 +84,15 @@ class ExoPlayerEngine(
             player = ExoPlayer.Builder(context).build().apply {
                 addListener(playerListener)
                 videoScalingMode = C.VIDEO_SCALING_MODE_SCALE_TO_FIT
+                pendingSurface?.let { setVideoSurface(it) }
             }
         }
+    }
+
+    /** 绑定视频渲染 Surface（PlayerSurface 经 MediaSession → [EngineMedia3Adapter] 转发而来）。 */
+    override fun setVideoSurface(surface: Surface?) {
+        pendingSurface = surface
+        player?.setVideoSurface(surface)
     }
 
     /** 注入共享 OkHttp（含自签信任 + 鉴权），供流式数据源使用。 */

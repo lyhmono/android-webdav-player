@@ -115,6 +115,10 @@ class PlayerRepositoryImpl @Inject constructor(
 
     override fun getDurationMs(): Long = engine?.getDurationMs() ?: 0L
 
+    override fun setVideoSurface(surface: android.view.Surface?) {
+        engine?.setVideoSurface(surface)
+    }
+
     override fun release() {
         engine?.release()
         engine = null

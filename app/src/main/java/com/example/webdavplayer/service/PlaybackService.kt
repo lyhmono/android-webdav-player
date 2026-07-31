@@ -18,7 +18,6 @@ import com.example.webdavplayer.domain.model.EngineListener
 import com.example.webdavplayer.domain.model.MediaType
 import com.example.webdavplayer.domain.model.PlaybackState
 import com.example.webdavplayer.domain.model.PlaylistItem
-import com.example.webdavplayer.domain.model.PlayMode
 import com.example.webdavplayer.domain.player.PlaylistController
 import com.example.webdavplayer.domain.repository.PlayerRepository
 import com.example.webdavplayer.domain.usecase.PlayMediaUseCase
@@ -78,35 +77,16 @@ class PlaybackService : MediaSessionService() {
     private val engineListener = object : EngineListener {
         override fun onStateChange(state: PlaybackState) {
             adapter.onEngineState(state)
-            // 暂停/出错时立即落库当前进度，避免丢失最近 5s 的播放位置。
-            // 注意：ENDED 不在此落库——自然结束时由 onEnded 负责（非 LOOP 清除、LOOP 留待
-            // onProgress 节流续写实际位置），否则会持久化“末尾位置”，导致 LOOP 续播 seek 到
-            // 末尾而立即再结束的死循环（§一致性）。
-            if (state == PlaybackState.PAUSED || state == PlaybackState.ERROR) {
-                playlistController.current()?.let { item ->
-                    serviceScope.launch {
-                        progressSaver.flush(item.serverId, item.path, adapter.currentPositionMs)
-                    }
-                }
-            }
+            // 观看进度保存已禁用（云鹤要求）：不落库任何断点。
         }
 
         override fun onProgress(positionMs: Long, durationMs: Long) {
             adapter.onEngineProgress(positionMs, durationMs)
-            // 节流保存当前项断点（C3）。
-            playlistController.current()?.let { item ->
-                progressSaver.onProgress(item.serverId, item.path, positionMs)
-            }
+            // 观看进度保存已禁用（云鹤要求）：不保存断点。
         }
 
         override fun onEnded() {
-            // 自然结束：仅当当前播放模式“非 LOOP”时才清除刚播完项的续播断点（C3-AC4）。
-            // LOOP 模式下保留断点，由 onProgress 每 ~5s 节流续写，保证“下次打开仍从断点续播”。
-            if (playlistController.getMode() != PlayMode.LOOP) {
-                playlistController.current()?.let { ended ->
-                    progressSaver.onEnded(ended.serverId, ended.path)
-                }
-            }
+            // 观看进度保存已禁用（云鹤要求）：不清理断点。
             val next = playlistController.onItemEnded()
             if (next != null) launchPlayItem(next)
         }

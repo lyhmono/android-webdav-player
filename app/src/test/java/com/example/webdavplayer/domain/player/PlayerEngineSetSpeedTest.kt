@@ -91,6 +91,7 @@ class PlayerEngineSetSpeedTest {
         override fun getState(): PlaybackState = PlaybackState.IDLE
         override fun getCurrentPosition(): Long = 0L
         override fun getDurationMs(): Long = 0L
+        override fun setVideoSurface(surface: android.view.Surface?) = Unit
         override fun release() = Unit
     }
 
@@ -125,6 +126,7 @@ class PlayerEngineSetSpeedTest {
         override fun getState(): PlaybackState = engine.getState()
         override fun getCurrentPosition(): Long = engine.getCurrentPosition()
         override fun getDurationMs(): Long = engine.getDurationMs()
+        override fun setVideoSurface(surface: android.view.Surface?) = engine.setVideoSurface(surface)
         override fun release() = Unit
     }
 }

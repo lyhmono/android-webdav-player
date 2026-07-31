@@ -125,8 +125,8 @@ fun PlayerScreen(
     var showSubtitleDialog by remember { mutableStateOf(false) }
     val snackbarHostState = remember { SnackbarHostState() }
 
-    // 控制栏显隐
-    var controlsVisible by rememberSaveable { mutableStateOf(true) }
+    // 控制栏显隐（默认隐藏：点击视频框只切换控制栏，不误触播放/暂停按钮）
+    var controlsVisible by rememberSaveable { mutableStateOf(false) }
     // 进度条拖动的临时位置（A3 防抖）
     var seekPosition by remember { mutableStateOf<Long?>(null) }
     // U2：自动隐藏 token——每次用户交互（点视频区/点控制栏按钮/拖进度条）都自增，重置 3 秒计时

@@ -56,6 +56,13 @@ interface PlayerEngine {
     /** 当前媒体总时长（毫秒）。 */
     fun getDurationMs(): Long
 
+    /**
+     * 绑定视频渲染 Surface（PlayerSurface 经 MediaSession → EngineMedia3Adapter 转发而来）。
+     * 方案 B：PlayerSurface 绑定 MediaController（SimpleBasePlayer 代理不渲染），
+     * 必须把 Surface 转发给真正解码渲染的底层内核。
+     */
+    fun setVideoSurface(surface: android.view.Surface?)
+
     /** 释放内核资源（切换内核或退出前调用）。 */
     fun release()
 }
