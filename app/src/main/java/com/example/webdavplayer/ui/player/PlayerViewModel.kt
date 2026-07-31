@@ -148,6 +148,7 @@ class PlayerViewModel @Inject constructor(
         playJob?.cancel()
         _title.value = item.name
         _currentItemId.value = item.id
+        _currentMediaType.value = item.mediaType
         playJob = viewModelScope.launch {
             when (val r = playMedia(item)) {
                 is Result.Success -> {
