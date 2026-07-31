@@ -204,29 +204,30 @@ class EngineMedia3Adapter(
 
     // ===== 视频渲染 Surface 转发（方案 B 核心修复）=====
     // PlayerSurface 绑定 MediaController 后，MediaSession 会把 setVideoSurfaceView / setVideoSurface
-    // 调用路由到本代理。SimpleBasePlayer 本身不渲染，必须把 Surface 转发给真正解码渲染的
+    // 调用路由到本代理（SimpleBasePlayer.handleSetVideoOutput(Object)）。
+    // SimpleBasePlayer 本身不渲染，必须把 Surface 转发给真正解码渲染的
     // 底层内核（ExoPlayerEngine.setVideoSurface），否则「有声音没画面」。
+    //
+    // 注意 media3 1.7.0 API：videoOutput 是 Object（Surface / SurfaceHolder / SurfaceView / TextureView），
+    // handleClearVideoOutput(videoOutput: Object?) 带参数（null = 全部清除）。
 
     @UnstableApi
-    override fun handleSetVideoOutput(surface: android.view.Surface?): ListenableFuture<*> {
-        playerRepository.setVideoSurface(surface)
+    override fun handleSetVideoOutput(videoOutput: Any): ListenableFuture<*> {
+        playerRepository.setVideoSurface(
+            when (videoOutput) {
+                is android.view.Surface -> videoOutput
+                is android.view.SurfaceHolder -> videoOutput.surface
+                is android.view.SurfaceView -> videoOutput.holder.surface
+                is android.view.TextureView ->
+                    videoOutput.surfaceTexture?.let { android.view.Surface(it) }
+                else -> null
+            },
+        )
         return ImmediateFuture(Unit)
     }
 
     @UnstableApi
-    override fun handleSetVideoOutput(surfaceHolder: android.view.SurfaceHolder?): ListenableFuture<*> {
-        playerRepository.setVideoSurface(surfaceHolder?.surface)
-        return ImmediateFuture(Unit)
-    }
-
-    @UnstableApi
-    override fun handleSetVideoOutput(textureView: android.view.TextureView?): ListenableFuture<*> {
-        playerRepository.setVideoSurface(textureView?.surfaceTexture?.let { android.view.Surface(it) })
-        return ImmediateFuture(Unit)
-    }
-
-    @UnstableApi
-    override fun handleClearVideoOutput(): ListenableFuture<*> {
+    override fun handleClearVideoOutput(videoOutput: Any?): ListenableFuture<*> {
         playerRepository.setVideoSurface(null)
         return ImmediateFuture(Unit)
     }
@@ -240,6 +241,7 @@ class EngineMedia3Adapter(
         .add(Player.COMMAND_GET_CURRENT_MEDIA_ITEM)
         .add(Player.COMMAND_GET_TIMELINE)
         .add(Player.COMMAND_SET_SPEED_AND_PITCH)
+        .add(Player.COMMAND_SET_VIDEO_SURFACE)
         .build()
 
     /** 领域 [PlaybackState] → Media3 [Player] 状态。 */
