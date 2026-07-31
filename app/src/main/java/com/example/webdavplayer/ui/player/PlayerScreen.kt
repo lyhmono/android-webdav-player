@@ -28,6 +28,7 @@ import androidx.compose.material.icons.filled.Pause
 import androidx.compose.material.icons.filled.PlayArrow
 import androidx.compose.material.icons.filled.VideoLibrary
 import androidx.compose.material3.AlertDialog
+import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.ExperimentalMaterial3Api
@@ -217,6 +218,11 @@ fun PlayerScreen(
                         controlsVisible = false
                     }
                 }
+            } else if (isVideo && mediaController == null) {
+                // P6-1：MediaController 异步初始化期间显示 loading
+                Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
+                    CircularProgressIndicator(color = Color.White)
+                }
             } else if (!isVideo) {
                 // A5：音频模式也显示标题 + 播放按钮
                 Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
@@ -320,7 +326,10 @@ fun PlayerScreen(
                 Spacer(Modifier.height(Spacing.lg))
             }
         }
-        SnackbarHost(snackbarHostState)
+        // P6-2：SnackbarHost 仅在非全屏时显示，避免全屏沉浸式时 snackbar 破坏体验
+        if (!fullscreen) {
+            SnackbarHost(snackbarHostState)
+        }
     }
 
     // 字幕对话框
