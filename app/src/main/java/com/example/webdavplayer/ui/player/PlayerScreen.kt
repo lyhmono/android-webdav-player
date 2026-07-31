@@ -24,6 +24,7 @@ import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.ArrowBack
 import androidx.compose.material.icons.filled.AudioFile
+import androidx.compose.material.icons.filled.Error
 import androidx.compose.material.icons.filled.MoreVert
 import androidx.compose.material.icons.filled.Pause
 import androidx.compose.material.icons.filled.Photo
@@ -57,7 +58,6 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.asImageBitmap
-import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
@@ -104,20 +104,20 @@ fun PlayerScreen(
     val player by playerVm.player.collectAsStateWithLifecycle()
     val isPlaying = state == PlaybackState.PLAYING
 
-    val configuration = LocalConfiguration.current
-    val isLandscape = configuration.orientation == android.content.res.Configuration.ORIENTATION_LANDSCAPE
     var isFullScreen by remember { mutableStateOf(false) }
     val isVideo = mediaType == MediaType.VIDEO
-    // #23：仅视频参与全屏判定——音频/图片不强制横屏、不锁方向
-    val fullscreen = isVideo && (isFullScreen || isLandscape)
+    // #1/#19：fullscreen 仅由用户主动切换的 isFullScreen 决定
+    // 原逻辑用 isLandscape 参与 fullscreen 判定，导致自然横屏时用户点"退出全屏"仍锁 LANDSCAPE
+    val fullscreen = isVideo && isFullScreen
 
     val context = LocalContext.current
     val activity = context.findActivity()
-    DisposableEffect(fullscreen, isVideo) {
+    DisposableEffect(isFullScreen, isVideo) {
         activity?.requestedOrientation = when {
             !isVideo -> ActivityInfo.SCREEN_ORIENTATION_UNSPECIFIED
-            fullscreen -> ActivityInfo.SCREEN_ORIENTATION_SENSOR_LANDSCAPE
-            else -> ActivityInfo.SCREEN_ORIENTATION_PORTRAIT
+            isFullScreen -> ActivityInfo.SCREEN_ORIENTATION_SENSOR_LANDSCAPE
+            // 视频非全屏：不锁方向，允许用户自由旋转设备（点全屏按钮才主动进入横屏）
+            else -> ActivityInfo.SCREEN_ORIENTATION_UNSPECIFIED
         }
         onDispose {
             activity?.requestedOrientation = ActivityInfo.SCREEN_ORIENTATION_UNSPECIFIED
@@ -146,7 +146,8 @@ fun PlayerScreen(
         }
     }
     LaunchedEffect(items) {
-        if (items.isNotEmpty() && currentItemId == null) {
+        // #3：currentItemId 不在新列表（被 replace 清掉/不在目标服务器）或首次进入都自动播第一项
+        if (items.isNotEmpty() && items.none { it.id == currentItemId }) {
             playerVm.playItem(items.first())
         }
     }
@@ -216,9 +217,28 @@ fun PlayerScreen(
                     }
                 }
             } else if (isVideo && player == null) {
-                // 引擎尚未创建（prepare 前）显示 loading
+                // #24：区分 loading 与 error——prepare 失败时显示错误提示而非无限 loading
                 Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
-                    CircularProgressIndicator(color = Color.White)
+                    if (state == PlaybackState.ERROR) {
+                        Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                            Icon(
+                                Icons.Filled.Error,
+                                "播放失败",
+                                modifier = Modifier.size(48.dp),
+                                tint = Color.White.copy(alpha = 0.5f),
+                            )
+                            Spacer(Modifier.height(8.dp))
+                            Text("播放失败", color = Color.White, style = MaterialTheme.typography.titleMedium)
+                            Spacer(Modifier.height(4.dp))
+                            Text(
+                                "请检查网络或文件是否存在",
+                                color = Color.White.copy(alpha = 0.6f),
+                                style = MaterialTheme.typography.bodySmall,
+                            )
+                        }
+                    } else {
+                        CircularProgressIndicator(color = Color.White)
+                    }
                 }
             } else if (mediaType == MediaType.IMAGE) {
                 // 图片查看：直接展示解码后的 Bitmap；点击切换顶部信息栏（#16），不直接退出

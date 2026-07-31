@@ -101,6 +101,8 @@ class PlayerViewModel @Inject constructor(
 
     /** 当前 playItem 协程（用于防重入取消）。 */
     private var playJob: Job? = null
+    /** 图片下载协程（#25：快速切图时取消旧协程，避免旧图晚返回覆盖新图）。 */
+    private var imageJob: Job? = null
 
     /** 引擎事件监听（方案 C：直连引擎后由它驱动状态/进度/自然结束）。 */
     private val engineListener = object : EngineListener {
@@ -152,6 +154,10 @@ class PlayerViewModel @Inject constructor(
         _title.value = item.name
         _currentItemId.value = item.id
         _currentMediaType.value = item.mediaType
+        // #26：切换曲目时立即清空旧引擎引用——UI 走 loading 分支，避免"新标题+旧画面"抖动
+        _player.value = null
+        _position.value = 0L
+        _duration.value = 0L
         playJob = viewModelScope.launch {
             when (val r = playMedia(item)) {
                 is Result.Success -> {
@@ -170,8 +176,9 @@ class PlayerViewModel @Inject constructor(
 
     /** 下载 WebDAV 图片并解码为 Bitmap（复用共享 OkHttp：自签信任 + Digest 鉴权）。 */
     private fun loadImage(uri: String, headers: Map<String, String>) {
+        imageJob?.cancel()
         _imageBitmap.value = null
-        viewModelScope.launch {
+        imageJob = viewModelScope.launch {
             val bmp = withContext(Dispatchers.IO) {
                 try {
                     val req = Request.Builder().url(uri)
@@ -266,6 +273,7 @@ class PlayerViewModel @Inject constructor(
     override fun onCleared() {
         super.onCleared()
         playJob?.cancel()
+        imageJob?.cancel()
         // 单例引擎由 PlayerRepository 持有；页面退出不释放（重新进入继续复用）。
     }
 }
