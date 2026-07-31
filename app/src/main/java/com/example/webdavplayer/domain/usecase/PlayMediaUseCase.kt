@@ -43,6 +43,6 @@ class PlayMediaUseCase @Inject constructor(
         playerRepository.prepare(media)
         // 观看进度已禁用（云鹤要求）：不读取断点、不 seek、不弹恢复提示，一律从头播放。
         playerRepository.play()
-        media.copy(resumedPositionMs = null)
+        media
     }
 }

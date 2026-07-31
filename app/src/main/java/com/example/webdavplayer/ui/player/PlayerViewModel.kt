@@ -86,10 +86,6 @@ class PlayerViewModel @Inject constructor(
     private val _imageBitmap = MutableStateFlow<Bitmap?>(null)
     val imageBitmap: StateFlow<Bitmap?> = _imageBitmap.asStateFlow()
 
-    /** 最近一次播放恢复的断点位置（ms）。观看进度已禁用，恒为 null。 */
-    private val _resumedPosition = MutableStateFlow<Long?>(null)
-    val resumedPosition: StateFlow<Long?> = _resumedPosition.asStateFlow()
-
     /** 当前正在播放的列表项 ID（用于 UI 高亮当前播放项）。 */
     private val _currentItemId = MutableStateFlow<String?>(null)
     val currentItemId: StateFlow<String?> = _currentItemId.asStateFlow()
@@ -136,7 +132,14 @@ class PlayerViewModel @Inject constructor(
         _engineType.value = playerRepository.getEngineType()
         playerRepository.setListener(engineListener)
         viewModelScope.launch {
-            playlistRepository.observeItems().collect { playlistController.sync(it) }
+            playlistRepository.observeItems().collect { items ->
+                playlistController.sync(items)
+                // 列表被清空时复位当前项，保证下一次填充列表可自动播放
+                if (items.isEmpty()) {
+                    _currentItemId.value = null
+                    _currentMediaType.value = MediaType.OTHER
+                }
+            }
         }
         viewModelScope.launch {
             playlistRepository.observeMode().collect { playlistController.setMode(it) }
@@ -153,7 +156,6 @@ class PlayerViewModel @Inject constructor(
             when (val r = playMedia(item)) {
                 is Result.Success -> {
                     _subtitles.value = r.data.subtitles
-                    _resumedPosition.value = r.data.resumedPositionMs
                     if (r.data.mediaType == MediaType.IMAGE) {
                         // 图片：不走播放引擎，直接下载 Bitmap 展示
                         loadImage(r.data.uri, r.data.headers)
@@ -187,11 +189,6 @@ class PlayerViewModel @Inject constructor(
             }
             _imageBitmap.value = bmp
         }
-    }
-
-    /** UI 消费完恢复提示后调用。 */
-    fun consumeResumedPosition() {
-        _resumedPosition.value = null
     }
 
     fun play() = playerRepository.play()

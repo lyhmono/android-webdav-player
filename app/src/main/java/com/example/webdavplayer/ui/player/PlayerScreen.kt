@@ -98,7 +98,6 @@ fun PlayerScreen(
     val mode by playerVm.mode.collectAsStateWithLifecycle()
     val mediaType by playerVm.currentMediaType.collectAsStateWithLifecycle()
     val isOnline by playerVm.isOnline.collectAsStateWithLifecycle()
-    val resumedPosition by playerVm.resumedPosition.collectAsStateWithLifecycle()
     val currentItemId by playerVm.currentItemId.collectAsStateWithLifecycle()
     val speed by playerVm.speed.collectAsStateWithLifecycle()
     val subtitles by playerVm.subtitles.collectAsStateWithLifecycle()
@@ -108,16 +107,17 @@ fun PlayerScreen(
     val configuration = LocalConfiguration.current
     val isLandscape = configuration.orientation == android.content.res.Configuration.ORIENTATION_LANDSCAPE
     var isFullScreen by remember { mutableStateOf(false) }
-    val fullscreen = isFullScreen || isLandscape
     val isVideo = mediaType == MediaType.VIDEO
+    // #23：仅视频参与全屏判定——音频/图片不强制横屏、不锁方向
+    val fullscreen = isVideo && (isFullScreen || isLandscape)
 
     val context = LocalContext.current
     val activity = context.findActivity()
-    DisposableEffect(fullscreen) {
-        activity?.requestedOrientation = if (fullscreen) {
-            ActivityInfo.SCREEN_ORIENTATION_SENSOR_LANDSCAPE
-        } else {
-            ActivityInfo.SCREEN_ORIENTATION_PORTRAIT
+    DisposableEffect(fullscreen, isVideo) {
+        activity?.requestedOrientation = when {
+            !isVideo -> ActivityInfo.SCREEN_ORIENTATION_UNSPECIFIED
+            fullscreen -> ActivityInfo.SCREEN_ORIENTATION_SENSOR_LANDSCAPE
+            else -> ActivityInfo.SCREEN_ORIENTATION_PORTRAIT
         }
         onDispose {
             activity?.requestedOrientation = ActivityInfo.SCREEN_ORIENTATION_UNSPECIFIED
@@ -125,25 +125,24 @@ fun PlayerScreen(
     }
 
     var menuExpanded by remember { mutableStateOf(false) }
+    var speedMenuExpanded by remember { mutableStateOf(false) }
+    var modeMenuExpanded by remember { mutableStateOf(false) }
     var showSubtitleDialog by remember { mutableStateOf(false) }
     val snackbarHostState = remember { SnackbarHostState() }
 
     // 控制栏显隐（默认隐藏：点击视频框只切换控制栏，不误触播放/暂停按钮）
     var controlsVisible by rememberSaveable { mutableStateOf(false) }
-    // 进度条拖动的临时位置（A3 防抖）
+    // 进度条拖动的临时位置（A3 防抖，拖动中仅更新显示，松手才真正 seek）
     var seekPosition by remember { mutableStateOf<Long?>(null) }
-    // U2：自动隐藏 token——每次用户交互（点视频区/点控制栏按钮/拖进度条）都自增，重置 3 秒计时
+    // U2：自动隐藏 token——每次用户交互（点视频区/点控制栏按钮）都自增，重置 3 秒计时
     var controlsHideToken by remember { mutableStateOf(0) }
 
+    // #4：网络状态提示（断网/恢复各提示一次；首次进入不弹）
+    var wasOnline by remember { mutableStateOf(isOnline) }
     LaunchedEffect(isOnline) {
-        if (!isOnline) snackbarHostState.showSnackbar("网络已断开")
-    }
-    LaunchedEffect(resumedPosition) {
-        resumedPosition?.let { pos ->
-            if (pos > 0) {
-                snackbarHostState.showSnackbar("已从 ${formatDuration(pos)} 续播")
-                playerVm.consumeResumedPosition()
-            }
+        if (isOnline != wasOnline) {
+            snackbarHostState.showSnackbar(if (isOnline) "网络已恢复" else "网络已断开")
+            wasOnline = isOnline
         }
     }
     LaunchedEffect(items) {
@@ -165,31 +164,21 @@ fun PlayerScreen(
                     modifier = Modifier.fillMaxSize(),
                 )
 
-                // 手势层（亮度/音量/快进退 + 点击切换控制栏）— 仅横屏/全屏叠加
-                if (fullscreen) {
-                    VideoGestureLayer(
-                        modifier = Modifier.fillMaxSize(),
-                        isVideo = true,
-                        durationMs = duration,
-                        onSeekBy = { delta ->
-                            playerVm.seekTo((position + delta).coerceIn(0, duration.coerceAtLeast(1)))
-                        },
-                        onToggleControls = {
-                            controlsVisible = !controlsVisible
-                            if (controlsVisible) controlsHideToken++
-                        },
-                    )
-                } else {
-                    // 竖屏：仅点击切换控制栏（无亮度/音量/快进手势）
-                    Box(
-                        Modifier
-                            .fillMaxSize()
-                            .clickable(
-                                interactionSource = remember { androidx.compose.foundation.interaction.MutableInteractionSource() },
-                                indication = null,
-                            ) { controlsVisible = !controlsVisible; if (controlsVisible) controlsHideToken++ },
-                    )
-                }
+                // 手势层（亮度/音量/快进退 + 点击切换控制栏）— 横竖屏统一启用（#18）
+                VideoGestureLayer(
+                    modifier = Modifier.fillMaxSize(),
+                    isVideo = true,
+                    durationMs = duration,
+                    // #17：控制栏可见时禁用拖拽（避免与进度条 Slider 争手），点击切换保留
+                    gesturesEnabled = !controlsVisible,
+                    onSeekBy = { delta ->
+                        playerVm.seekTo((position + delta).coerceIn(0, duration.coerceAtLeast(1)))
+                    },
+                    onToggleControls = {
+                        controlsVisible = !controlsVisible
+                        if (controlsVisible) controlsHideToken++
+                    },
+                )
 
                 // 控制层（U1：去掉 clickable Box，改由 VGL 的 onToggleControls 驱动）
                 androidx.compose.animation.AnimatedVisibility(
@@ -204,8 +193,13 @@ fun PlayerScreen(
                         durationMs = duration,
                         onBack = { navController.popBackStack() },
                         onTogglePlay = { playerVm.togglePlay(); controlsHideToken++ },
-                        onSeeking = { seekPosition = it; controlsHideToken++ },
-                        onSeekFinished = { seekPosition = null; playerVm.seekTo(it); controlsHideToken++ },
+                        // #10：拖动过程只更新显示位置，不重置自动隐藏计时（onValueChange 高频触发）
+                        onSeeking = { seekPosition = it },
+                        onSeekFinished = {
+                            playerVm.seekTo(seekPosition ?: position)
+                            seekPosition = null
+                            controlsHideToken++
+                        },
                         onPrev = { playerVm.previous(); controlsHideToken++ },
                         onNext = { playerVm.next(); controlsHideToken++ },
                         onMore = { menuExpanded = true; controlsHideToken++ },
@@ -227,7 +221,7 @@ fun PlayerScreen(
                     CircularProgressIndicator(color = Color.White)
                 }
             } else if (mediaType == MediaType.IMAGE) {
-                // 图片查看：直接展示解码后的 Bitmap
+                // 图片查看：直接展示解码后的 Bitmap；点击切换顶部信息栏（#16），不直接退出
                 val imageBitmap by playerVm.imageBitmap.collectAsStateWithLifecycle()
                 val bmp = imageBitmap
                 Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
@@ -240,13 +234,42 @@ fun PlayerScreen(
                                 .clickable(
                                     interactionSource = remember { androidx.compose.foundation.interaction.MutableInteractionSource() },
                                     indication = null,
-                                ) { navController.popBackStack() },
+                                ) {
+                                    controlsVisible = !controlsVisible
+                                    if (controlsVisible) controlsHideToken++
+                                },
                         )
                     } else {
                         CircularProgressIndicator(color = Color.White)
                     }
+                    // 图片顶部信息栏（返回 + 标题），复用控制栏显隐状态
+                    androidx.compose.animation.AnimatedVisibility(
+                        visible = controlsVisible,
+                        modifier = Modifier.align(Alignment.TopCenter).fillMaxWidth(),
+                        enter = androidx.compose.animation.fadeIn(animationSpec = tween(200)),
+                        exit = androidx.compose.animation.fadeOut(animationSpec = tween(200)),
+                    ) {
+                        Row(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .background(Color.Black.copy(alpha = 0.4f))
+                                .padding(horizontal = 8.dp, vertical = 8.dp),
+                            verticalAlignment = Alignment.CenterVertically,
+                        ) {
+                            IconButton(onClick = { navController.popBackStack() }) {
+                                Icon(Icons.Filled.ArrowBack, "返回", tint = Color.White)
+                            }
+                            Text(
+                                text = title.ifEmpty { "未选择媒体" },
+                                color = Color.White,
+                                style = MaterialTheme.typography.titleMedium,
+                                maxLines = 1,
+                                overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis,
+                            )
+                        }
+                    }
                 }
-            } else if (!isVideo) {
+            } else if (!isVideo && currentItemId != null) {
                 // A5：音频模式也显示标题 + 播放按钮
                 Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
                     Column(horizontalAlignment = Alignment.CenterHorizontally) {
@@ -287,6 +310,11 @@ fun PlayerScreen(
                         }
                     }
                 }
+            } else {
+                // #3：尚未确定媒体类型（初始帧）/ 引擎未就绪——显示 loading，避免闪现音频占位图标
+                Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
+                    CircularProgressIndicator(color = Color.White)
+                }
             }
         }
 
@@ -299,11 +327,8 @@ fun PlayerScreen(
                 Row(verticalAlignment = Alignment.CenterVertically) {
                     IconButton(onClick = { navController.popBackStack() }) { Icon(Icons.Filled.ArrowBack, "返回") }
                     Text(title.ifEmpty { "未选择媒体" }, style = MaterialTheme.typography.titleLarge)
+                    // #20：菜单统一由根级 DropdownMenu 承接（横屏全屏时也可用）
                     IconButton(onClick = { menuExpanded = true }) { Icon(Icons.Filled.MoreVert, "更多") }
-                    DropdownMenu(expanded = menuExpanded, onDismissRequest = { menuExpanded = false }) {
-                        DropdownMenuItem(text = { Text("字幕") }, onClick = { menuExpanded = false; showSubtitleDialog = true })
-                        DropdownMenuItem(text = { Text("清除进度") }, onClick = { menuExpanded = false; playerVm.clearProgressAndRestart() })
-                    }
                 }
                 Text(stateLabel(state), style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
 
@@ -358,6 +383,30 @@ fun PlayerScreen(
         // P6-2：SnackbarHost 仅在非全屏时显示，避免全屏沉浸式时 snackbar 破坏体验
         if (!fullscreen) {
             SnackbarHost(snackbarHostState)
+        }
+    }
+
+    // #20/#22：根级菜单（横屏全屏与竖屏共用）——一级：字幕/清除进度/倍速/模式；倍速与模式为二级子菜单
+    DropdownMenu(expanded = menuExpanded, onDismissRequest = { menuExpanded = false }) {
+        DropdownMenuItem(text = { Text("字幕") }, onClick = { menuExpanded = false; showSubtitleDialog = true })
+        DropdownMenuItem(text = { Text("清除进度") }, onClick = { menuExpanded = false; playerVm.clearProgressAndRestart() })
+        DropdownMenuItem(text = { Text("倍速") }, onClick = { menuExpanded = false; speedMenuExpanded = true })
+        DropdownMenuItem(text = { Text("模式") }, onClick = { menuExpanded = false; modeMenuExpanded = true })
+    }
+    DropdownMenu(expanded = speedMenuExpanded, onDismissRequest = { speedMenuExpanded = false }) {
+        playbackSpeeds.forEach { s ->
+            DropdownMenuItem(
+                text = { Text("${if (s % 1f == 0f) s.toInt() else s}x${if (speed == s) "  ✓" else ""}") },
+                onClick = { playerVm.setSpeed(s); speedMenuExpanded = false },
+            )
+        }
+    }
+    DropdownMenu(expanded = modeMenuExpanded, onDismissRequest = { modeMenuExpanded = false }) {
+        PlayMode.values().forEach { m ->
+            DropdownMenuItem(
+                text = { Text("${modeLabel(m)}${if (mode == m) "  ✓" else ""}") },
+                onClick = { playerVm.setMode(m); modeMenuExpanded = false },
+            )
         }
     }
 

@@ -117,10 +117,6 @@ class PlayerRepositoryImpl @Inject constructor(
 
     override fun getPlayer(): androidx.media3.common.Player? = engine?.getPlayer()
 
-    override fun setVideoSurface(surface: android.view.Surface?) {
-        engine?.setVideoSurface(surface)
-    }
-
     override fun release() {
         engine?.release()
         engine = null

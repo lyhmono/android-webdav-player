@@ -67,6 +67,8 @@ import kotlinx.coroutines.delay
  * @param durationMs 当前媒体总时长（用于把横向位移换算成毫秒增量）。
  * @param onSeekBy 快进/快退增量（毫秒，正数前进/负数后退）。
  * @param onToggleControls 单击视频区时切换控制栏显隐（方案 B：U1 修复）。
+ * @param gesturesEnabled 是否启用拖拽手势（亮度/音量/快进退）。控制栏可见时为 false——
+ *                        避免与进度条 Slider 争抢拖拽事件；点击切换控制栏始终保留。
  */
 @Composable
 fun VideoGestureLayer(
@@ -75,6 +77,7 @@ fun VideoGestureLayer(
     durationMs: Long,
     onSeekBy: (deltaMs: Long) -> Unit,
     onToggleControls: (() -> Unit)? = null,
+    gesturesEnabled: Boolean = true,
 ) {
     if (!isVideo) return
 
@@ -129,7 +132,9 @@ fun VideoGestureLayer(
                     onTap = { onToggleControlsState.value?.invoke() },
                 )
             }
-            .pointerInput(Unit) {
+            .pointerInput(gesturesEnabled) {
+                // 控制栏可见时禁用拖拽（避免与 Slider 争手），仅保留点击
+                if (!gesturesEnabled) return@pointerInput
                 detectDragGestures(
                     onDragStart = { start: Offset ->
                         dragZone = when {

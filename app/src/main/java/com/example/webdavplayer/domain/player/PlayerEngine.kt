@@ -63,12 +63,6 @@ interface PlayerEngine {
      */
     fun getPlayer(): androidx.media3.common.Player?
 
-    /**
-     * 绑定视频渲染 Surface（PlayerSurface 直接绑定 getPlayer() 时由 Media3 自动路由，
-     * 保留此方法仅为兼容旧调用路径）。
-     */
-    fun setVideoSurface(surface: android.view.Surface?)
-
     /** 释放内核资源（切换内核或退出前调用）。 */
     fun release()
 }

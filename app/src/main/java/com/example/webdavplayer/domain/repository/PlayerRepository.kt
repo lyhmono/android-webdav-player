@@ -58,8 +58,5 @@ interface PlayerRepository {
     /** 获取底层 Media3 Player 实例（PlayerSurface 直接绑定渲染，方案 C）。 */
     fun getPlayer(): androidx.media3.common.Player?
 
-    /** 绑定视频渲染 Surface（PlayerSurface → 底层内核）。 */
-    fun setVideoSurface(surface: android.view.Surface?)
-
     fun release()
 }
