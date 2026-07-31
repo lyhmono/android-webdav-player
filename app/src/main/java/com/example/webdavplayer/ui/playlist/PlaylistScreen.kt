@@ -27,6 +27,7 @@ import androidx.compose.material.icons.filled.ClearAll
 import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.DragHandle
 import androidx.compose.material.icons.filled.Equalizer
+import androidx.compose.material.icons.filled.Image
 import androidx.compose.material.icons.filled.PlayArrow
 import androidx.compose.material.icons.filled.VideoLibrary
 import androidx.compose.material3.AlertDialog
@@ -242,6 +243,7 @@ private fun PlaylistRow(
                 when (item.mediaType) {
                     MediaType.VIDEO -> "视频"
                     MediaType.AUDIO -> "音频"
+                    MediaType.IMAGE -> "图片"
                     MediaType.OTHER -> "其他"
                 },
             )
@@ -255,10 +257,11 @@ private fun PlaylistRow(
                 )
             } else {
                 Icon(
-                    if (item.mediaType == MediaType.VIDEO) {
-                        Icons.Filled.VideoLibrary
-                    } else {
-                        Icons.Filled.AudioFile
+                    when (item.mediaType) {
+                        MediaType.VIDEO -> Icons.Filled.VideoLibrary
+                        MediaType.AUDIO -> Icons.Filled.AudioFile
+                        MediaType.IMAGE -> Icons.Filled.Image
+                        MediaType.OTHER -> Icons.Filled.AudioFile
                     },
                     contentDescription = null,
                     tint = if (isCurrent) MaterialTheme.colorScheme.primary

@@ -16,6 +16,11 @@ object MediaConstants {
         "mp3", "flac", "m4a", "aac", "wav", "ogg", "wma", "opus",
     )
 
+    /** 图片扩展名白名单（小写，无点）。 */
+    val IMAGE_EXTENSIONS: Set<String> = setOf(
+        "jpg", "jpeg", "png", "gif", "webp", "bmp", "heic", "heif", "avif", "svg",
+    )
+
     /** 由文件名取小写扩展名（无点）。 */
     fun extensionOf(name: String): String =
         name.substringAfterLast('.', "").lowercase()

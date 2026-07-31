@@ -25,7 +25,7 @@ import javax.inject.Singleton
  * 持有当前 [PlayerEngine]；应用内切换内核 = `release()` 旧 + `Factory.create()` 新
  * + `prepare()` 当前媒体（§1.2）。内核无状态记忆，进度/列表由上层持有。
  *
- * 视频渲染由 media3-ui-compose PlayerSurface 直接绑定 MediaController（方案 B），
+ * 视频渲染由 media3-ui-compose PlayerSurface 直接绑定 [getPlayer] 返回的 ExoPlayer（方案 C），
  * 本仓库不再管理 Surface 生命周期。
  */
 @Singleton
@@ -114,6 +114,8 @@ class PlayerRepositoryImpl @Inject constructor(
     override fun getCurrentPosition(): Long = engine?.getCurrentPosition() ?: 0L
 
     override fun getDurationMs(): Long = engine?.getDurationMs() ?: 0L
+
+    override fun getPlayer(): androidx.media3.common.Player? = engine?.getPlayer()
 
     override fun setVideoSurface(surface: android.view.Surface?) {
         engine?.setVideoSurface(surface)

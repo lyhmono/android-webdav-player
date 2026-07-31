@@ -1,18 +1,14 @@
 package com.example.webdavplayer.ui.player
 
-import android.content.ComponentName
-import android.content.Context
-import androidx.core.content.ContextCompat
+import android.graphics.Bitmap
+import android.graphics.BitmapFactory
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
-import androidx.media3.common.C
-import androidx.media3.common.MediaMetadata
 import androidx.media3.common.Player
-import androidx.media3.common.util.UnstableApi
-import androidx.media3.session.MediaController
-import androidx.media3.session.SessionToken
 import com.example.webdavplayer.common.Result
 import com.example.webdavplayer.data.network.NetworkMonitor
+import com.example.webdavplayer.data.remote.WebDavClient
+import com.example.webdavplayer.domain.model.EngineListener
 import com.example.webdavplayer.domain.model.EngineType
 import com.example.webdavplayer.domain.model.MediaType
 import com.example.webdavplayer.domain.model.PlayMode
@@ -24,37 +20,27 @@ import com.example.webdavplayer.domain.repository.PlayerRepository
 import com.example.webdavplayer.domain.repository.PlaylistRepository
 import com.example.webdavplayer.domain.usecase.ClearProgressUseCase
 import com.example.webdavplayer.domain.usecase.PlayMediaUseCase
-import com.example.webdavplayer.service.PlaybackService
-import com.google.common.util.concurrent.ListenableFuture
 import dagger.hilt.android.lifecycle.HiltViewModel
-import dagger.hilt.android.qualifiers.ApplicationContext
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.Job
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
-import kotlinx.coroutines.delay
-import kotlinx.coroutines.Job
-import kotlinx.coroutines.isActive
+import kotlinx.coroutines.withContext
+import okhttp3.Request
 import javax.inject.Inject
 
 /**
- * 播放页 ViewModel（§6 T09 / C1 改造）。
+ * 播放页 ViewModel（方案 C：视频直连，去掉 MediaSession / MediaController / PlaybackService）。
  *
- * P1 改造：降级为 Media3 [MediaController] 客户端。
- * - 引擎与引擎监听的“唯一拥有者”已移交给 [PlaybackService]（后台播放所需）；
- *   本 VM 不再持有 [com.example.webdavplayer.domain.model.EngineListener]，
- *   也不再在 [onCleared] 中 [PlayerRepository.release]（否则后台播放会被打断）。
- * - 播放状态/进度来自 [MediaController]（会话背后是 [PlaybackService] 的引擎）；
- * - 播放控制命令转发给 [MediaController]（失败时回退到 [PlayerRepository] 直连同一单例引擎）。
- *
-// PlayerView 通过 player = mediaController 绑定渲染，不再需要手动穿透 Surface。
- *
- * 进度与顺序真相源仍在 [PlaylistController]（由观察 PlaylistRepository 驱动）。
+ * - 引擎（ExoPlayerEngine）由 [PlayerRepository] 单例持有，UI 直接操作；
+ * - 视频渲染：PlayerSurface 直接绑定 [PlayerRepository.getPlayer] 返回的 ExoPlayer 实例；
+ * - 播放状态/进度：由引擎 [EngineListener] 回调驱动（ExoPlayerEngine 内部 200ms 进度回调）。
  */
 @HiltViewModel
-@UnstableApi
 class PlayerViewModel @Inject constructor(
     private val playerRepository: PlayerRepository,
     private val playlistRepository: PlaylistRepository,
@@ -62,7 +48,7 @@ class PlayerViewModel @Inject constructor(
     private val playMedia: PlayMediaUseCase,
     private val clearProgress: ClearProgressUseCase,
     private val networkMonitor: NetworkMonitor,
-    @ApplicationContext private val context: Context,
+    private val webDavClient: WebDavClient,
 ) : ViewModel() {
 
     private val _title = MutableStateFlow("")
@@ -84,22 +70,32 @@ class PlayerViewModel @Inject constructor(
     private val _speed = MutableStateFlow(1.0f)
     val speed: StateFlow<Float> = _speed.asStateFlow()
 
-    /** 当前媒体类型（用于视频手势层门控，C4）。 */
+    /** 当前媒体类型（用于视频手势层门控 / 图片查看分支）。 */
     private val _currentMediaType = MutableStateFlow(MediaType.OTHER)
     val currentMediaType: StateFlow<MediaType> = _currentMediaType.asStateFlow()
 
-    /** 当前媒体的可选字幕轨列表（P2，来自 [PlayMediaUseCase] 发现结果）。 */
+    /** 当前媒体的可选字幕轨列表（来自 [PlayMediaUseCase] 发现结果）。 */
     private val _subtitles = MutableStateFlow<List<SubtitleTrack>>(emptyList())
     val subtitles: StateFlow<List<SubtitleTrack>> = _subtitles.asStateFlow()
 
+    /** 底层 ExoPlayer 实例（PlayerSurface 直接绑定渲染；引擎 prepare 后才非空）。 */
+    private val _player = MutableStateFlow<Player?>(null)
+    val player: StateFlow<Player?> = _player.asStateFlow()
+
+    /** 当前图片的 Bitmap（图片查看分支）。 */
+    private val _imageBitmap = MutableStateFlow<Bitmap?>(null)
+    val imageBitmap: StateFlow<Bitmap?> = _imageBitmap.asStateFlow()
+
+    /** 最近一次播放恢复的断点位置（ms）。观看进度已禁用，恒为 null。 */
+    private val _resumedPosition = MutableStateFlow<Long?>(null)
+    val resumedPosition: StateFlow<Long?> = _resumedPosition.asStateFlow()
+
+    /** 当前正在播放的列表项 ID（用于 UI 高亮当前播放项）。 */
+    private val _currentItemId = MutableStateFlow<String?>(null)
+    val currentItemId: StateFlow<String?> = _currentItemId.asStateFlow()
+
     val items: StateFlow<List<PlaylistItem>> = playlistRepository.observeItems()
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
-
-    /** 直连引擎轮询协程（在 MediaController 接管前使用）。 */
-    private var coroutineJob: Job? = null
-
-    /** 当前 playItem 协程（用于防重入取消）。 */
-    private var playJob: Job? = null
 
     val mode: StateFlow<PlayMode> = playlistRepository.observeMode()
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), PlayMode.SEQUENTIAL)
@@ -107,23 +103,38 @@ class PlayerViewModel @Inject constructor(
     /** 网络连接状态（UI 用来显示离线提示）。 */
     val isOnline: StateFlow<Boolean> = networkMonitor.isOnline
 
-    /** 连接到后台 [PlaybackService] 的 MediaSession 的 MediaController。 */
-    private var mediaController: MediaController? = null
-    private val controllerFuture: ListenableFuture<MediaController>
+    /** 当前 playItem 协程（用于防重入取消）。 */
+    private var playJob: Job? = null
 
-    /** MediaController（即 Media3 引擎播放器）。视频渲染由 media3-ui-compose PlayerSurface 直接绑定（方案 B）。 */
-    private val _controller = MutableStateFlow<androidx.media3.common.Player?>(null)
-    val controller: StateFlow<androidx.media3.common.Player?> = _controller.asStateFlow()
+    /** 引擎事件监听（方案 C：直连引擎后由它驱动状态/进度/自然结束）。 */
+    private val engineListener = object : EngineListener {
+        override fun onStateChange(state: PlaybackState) {
+            _state.value = state
+        }
+
+        override fun onProgress(positionMs: Long, durationMs: Long) {
+            _position.value = positionMs
+            if (durationMs > 0) _duration.value = durationMs
+        }
+
+        override fun onEnded() {
+            // 自然结束：按播放模式计算下一首并自动播放（原 PlaybackService 职责）
+            val next = playlistController.onItemEnded()
+            if (next != null) playItem(next) else _state.value = PlaybackState.ENDED
+        }
+
+        override fun onError(throwable: Throwable) {
+            _state.value = PlaybackState.ERROR
+        }
+
+        override fun onVideoSizeChanged(width: Int, height: Int) {
+            // PlayerSurface 自带比例适配，无需手动处理
+        }
+    }
 
     init {
         _engineType.value = playerRepository.getEngineType()
-        val sessionToken = SessionToken(context, ComponentName(context, PlaybackService::class.java))
-        controllerFuture = MediaController.Builder(context, sessionToken).buildAsync()
-        controllerFuture.addListener(
-            { onControllerConnected() },
-            ContextCompat.getMainExecutor(context),
-        )
-
+        playerRepository.setListener(engineListener)
         viewModelScope.launch {
             playlistRepository.observeItems().collect { playlistController.sync(it) }
         }
@@ -132,65 +143,7 @@ class PlayerViewModel @Inject constructor(
         }
     }
 
-    /** MediaController 已连接：注册监听并同步首帧状态。 */
-    @UnstableApi
-    private fun onControllerConnected() {
-        val controller = try {
-            controllerFuture.get()
-        } catch (_: Exception) {
-            return
-        }
-        mediaController = controller
-        _controller.value = controller
-        controller.addListener(playerListener)
-        syncFromController(controller)
-    }
-
-    /** 将 MediaController 的播放状态/进度映射到本 VM 的 StateFlow。 */
-    private fun syncFromController(controller: MediaController) {
-        val pos = controller.currentPosition.coerceAtLeast(0L)
-        val dur = if (controller.duration != C.TIME_UNSET) {
-            controller.duration.coerceAtLeast(0L)
-        } else {
-            0L
-        }
-        _position.value = pos
-        // 仅在 duration 有实际值时更新，避免覆盖 engine 直连轮询的正值
-        if (dur > 0) _duration.value = dur
-        _state.value = mapControllerState(controller)
-        _speed.value = controller.playbackParameters.speed
-        _currentMediaType.value = playlistController.current()?.mediaType ?: MediaType.OTHER
-    }
-
-    /** Media3 Player 状态 → 领域 [PlaybackState]。 */
-    private fun mapControllerState(c: MediaController): PlaybackState = when (c.playbackState) {
-        Player.STATE_IDLE -> PlaybackState.IDLE
-        Player.STATE_BUFFERING -> PlaybackState.PREPARING
-        Player.STATE_READY -> if (c.isPlaying) PlaybackState.PLAYING else PlaybackState.PAUSED
-        Player.STATE_ENDED -> PlaybackState.ENDED
-        else -> PlaybackState.IDLE
-    }
-
-    /** MediaController 事件监听：驱动 UI 状态刷新与标题同步。 */
-    private val playerListener = object : Player.Listener {
-        override fun onEvents(player: Player, events: Player.Events) {
-            syncFromController(player as MediaController)
-        }
-
-        override fun onMediaMetadataChanged(mediaMetadata: MediaMetadata) {
-            mediaMetadata.title?.let { _title.value = it.toString() }
-        }
-    }
-
-    /** 最近一次播放恢复的断点位置（ms），null 表示无断点或从头播放。 */
-    private val _resumedPosition = MutableStateFlow<Long?>(null)
-    val resumedPosition: StateFlow<Long?> = _resumedPosition.asStateFlow()
-
-    /** 当前正在播放的列表项 ID（用于 UI 高亮当前播放项）。 */
-    private val _currentItemId = MutableStateFlow<String?>(null)
-    val currentItemId: StateFlow<String?> = _currentItemId.asStateFlow()
-
-    /** 播放某一列表项（直连共享单例引擎；服务侧监听会回灌状态到 MediaController）。 */
+    /** 播放某一列表项（方案 C：直连引擎，无 MediaController 中转）。 */
     fun playItem(item: PlaylistItem) {
         playJob?.cancel()
         _title.value = item.name
@@ -200,26 +153,38 @@ class PlayerViewModel @Inject constructor(
                 is Result.Success -> {
                     _subtitles.value = r.data.subtitles
                     _resumedPosition.value = r.data.resumedPositionMs
-                    // 在 MediaController 连上之前，从引擎直接轮询进度
-                    startDirectPolling()
+                    if (r.data.mediaType == MediaType.IMAGE) {
+                        // 图片：不走播放引擎，直接下载 Bitmap 展示
+                        loadImage(r.data.uri, r.data.headers)
+                    } else {
+                        _player.value = playerRepository.getPlayer()
+                    }
                 }
                 is Result.Error -> _state.value = PlaybackState.ERROR
             }
         }
     }
 
-    /** 从 [PlayerRepository] 直接轮询进度/状态/视频比例，持续运行不中断。 */
-    private fun startDirectPolling() {
-        coroutineJob?.cancel()
-        coroutineJob = viewModelScope.launch {
-            while (isActive) {
-                val state = playerRepository.getState()
-                if (state != _state.value) _state.value = state
-                _position.value = playerRepository.getCurrentPosition()
-                val dur = playerRepository.getDurationMs()
-                if (dur > 0) _duration.value = dur
-                delay(200)
+    /** 下载 WebDAV 图片并解码为 Bitmap（复用共享 OkHttp：自签信任 + Digest 鉴权）。 */
+    private fun loadImage(uri: String, headers: Map<String, String>) {
+        _imageBitmap.value = null
+        viewModelScope.launch {
+            val bmp = withContext(Dispatchers.IO) {
+                try {
+                    val req = Request.Builder().url(uri)
+                    headers.forEach { (k, v) -> req.header(k, v) }
+                    webDavClient.getOkHttpClient().newCall(req.build()).execute().use { resp ->
+                        if (!resp.isSuccessful) {
+                            null
+                        } else {
+                            resp.body?.byteStream()?.use { BitmapFactory.decodeStream(it) }
+                        }
+                    }
+                } catch (_: Exception) {
+                    null
+                }
             }
+            _imageBitmap.value = bmp
         }
     }
 
@@ -228,77 +193,42 @@ class PlayerViewModel @Inject constructor(
         _resumedPosition.value = null
     }
 
-    fun play() = mediaController?.play() ?: playerRepository.play()
+    fun play() = playerRepository.play()
 
-    fun pause() = mediaController?.pause() ?: playerRepository.pause()
+    fun pause() = playerRepository.pause()
 
-    fun seekTo(ms: Long) = mediaController?.seekTo(ms) ?: playerRepository.seekTo(ms)
+    fun seekTo(ms: Long) = playerRepository.seekTo(ms)
 
     fun togglePlay() {
         if (_state.value == PlaybackState.PLAYING) pause() else play()
     }
 
-    /** 设置播放倍速（优先经 MediaController 统一通道，无控制器时回退直连引擎）。 */
+    /** 设置播放倍速。 */
     fun setSpeed(speed: Float) {
         _speed.value = speed
-        mediaController?.setPlaybackSpeed(speed) ?: playerRepository.setSpeed(speed)
+        playerRepository.setSpeed(speed)
     }
 
     /**
-     * 选择字幕语言（null = 关闭）。优先经 MediaController 统一通道，
-     * 无控制器时回退直连仓库（再转发到内核）。
+     * 选择字幕语言（null = 关闭）。直连引擎设置轨道参数。
      */
     fun selectSubtitle(language: String?) {
-        val controller = mediaController
-        if (controller != null) {
-            val params = controller.trackSelectionParameters.buildUpon()
-            if (language == null) {
-                params.setTrackTypeDisabled(C.TRACK_TYPE_TEXT, true)
-            } else {
-                params.setPreferredTextLanguage(language)
-                    .setTrackTypeDisabled(C.TRACK_TYPE_TEXT, false)
-            }
-            controller.setTrackSelectionParameters(params.build())
-        } else {
-            playerRepository.selectSubtitle(language)
-        }
+        playerRepository.selectSubtitle(language)
     }
 
-    /**
-     * 启用字幕（不指定语言）。用于无语言后缀的字幕（language 为 null）：
-     * 仅解除文本轨禁用，由播放器自动选第一条可用文本轨。优先经 MediaController。
-     */
+    /** 启用字幕（不指定语言，由播放器自动选第一条可用文本轨）。 */
     fun enableSubtitles() {
-        val controller = mediaController
-        if (controller != null) {
-            controller.setTrackSelectionParameters(
-                controller.trackSelectionParameters.buildUpon()
-                    .setTrackTypeDisabled(C.TRACK_TYPE_TEXT, false)
-                    .build(),
-            )
-        } else {
-            playerRepository.enableSubtitles()
-        }
+        playerRepository.enableSubtitles()
     }
 
     fun next() {
-        val controller = mediaController
-        if (controller != null) {
-            controller.seekToNextMediaItem()
-        } else {
-            viewModelScope.launch { playNext() }
-        }
+        viewModelScope.launch { playNext() }
     }
 
     fun previous() {
-        val controller = mediaController
-        if (controller != null) {
-            controller.seekToPreviousMediaItem()
-        } else {
-            viewModelScope.launch {
-                val prev = playlistController.previous()
-                if (prev != null) playItem(prev)
-            }
+        viewModelScope.launch {
+            val prev = playlistController.previous()
+            if (prev != null) playItem(prev)
         }
     }
 
@@ -325,7 +255,6 @@ class PlayerViewModel @Inject constructor(
 
     /**
      * 清除当前项的播放进度断点并“从头播放”（C3 UI 菜单项）。
-     * 先清库，再归零进度并播放。
      */
     fun clearProgressAndRestart() {
         val item = playlistController.current() ?: return
@@ -338,9 +267,7 @@ class PlayerViewModel @Inject constructor(
 
     override fun onCleared() {
         super.onCleared()
-        controllerFuture.cancel(true)
-        // 注意：不再释放 playerRepository 引擎（后台播放依赖其存活）。
-        mediaController?.removeListener(playerListener)
-        mediaController?.release()
+        playJob?.cancel()
+        // 单例引擎由 PlayerRepository 持有；页面退出不释放（重新进入继续复用）。
     }
 }

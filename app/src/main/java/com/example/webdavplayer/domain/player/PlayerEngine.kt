@@ -57,9 +57,15 @@ interface PlayerEngine {
     fun getDurationMs(): Long
 
     /**
-     * 绑定视频渲染 Surface（PlayerSurface 经 MediaSession → EngineMedia3Adapter 转发而来）。
-     * 方案 B：PlayerSurface 绑定 MediaController（SimpleBasePlayer 代理不渲染），
-     * 必须把 Surface 转发给真正解码渲染的底层内核。
+     * 获取底层 Media3 [androidx.media3.common.Player] 实例（供 PlayerSurface 直接绑定渲染）。
+     * 方案 C：UI 直连引擎，不经 MediaSession/MediaController。
+     * 返回 null 表示引擎尚未创建（prepare 前）。
+     */
+    fun getPlayer(): androidx.media3.common.Player?
+
+    /**
+     * 绑定视频渲染 Surface（PlayerSurface 直接绑定 getPlayer() 时由 Media3 自动路由，
+     * 保留此方法仅为兼容旧调用路径）。
      */
     fun setVideoSurface(surface: android.view.Surface?)
 

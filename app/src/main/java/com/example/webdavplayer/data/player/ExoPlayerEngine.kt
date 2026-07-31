@@ -26,7 +26,7 @@ import okhttp3.OkHttpClient
  * Media3 / ExoPlayer 内核实现（§1.2 默认内核）。
  * 仅负责「当前这一条媒体的解码渲染」，进度/列表由上层持有。
  *
- * 视频渲染由 media3-ui-compose PlayerSurface 直接绑定 MediaController（方案 B），
+ * 视频渲染由 media3-ui-compose PlayerSurface 直接绑定 [getPlayer] 返回的 ExoPlayer（方案 C），
  * 本内核不再管理 Surface 生命周期。
  */
 @UnstableApi
@@ -87,12 +87,6 @@ class ExoPlayerEngine(
                 pendingSurface?.let { setVideoSurface(it) }
             }
         }
-    }
-
-    /** 绑定视频渲染 Surface（PlayerSurface 经 MediaSession → [EngineMedia3Adapter] 转发而来）。 */
-    override fun setVideoSurface(surface: Surface?) {
-        pendingSurface = surface
-        player?.setVideoSurface(surface)
     }
 
     /** 注入共享 OkHttp（含自签信任 + 鉴权），供流式数据源使用。 */
@@ -183,6 +177,14 @@ class ExoPlayerEngine(
     override fun getCurrentPosition(): Long = player?.currentPosition ?: 0L
 
     override fun getDurationMs(): Long = player?.duration?.takeIf { it > 0 } ?: 0L
+
+    /** 暴露底层 ExoPlayer 实例（PlayerSurface 直接绑定渲染，方案 C）。 */
+    override fun getPlayer(): Player? = player
+
+    override fun setVideoSurface(surface: Surface?) {
+        pendingSurface = surface
+        player?.setVideoSurface(surface)
+    }
 
     override fun release() {
         stopProgress()

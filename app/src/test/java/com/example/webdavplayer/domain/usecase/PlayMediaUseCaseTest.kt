@@ -57,6 +57,7 @@ class PlayMediaUseCaseTest {
         override fun getState(): PlaybackState = PlaybackState.IDLE
         override fun getCurrentPosition(): Long = 0L
         override fun getDurationMs(): Long = 0L
+        override fun getPlayer(): androidx.media3.common.Player? = null
         override fun setVideoSurface(surface: android.view.Surface?) {}
         override fun release() {}
     }

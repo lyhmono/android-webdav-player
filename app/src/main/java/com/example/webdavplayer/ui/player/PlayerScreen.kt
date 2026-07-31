@@ -5,6 +5,7 @@ package com.example.webdavplayer.ui.player
 import android.content.pm.ActivityInfo
 import androidx.compose.animation.core.tween
 import androidx.compose.foundation.ExperimentalFoundationApi
+import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.combinedClickable
@@ -23,6 +24,7 @@ import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.ArrowBack
 import androidx.compose.material.icons.filled.AudioFile
+import androidx.compose.material.icons.filled.Image as ImageIcon
 import androidx.compose.material.icons.filled.MoreVert
 import androidx.compose.material.icons.filled.Pause
 import androidx.compose.material.icons.filled.PlayArrow
@@ -54,6 +56,7 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
@@ -99,7 +102,7 @@ fun PlayerScreen(
     val currentItemId by playerVm.currentItemId.collectAsStateWithLifecycle()
     val speed by playerVm.speed.collectAsStateWithLifecycle()
     val subtitles by playerVm.subtitles.collectAsStateWithLifecycle()
-    val mediaController by playerVm.controller.collectAsStateWithLifecycle()
+    val player by playerVm.player.collectAsStateWithLifecycle()
     val isPlaying = state == PlaybackState.PLAYING
 
     val configuration = LocalConfiguration.current
@@ -154,10 +157,10 @@ fun PlayerScreen(
     // ===== 视频区：PlayerSurface + 自定义控制层 + 手势层 =====
     Column(Modifier.fillMaxSize().background(MaterialTheme.colorScheme.background)) {
         Box(Modifier.fillMaxWidth().weight(1f).background(Color.Black)) {
-            if (isVideo && mediaController != null) {
-                // 方案 B：Media3 Compose 原生 PlayerSurface
+            if (isVideo && player != null) {
+                // 方案 C：PlayerSurface 直接绑定 ExoPlayer 实例（UI 直连引擎，不经 MediaSession）
                 PlayerSurface(
-                    player = mediaController,
+                    player = player,
                     surfaceType = SURFACE_TYPE_SURFACE_VIEW,
                     modifier = Modifier.fillMaxSize(),
                 )
@@ -218,10 +221,29 @@ fun PlayerScreen(
                         controlsVisible = false
                     }
                 }
-            } else if (isVideo && mediaController == null) {
-                // P6-1：MediaController 异步初始化期间显示 loading
+            } else if (isVideo && player == null) {
+                // 引擎尚未创建（prepare 前）显示 loading
                 Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
                     CircularProgressIndicator(color = Color.White)
+                }
+            } else if (mediaType == MediaType.IMAGE) {
+                // 图片查看：直接展示解码后的 Bitmap
+                val imageBitmap by playerVm.imageBitmap.collectAsStateWithLifecycle()
+                Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
+                    if (imageBitmap != null) {
+                        Image(
+                            bitmap = imageBitmap.asImageBitmap(),
+                            contentDescription = title,
+                            modifier = Modifier
+                                .fillMaxSize()
+                                .clickable(
+                                    interactionSource = remember { androidx.compose.foundation.interaction.MutableInteractionSource() },
+                                    indication = null,
+                                ) { navController.popBackStack() },
+                        )
+                    } else {
+                        CircularProgressIndicator(color = Color.White)
+                    }
                 }
             } else if (!isVideo) {
                 // A5：音频模式也显示标题 + 播放按钮
@@ -310,7 +332,13 @@ fun PlayerScreen(
                                     fontWeight = if (isCurrent) FontWeight.Bold else null)
                             },
                             leadingContent = {
-                                Icon(if (item.mediaType == MediaType.VIDEO) Icons.Filled.VideoLibrary else Icons.Filled.AudioFile,
+                                Icon(
+                                    when (item.mediaType) {
+                                        MediaType.VIDEO -> Icons.Filled.VideoLibrary
+                                        MediaType.AUDIO -> Icons.Filled.AudioFile
+                                        MediaType.IMAGE -> ImageIcon
+                                        MediaType.OTHER -> Icons.Filled.VideoLibrary
+                                    },
                                     null, tint = if (isCurrent) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant)
                             },
                             trailingContent = {
