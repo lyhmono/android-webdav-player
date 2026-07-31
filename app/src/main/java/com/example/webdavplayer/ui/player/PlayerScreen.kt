@@ -229,10 +229,11 @@ fun PlayerScreen(
             } else if (mediaType == MediaType.IMAGE) {
                 // 图片查看：直接展示解码后的 Bitmap
                 val imageBitmap by playerVm.imageBitmap.collectAsStateWithLifecycle()
+                val bmp = imageBitmap
                 Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
-                    if (imageBitmap != null) {
+                    if (bmp != null) {
                         Image(
-                            bitmap = imageBitmap.asImageBitmap(),
+                            bitmap = bmp.asImageBitmap(),
                             contentDescription = title,
                             modifier = Modifier
                                 .fillMaxSize()
@@ -336,7 +337,7 @@ fun PlayerScreen(
                                     when (item.mediaType) {
                                         MediaType.VIDEO -> Icons.Filled.VideoLibrary
                                         MediaType.AUDIO -> Icons.Filled.AudioFile
-                                        MediaType.IMAGE -> ImageIcon
+                                        MediaType.IMAGE -> Icons.Filled.Image
                                         MediaType.OTHER -> Icons.Filled.VideoLibrary
                                     },
                                     null, tint = if (isCurrent) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant)
