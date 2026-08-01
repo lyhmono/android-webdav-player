@@ -132,6 +132,12 @@ fun PlayerScreen(
         }
     }
 
+    // 页面退出时暂停播放——驱动 ExoPlayerEngine onIsPlayingChanged(false) → stopProgress()
+    // 单例引擎继续持有 VM 退出后不再空跑 200ms progressJob 浪费 CPU
+    DisposableEffect(Unit) {
+        onDispose { if (state == PlaybackState.PLAYING) playerVm.pause() }
+    }
+
     var menuExpanded by remember { mutableStateOf(false) }
     var speedMenuExpanded by remember { mutableStateOf(false) }
     var modeMenuExpanded by remember { mutableStateOf(false) }
@@ -178,13 +184,16 @@ fun PlayerScreen(
             if (isVideo && player != null) {
                 // 方案 C：PlayerSurface 直接绑定 ExoPlayer 实例（UI 直连引擎，不经 MediaSession）
                 // aspectRatio 适配：已知视频尺寸时按原始宽高比约束 Surface，避免拉伸变形
+                // 竖屏非全屏：贴顶显示（避免上下大黑边）；横屏全屏：居中（左右等宽黑边）
                 PlayerSurface(
                     player = player,
                     surfaceType = SURFACE_TYPE_SURFACE_VIEW,
                     modifier = if (videoAspect > 0f) {
                         Modifier
                             .aspectRatio(videoAspect)
-                            .align(Alignment.Center)
+                            .align(
+                                if (fullscreen) Alignment.Center else Alignment.TopCenter,
+                            )
                     } else {
                         Modifier.fillMaxSize()
                     },
@@ -529,15 +538,15 @@ private fun AudioProgressBar(
             },
             valueRange = 0f..1f,
             colors = SliderDefaults.colors(
-                thumbColor = MaterialTheme.colorScheme.primary,
-                activeTrackColor = MaterialTheme.colorScheme.primary,
+                thumbColor = Color.White,
+                activeTrackColor = Color.White.copy(alpha = 0.9f),
                 inactiveTrackColor = Color.White.copy(alpha = 0.3f),
             ),
             modifier = Modifier.fillMaxWidth().padding(horizontal = 32.dp),
         )
         Text(
             "${formatDuration(displayPos)} / ${formatDuration(duration)}",
-            color = Color.White,
+            color = Color.White.copy(alpha = 0.85f),
             style = MaterialTheme.typography.labelSmall,
         )
     }
