@@ -86,6 +86,10 @@ class PlayerViewModel @Inject constructor(
     private val _imageBitmap = MutableStateFlow<Bitmap?>(null)
     val imageBitmap: StateFlow<Bitmap?> = _imageBitmap.asStateFlow()
 
+    /** 视频原始宽高比（width/height，0 表示未知/纯音频），用于 PlayerSurface aspectRatio 适配防拉伸。 */
+    private val _videoAspect = MutableStateFlow(0f)
+    val videoAspect: StateFlow<Float> = _videoAspect.asStateFlow()
+
     /** 当前正在播放的列表项 ID（用于 UI 高亮当前播放项）。 */
     private val _currentItemId = MutableStateFlow<String?>(null)
     val currentItemId: StateFlow<String?> = _currentItemId.asStateFlow()
@@ -126,7 +130,7 @@ class PlayerViewModel @Inject constructor(
         }
 
         override fun onVideoSizeChanged(width: Int, height: Int) {
-            // PlayerSurface 自带比例适配，无需手动处理
+            _videoAspect.value = if (height > 0) width.toFloat() / height else 0f
         }
     }
 
@@ -158,6 +162,7 @@ class PlayerViewModel @Inject constructor(
         _player.value = null
         _position.value = 0L
         _duration.value = 0L
+        _videoAspect.value = 0f
         playJob = viewModelScope.launch {
             when (val r = playMedia(item)) {
                 is Result.Success -> {

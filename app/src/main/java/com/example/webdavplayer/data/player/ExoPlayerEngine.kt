@@ -8,6 +8,7 @@ import androidx.media3.common.PlaybackException
 import androidx.media3.common.Player
 import androidx.media3.common.util.UnstableApi
 import androidx.media3.exoplayer.ExoPlayer
+import androidx.media3.exoplayer.DefaultLoadControl
 import com.example.webdavplayer.domain.model.EngineListener
 import com.example.webdavplayer.domain.model.PlayableMedia
 import com.example.webdavplayer.domain.model.PlaybackState
@@ -78,10 +79,17 @@ class ExoPlayerEngine(
 
     private fun ensurePlayer() {
         if (player == null) {
-            player = ExoPlayer.Builder(context).build().apply {
-                addListener(playerListener)
-                videoScalingMode = C.VIDEO_SCALING_MODE_SCALE_TO_FIT
-            }
+            // LoadControl：WebDAV 流式播放需要较大缓冲区避免频繁卡顿
+            // minBuffer 50s / maxBuffer 150s / playbackBuffer 2.5s / backBuffer 30s
+            val loadControl = DefaultLoadControl.Builder()
+                .setBufferDurationsMs(50_000, 150_000, 2_500, 30_000)
+                .build()
+            player = ExoPlayer.Builder(context)
+                .setLoadControl(loadControl)
+                .build().apply {
+                    addListener(playerListener)
+                    videoScalingMode = C.VIDEO_SCALING_MODE_SCALE_TO_FIT
+                }
         }
     }
 

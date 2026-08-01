@@ -20,6 +20,10 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.aspectRatio
+import androidx.compose.foundation.layout.WindowInsets
+import androidx.compose.foundation.layout.statusBars
+import androidx.compose.foundation.layout.asPaddingValues
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
@@ -105,6 +109,7 @@ fun PlayerScreen(
     val speed by playerVm.speed.collectAsStateWithLifecycle()
     val subtitles by playerVm.subtitles.collectAsStateWithLifecycle()
     val player by playerVm.player.collectAsStateWithLifecycle()
+    val videoAspect by playerVm.videoAspect.collectAsStateWithLifecycle()
     val isPlaying = state == PlaybackState.PLAYING
 
     var isFullScreen by remember { mutableStateOf(false) }
@@ -156,14 +161,33 @@ fun PlayerScreen(
     ImmersiveModeEffect(enabled = fullscreen)
 
     // ===== 视频区：PlayerSurface + 自定义控制层 + 手势层 =====
+    // 非全屏时尊重状态栏；全屏沉浸式时贴边铺满
+    val statusBarsTop = WindowInsets.statusBars.asPaddingValues().calculateTopPadding()
+
     Column(Modifier.fillMaxSize().background(MaterialTheme.colorScheme.background)) {
-        Box(Modifier.fillMaxWidth().weight(1f).background(Color.Black)) {
+        Box(
+            Modifier
+                .fillMaxWidth()
+                .weight(1f)
+                .background(Color.Black)
+                .then(
+                    if (fullscreen) Modifier
+                    else Modifier.padding(top = statusBarsTop),
+                ),
+        ) {
             if (isVideo && player != null) {
                 // 方案 C：PlayerSurface 直接绑定 ExoPlayer 实例（UI 直连引擎，不经 MediaSession）
+                // aspectRatio 适配：已知视频尺寸时按原始宽高比约束 Surface，避免拉伸变形
                 PlayerSurface(
                     player = player,
                     surfaceType = SURFACE_TYPE_SURFACE_VIEW,
-                    modifier = Modifier.fillMaxSize(),
+                    modifier = if (videoAspect > 0f) {
+                        Modifier
+                            .aspectRatio(videoAspect)
+                            .align(Alignment.Center)
+                    } else {
+                        Modifier.fillMaxSize()
+                    },
                 )
 
                 // 手势层（亮度/音量/快进退 + 点击切换控制栏）— 横竖屏统一启用（#18）
