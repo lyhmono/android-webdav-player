@@ -44,12 +44,11 @@ import androidx.compose.ui.unit.dp
 import com.example.webdavplayer.ui.common.findActivity
 import com.example.webdavplayer.ui.theme.Spacing
 import kotlin.math.roundToInt
-import kotlinx.coroutines.delay
 
 /**
  * 视频手势层（C4 / §7）。
  *
- * 仅在视频 + 横屏/全屏时叠加（门控在 [com.example.webdavplayer.ui.player.PlayerScreen]）。
+ * 视频播放时叠加（横竖屏统一启用，门控在 [com.example.webdavplayer.ui.player.PlayerScreen]）。
  * 三层手势分区：
  * - 左半屏上下拖拽 → 调节亮度（[Window.LayoutParams.screenBrightness]）；
  * - 右半屏上下拖拽 → 调节音量（[AudioManager.STREAM_MUSIC]）；
@@ -64,7 +63,6 @@ import kotlinx.coroutines.delay
  *
  * @param modifier 视频区 Modifier（由 PlayerScreen 传入，限定本层覆盖区域）。
  * @param isVideo 当前是否为视频（非视频不消费手势，直接返回）。
- * @param durationMs 当前媒体总时长（用于把横向位移换算成毫秒增量）。
  * @param onSeekBy 快进/快退增量（毫秒，正数前进/负数后退）。
  * @param onToggleControls 单击视频区时切换控制栏显隐（方案 B：U1 修复）。
  * @param gesturesEnabled 是否启用拖拽手势（亮度/音量/快进退）。控制栏可见时为 false——
@@ -74,7 +72,6 @@ import kotlinx.coroutines.delay
 fun VideoGestureLayer(
     modifier: Modifier = Modifier,
     isVideo: Boolean,
-    durationMs: Long,
     onSeekBy: (deltaMs: Long) -> Unit,
     onToggleControls: (() -> Unit)? = null,
     gesturesEnabled: Boolean = true,
@@ -101,8 +98,7 @@ fun VideoGestureLayer(
         mutableIntStateOf(audioManager?.getStreamVolume(AudioManager.STREAM_MUSIC) ?: 0)
     }
 
-    // 使用 rememberUpdatedState，确保手势闭包始终读取最新的时长与回调（pointerInput(Unit) 不会重订阅）。
-    val durationMsState = rememberUpdatedState(durationMs)
+    // 使用 rememberUpdatedState，确保手势闭包始终读取最新的回调（pointerInput(Unit) 不会重订阅）。
     val onSeekByState = rememberUpdatedState(onSeekBy)
     val onToggleControlsState = rememberUpdatedState(onToggleControls)
 
@@ -114,13 +110,16 @@ fun VideoGestureLayer(
     var hudIcon by remember { mutableStateOf<ImageVector>(Icons.Filled.BrightnessMedium) }
     var hudText by remember { mutableStateOf("") }
     var hudProgress by remember { mutableFloatStateOf(-1f) }
-    var hudHideToken by remember { mutableIntStateOf(0) }
+    // #16：用「最近手势时间戳」替代 token++——常驻轮询避免每帧重启 LaunchedEffect
+    var hudLastAt by remember { mutableStateOf(0L) }
 
-    // 每次手势变动都会使 hudHideToken 自增，从而重置「松手后淡出」计时。
-    LaunchedEffect(hudHideToken) {
-        if (hudHideToken > 0) {
-            delay(HUD_AUTO_HIDE_MS)
-            hudVisible = false
+    LaunchedEffect(Unit) {
+        // 常驻守护协程，240ms 一次检查：超过 HUD_AUTO_HIDE_MS 无手势就淡出
+        while (true) {
+            kotlinx.coroutines.delay(HUD_CHECK_INTERVAL_MS)
+            if (hudVisible && System.currentTimeMillis() - hudLastAt > HUD_AUTO_HIDE_MS) {
+                hudVisible = false
+            }
         }
     }
 
@@ -157,7 +156,7 @@ fun VideoGestureLayer(
                                 hudText = "${(brightness * 100).toInt()}%"
                                 hudProgress = brightness
                                 hudVisible = true
-                                hudHideToken++
+                                hudLastAt = System.currentTimeMillis()
                             }
                             ZONE_VOLUME -> {
                                 if (maxVolume > 0) {
@@ -173,23 +172,19 @@ fun VideoGestureLayer(
                                     hudText = "$volume"
                                     hudProgress = volume.toFloat() / maxVolume
                                     hudVisible = true
-                                    hudHideToken++
+                                    hudLastAt = System.currentTimeMillis()
                                 }
                             }
                             ZONE_SEEK -> {
-                                val dur = durationMsState.value
-                                val msPerPx = if (dur > 0) {
-                                    dur.toFloat() / size.width.toFloat()
-                                } else {
-                                    0f
-                                }
+                                // #7：满屏拖动 = 90 秒增量，不再随媒体时长线性放大（B 站/YouTube 同款）
+                                val msPerPx = SEEK_FULL_SCREEN_MS / size.width.toFloat()
                                 val deltaMs = (dragAmount.x * msPerPx).toLong()
                                 onSeekByState.value(deltaMs)
                                 hudIcon = if (dragAmount.x >= 0f) Icons.Filled.FastForward else Icons.Filled.Replay
                                 hudText = formatHudTime(deltaMs)
                                 hudProgress = -1f
                                 hudVisible = true
-                                hudHideToken++
+                                hudLastAt = System.currentTimeMillis()
                             }
                             else -> Unit
                         }
@@ -240,8 +235,14 @@ private const val ZONE_SEEK = 2
 /** 一次满屏高度拖拽对应的最大亮度变化量。 */
 private const val BRIGHTNESS_STEP = 0.5f
 
+/** #7：底部横向拖拽满屏对应的 seek 增量（毫秒）= 90 秒（B 站/YouTube 同款手感）。 */
+private const val SEEK_FULL_SCREEN_MS = 90_000L
+
 /** HUD 松手后自动隐藏的延迟（毫秒）。 */
 private const val HUD_AUTO_HIDE_MS = 800L
+
+/** HUD 守护协程检查间隔：240ms，足够及时隐藏又不必高频轮询。 */
+private const val HUD_CHECK_INTERVAL_MS = 240L
 
 /** HUD 淡入时长（毫秒）。 */
 private const val HUD_FADE_IN_MS = 150

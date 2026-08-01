@@ -26,6 +26,10 @@ import androidx.compose.material3.Slider
 import androidx.compose.material3.SliderDefaults
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
@@ -43,19 +47,18 @@ import com.example.webdavplayer.ui.common.formatDuration
  *
  * 显隐由父组件 [AnimatedVisibility] 控制。
  *
- * 进度条的拖动状态由**调用方（PlayerScreen）持有**——本组件不维护内部 seekPosition，
- * 拖动时通过 [onSeeking] 实时上报，松手时通过 [onSeekFinished] 通知调用方完成 seek。
+ * #9/#10：进度位置 [positionState] 与拖动状态 [seekPosition] 由本组件**内部持有**——
+ * 避免 200ms progress 回调与 60fps onValueChange 触发父级 [PlayerScreen] 整体重组。
  */
 @Composable
 fun PlayerControls(
     title: String,
     isPlaying: Boolean,
-    positionMs: Long,
-    durationMs: Long,
+    positionState: androidx.compose.runtime.State<Long>,
+    durationState: androidx.compose.runtime.State<Long>,
     onBack: () -> Unit,
     onTogglePlay: () -> Unit,
-    onSeeking: (Long) -> Unit = {},
-    onSeekFinished: () -> Unit = {},
+    onSeekRequested: (Long) -> Unit,
     onPrev: () -> Unit,
     onNext: () -> Unit,
     onMore: () -> Unit,
@@ -63,6 +66,12 @@ fun PlayerControls(
     isFullscreen: Boolean = false,
     modifier: Modifier = Modifier,
 ) {
+    // #9/#10：拖动状态封装在子组件内部，父组件不订阅 position——重组范围限定在本组件
+    var seekPosition by remember { mutableStateOf<Long?>(null) }
+    val position = positionState.value
+    val duration = durationState.value
+    val displayPos = seekPosition ?: position
+
     Box(modifier.fillMaxSize().background(Color.Black.copy(alpha = 0.4f))) {
         // 顶部
         Row(
@@ -131,13 +140,17 @@ fun PlayerControls(
                 .padding(horizontal = 16.dp, vertical = 12.dp),
         ) {
             Slider(
-                // 单一数据源：positionMs 已由调用方合并拖动中的 seekPosition
-                value = if (durationMs > 0) (positionMs.toFloat() / durationMs).coerceIn(0f, 1f) else 0f,
+                // 单一数据源：displayPos 合并了拖动中的 seekPosition 与底层 position
+                value = if (duration > 0) (displayPos.toFloat() / duration).coerceIn(0f, 1f) else 0f,
                 onValueChange = { ratio ->
-                    if (durationMs > 0) onSeeking((ratio * durationMs).toLong())
+                    if (duration > 0) seekPosition = (ratio * duration).toLong()
                 },
                 onValueChangeFinished = {
-                    if (durationMs > 0) onSeekFinished()
+                    if (duration > 0) {
+                        val final = seekPosition ?: position
+                        seekPosition = null
+                        onSeekRequested(final)
+                    }
                 },
                 valueRange = 0f..1f,
                 colors = SliderDefaults.colors(
@@ -150,8 +163,8 @@ fun PlayerControls(
                 modifier = Modifier.fillMaxWidth(),
                 horizontalArrangement = Arrangement.SpaceBetween,
             ) {
-                Text(formatDuration(positionMs), color = Color.White, style = MaterialTheme.typography.labelSmall)
-                Text(formatDuration(durationMs), color = Color.White, style = MaterialTheme.typography.labelSmall)
+                Text(formatDuration(displayPos), color = Color.White, style = MaterialTheme.typography.labelSmall)
+                Text(formatDuration(duration), color = Color.White, style = MaterialTheme.typography.labelSmall)
             }
         }
     }

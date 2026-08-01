@@ -9,6 +9,7 @@ import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.combinedClickable
+import androidx.compose.foundation.gestures.detectHorizontalDragGestures
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -58,7 +59,9 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.asImageBitmap
+import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
@@ -92,8 +95,8 @@ fun PlayerScreen(
 ) {
     val title by playerVm.title.collectAsStateWithLifecycle()
     val state by playerVm.state.collectAsStateWithLifecycle()
-    val position by playerVm.position.collectAsStateWithLifecycle()
-    val duration by playerVm.duration.collectAsStateWithLifecycle()
+    // #9: 不在父级订阅 position/duration——只在 PlayerControls / AudioProgressBar 内部订阅
+    //   原代码 200ms 进度回调让整个 PlayerScreen 重组（含 PlayerSurface）
     val items by playerVm.items.collectAsStateWithLifecycle()
     val mode by playerVm.mode.collectAsStateWithLifecycle()
     val mediaType by playerVm.currentMediaType.collectAsStateWithLifecycle()
@@ -132,8 +135,6 @@ fun PlayerScreen(
 
     // 控制栏显隐（默认隐藏：点击视频框只切换控制栏，不误触播放/暂停按钮）
     var controlsVisible by rememberSaveable { mutableStateOf(false) }
-    // 进度条拖动的临时位置（A3 防抖，拖动中仅更新显示，松手才真正 seek）
-    var seekPosition by remember { mutableStateOf<Long?>(null) }
     // U2：自动隐藏 token——每次用户交互（点视频区/点控制栏按钮）都自增，重置 3 秒计时
     var controlsHideToken by remember { mutableStateOf(0) }
 
@@ -169,11 +170,13 @@ fun PlayerScreen(
                 VideoGestureLayer(
                     modifier = Modifier.fillMaxSize(),
                     isVideo = true,
-                    durationMs = duration,
                     // #17：控制栏可见时禁用拖拽（避免与进度条 Slider 争手），点击切换保留
                     gesturesEnabled = !controlsVisible,
+                    // #9: 不再依赖外层 position 变量——直接同步读 StateFlow 当前值
                     onSeekBy = { delta ->
-                        playerVm.seekTo((position + delta).coerceIn(0, duration.coerceAtLeast(1)))
+                        val cur = playerVm.position.value
+                        val dur = playerVm.duration.value
+                        playerVm.seekTo((cur + delta).coerceIn(0, dur.coerceAtLeast(1)))
                     },
                     onToggleControls = {
                         controlsVisible = !controlsVisible
@@ -190,17 +193,13 @@ fun PlayerScreen(
                     PlayerControls(
                         title = title,
                         isPlaying = isPlaying,
-                        positionMs = seekPosition ?: position,
-                        durationMs = duration,
+                        // #9：传入 State 而非值——position 变化只重组 PlayerControls 内部，不波及父级
+                        positionState = playerVm.position.collectAsStateWithLifecycle(),
+                        durationState = playerVm.duration.collectAsStateWithLifecycle(),
                         onBack = { navController.popBackStack() },
                         onTogglePlay = { playerVm.togglePlay(); controlsHideToken++ },
-                        // #10：拖动过程只更新显示位置，不重置自动隐藏计时（onValueChange 高频触发）
-                        onSeeking = { seekPosition = it },
-                        onSeekFinished = {
-                            playerVm.seekTo(seekPosition ?: position)
-                            seekPosition = null
-                            controlsHideToken++
-                        },
+                        // #10：拖动状态在 PlayerControls 内部——onSeekFinished 才回调真正 seek
+                        onSeekRequested = { playerVm.seekTo(it); controlsHideToken++ },
                         onPrev = { playerVm.previous(); controlsHideToken++ },
                         onNext = { playerVm.next(); controlsHideToken++ },
                         onMore = { menuExpanded = true; controlsHideToken++ },
@@ -285,13 +284,45 @@ fun PlayerScreen(
                                 style = MaterialTheme.typography.titleMedium,
                                 maxLines = 1,
                                 overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis,
+                                modifier = Modifier.weight(1f),
                             )
+                            // #21：图片顶栏也暴露更多按钮（复用根级 DropdownMenu）
+                            IconButton(
+                                onClick = {
+                                    menuExpanded = true
+                                    controlsHideToken++
+                                },
+                            ) {
+                                Icon(Icons.Filled.MoreVert, "更多", tint = Color.White)
+                            }
                         }
                     }
                 }
             } else if (!isVideo && currentItemId != null) {
-                // A5：音频模式也显示标题 + 播放按钮
-                Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
+                // A5：音频模式也显示标题 + 播放按钮；左右滑动切上一首/下一首（#23）
+                val density = LocalDensity.current
+                var dragAccum by remember { mutableStateOf(0f) }
+                Box(
+                    Modifier
+                        .fillMaxSize()
+                        .pointerInput(Unit) {
+                            detectHorizontalDragGestures(
+                                onDragStart = { dragAccum = 0f },
+                                onHorizontalDrag = { _, dragAmount ->
+                                    dragAccum += dragAmount
+                                    val threshold = with(density) { 80.dp.toPx() }
+                                    if (dragAccum > threshold) {
+                                        playerVm.next()
+                                        dragAccum = 0f
+                                    } else if (dragAccum < -threshold) {
+                                        playerVm.previous()
+                                        dragAccum = 0f
+                                    }
+                                },
+                            )
+                        },
+                    contentAlignment = Alignment.Center,
+                ) {
                     Column(horizontalAlignment = Alignment.CenterHorizontally) {
                         Icon(Icons.Filled.AudioFile, "音频", modifier = Modifier.size(100.dp), tint = Color.White.copy(alpha = 0.25f))
                         Spacer(Modifier.height(16.dp))
@@ -308,26 +339,12 @@ fun PlayerScreen(
                                 tint = Color.White,
                             )
                         }
-                        // 音频进度条
-                        if (duration > 0) {
-                            Slider(
-                                value = if (duration > 0) (seekPosition ?: position).toFloat() / duration else 0f,
-                                onValueChange = { ratio -> seekPosition = (ratio * duration).toLong() },
-                                onValueChangeFinished = { val finalPos = seekPosition ?: position; seekPosition = null; playerVm.seekTo(finalPos) },
-                                valueRange = 0f..1f,
-                                colors = SliderDefaults.colors(
-                                    thumbColor = MaterialTheme.colorScheme.primary,
-                                    activeTrackColor = MaterialTheme.colorScheme.primary,
-                                    inactiveTrackColor = Color.White.copy(alpha = 0.3f),
-                                ),
-                                modifier = Modifier.fillMaxWidth().padding(horizontal = 32.dp),
-                            )
-                            Text(
-                                "${formatDuration(seekPosition ?: position)} / ${formatDuration(duration)}",
-                                color = Color.White,
-                                style = MaterialTheme.typography.labelSmall,
-                            )
-                        }
+                        // 音频进度条（#9/#10：独立组件，内部订阅 position/duration，避免父级重组）
+                        AudioProgressBar(
+                            positionState = playerVm.position.collectAsStateWithLifecycle(),
+                            durationState = playerVm.duration.collectAsStateWithLifecycle(),
+                            onSeekRequested = { playerVm.seekTo(it) },
+                        )
                     }
                 }
             } else {
@@ -460,4 +477,44 @@ fun PlayerScreen(
 @Composable
 private fun SubtitleChoiceRow(label: String, onClick: () -> Unit) {
     ListItem(headlineContent = { Text(label) }, modifier = Modifier.fillMaxWidth().clickable(onClick = onClick))
+}
+
+/**
+ * #9/#10：音频模式竖屏进度条——独立 Composable，内部订阅 position/duration + seekPosition。
+ * 父级 PlayerScreen 不再订阅 position，避免 200ms 进度回调触发整体重组。
+ */
+@Composable
+private fun AudioProgressBar(
+    positionState: androidx.compose.runtime.State<Long>,
+    durationState: androidx.compose.runtime.State<Long>,
+    onSeekRequested: (Long) -> Unit,
+) {
+    var seekPosition by remember { mutableStateOf<Long?>(null) }
+    val position = positionState.value
+    val duration = durationState.value
+    val displayPos = seekPosition ?: position
+
+    if (duration > 0) {
+        Slider(
+            value = (displayPos.toFloat() / duration).coerceIn(0f, 1f),
+            onValueChange = { ratio -> seekPosition = (ratio * duration).toLong() },
+            onValueChangeFinished = {
+                val final = seekPosition ?: position
+                seekPosition = null
+                onSeekRequested(final)
+            },
+            valueRange = 0f..1f,
+            colors = SliderDefaults.colors(
+                thumbColor = MaterialTheme.colorScheme.primary,
+                activeTrackColor = MaterialTheme.colorScheme.primary,
+                inactiveTrackColor = Color.White.copy(alpha = 0.3f),
+            ),
+            modifier = Modifier.fillMaxWidth().padding(horizontal = 32.dp),
+        )
+        Text(
+            "${formatDuration(displayPos)} / ${formatDuration(duration)}",
+            color = Color.White,
+            style = MaterialTheme.typography.labelSmall,
+        )
+    }
 }
