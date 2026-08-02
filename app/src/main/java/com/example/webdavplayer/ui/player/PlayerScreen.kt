@@ -8,7 +8,6 @@ import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
-import androidx.compose.foundation.combinedClickable
 import androidx.compose.foundation.gestures.detectHorizontalDragGestures
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -76,6 +75,7 @@ import androidx.navigation.NavHostController
 import com.example.webdavplayer.domain.model.MediaType
 import com.example.webdavplayer.domain.model.PlayMode
 import com.example.webdavplayer.domain.model.PlaybackState
+import com.example.webdavplayer.ui.common.MediaCard
 import com.example.webdavplayer.ui.common.SectionHeader
 import com.example.webdavplayer.ui.common.findActivity
 import com.example.webdavplayer.ui.common.formatDuration
@@ -432,29 +432,37 @@ fun PlayerScreen(
                 } else {
                     items.forEach { item ->
                         val isCurrent = item.id == currentItemId
-                        ListItem(
-                            headlineContent = {
-                                Text(item.name, color = if (isCurrent) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurface,
-                                    fontWeight = if (isCurrent) FontWeight.Bold else null)
-                            },
-                            leadingContent = {
-                                Icon(
-                                    when (item.mediaType) {
-                                        MediaType.VIDEO -> Icons.Filled.VideoLibrary
-                                        MediaType.AUDIO -> Icons.Filled.AudioFile
-                                        MediaType.IMAGE -> Icons.Filled.Photo
-                                        MediaType.OTHER -> Icons.Filled.VideoLibrary
-                                    },
-                                    null, tint = if (isCurrent) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant)
-                            },
-                            trailingContent = {
-                                if (isCurrent && isPlaying) Icon(Icons.Filled.PlayArrow, "正在播放", tint = MaterialTheme.colorScheme.primary)
-                            },
-                            modifier = Modifier.fillMaxWidth().combinedClickable(
-                                onClick = { playerVm.playItem(item) },
-                                onLongClick = { playlistVm.removeItem(item.id) },
-                            ),
-                        )
+                        MediaCard(
+                            selected = isCurrent,
+                            onClick = { playerVm.playItem(item) },
+                            onLongClick = { playlistVm.removeItem(item.id) },
+                            modifier = Modifier.fillMaxWidth(),
+                        ) {
+                            Icon(
+                                when (item.mediaType) {
+                                    MediaType.VIDEO -> Icons.Filled.VideoLibrary
+                                    MediaType.AUDIO -> Icons.Filled.AudioFile
+                                    MediaType.IMAGE -> Icons.Filled.Photo
+                                    MediaType.OTHER -> Icons.Filled.VideoLibrary
+                                },
+                                null,
+                                tint = if (isCurrent) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant,
+                            )
+                            Column(Modifier.weight(1f)) {
+                                Text(
+                                    item.name,
+                                    color = if (isCurrent) MaterialTheme.colorScheme.onPrimaryContainer
+                                        else MaterialTheme.colorScheme.onSurface,
+                                    fontWeight = if (isCurrent) FontWeight.Medium else null,
+                                    style = MaterialTheme.typography.titleSmall,
+                                    maxLines = 1,
+                                    overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis,
+                                )
+                            }
+                            if (isCurrent && isPlaying) {
+                                Icon(Icons.Filled.PlayArrow, "正在播放", tint = MaterialTheme.colorScheme.primary)
+                            }
+                        }
                     }
                 }
                 Spacer(Modifier.height(Spacing.lg))

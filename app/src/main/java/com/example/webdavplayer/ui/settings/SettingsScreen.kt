@@ -18,7 +18,6 @@ import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.FilterChip
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
-import androidx.compose.material3.ListItem
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
@@ -33,6 +32,7 @@ import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.navigation.NavHostController
 import com.example.webdavplayer.domain.model.EngineType
 import com.example.webdavplayer.domain.model.TrustedCert
+import com.example.webdavplayer.ui.common.MediaCard
 import com.example.webdavplayer.ui.common.SectionHeader
 import com.example.webdavplayer.domain.common.FileFormatter
 import com.example.webdavplayer.domain.model.CachedMedia
@@ -138,16 +138,22 @@ private fun CertRow(
     onRemove: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
-    ListItem(
-        headlineContent = { Text(cert.serverId) },
-        supportingContent = { Text("颁发者：${cert.issuer}") },
-        trailingContent = {
-            IconButton(onClick = onRemove) {
-                Icon(Icons.Filled.Delete, "移除")
-            }
-        },
-        modifier = modifier.fillMaxWidth(),
-    )
+    MediaCard(
+        onClick = null,
+        modifier = modifier,
+    ) {
+        Column(Modifier.weight(1f)) {
+            Text(cert.serverId, style = MaterialTheme.typography.titleSmall)
+            Text(
+                "颁发者：${cert.issuer}",
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+            )
+        }
+        IconButton(onClick = onRemove) {
+            Icon(Icons.Filled.Delete, "移除")
+        }
+    }
 }
 
 @Composable
@@ -156,16 +162,25 @@ private fun CachedRow(
     onRemove: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
-    ListItem(
-        headlineContent = { Text(cached.name) },
-        supportingContent = { Text("${FileFormatter.formatSize(cached.size)} · ${cached.path}") },
-        trailingContent = {
-            IconButton(onClick = onRemove) {
-                Icon(Icons.Filled.Delete, "删除缓存")
-            }
-        },
-        modifier = modifier.fillMaxWidth(),
-    )
+    MediaCard(
+        onClick = null,
+        modifier = modifier,
+    ) {
+        Column(Modifier.weight(1f)) {
+            Text(cached.name, style = MaterialTheme.typography.titleSmall, maxLines = 1,
+                overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis)
+            Text(
+                "${FileFormatter.formatSize(cached.size)} · ${cached.path}",
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                maxLines = 1,
+                overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis,
+            )
+        }
+        IconButton(onClick = onRemove) {
+            Icon(Icons.Filled.Delete, "删除缓存")
+        }
+    }
 }
 
 // engineLabel 已抽取到 ui.common.Labels
