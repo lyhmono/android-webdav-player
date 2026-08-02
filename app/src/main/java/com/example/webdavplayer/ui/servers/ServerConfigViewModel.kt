@@ -6,7 +6,6 @@ import androidx.lifecycle.viewModelScope
 import com.example.webdavplayer.common.Result
 import com.example.webdavplayer.data.log.AppLogger
 import com.example.webdavplayer.domain.exception.CertUntrustedException
-import com.example.webdavplayer.domain.model.AuthType
 import com.example.webdavplayer.domain.model.ServerConfig
 import com.example.webdavplayer.domain.model.TrustedCert
 import com.example.webdavplayer.domain.usecase.ManageServerUseCase

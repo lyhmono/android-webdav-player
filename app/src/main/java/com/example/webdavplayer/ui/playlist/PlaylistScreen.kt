@@ -45,7 +45,6 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.navigation.NavHostController
 import com.example.webdavplayer.domain.model.MediaType
@@ -53,7 +52,7 @@ import com.example.webdavplayer.domain.model.PlayMode
 import com.example.webdavplayer.domain.model.PlaybackState
 import com.example.webdavplayer.domain.model.PlaylistItem
 import com.example.webdavplayer.ui.common.MediaCard
-import com.example.webdavplayer.ui.common.SectionHeader
+import com.example.webdavplayer.ui.common.SectionCard
 import com.example.webdavplayer.ui.common.modeLabel
 import com.example.webdavplayer.ui.player.PlayerViewModel
 import com.example.webdavplayer.ui.theme.Spacing
@@ -100,14 +99,18 @@ fun PlaylistScreen(
             horizontalAlignment = Alignment.CenterHorizontally,
             verticalArrangement = Arrangement.spacedBy(Spacing.md),
         ) {
-            SectionHeader("播放模式")
-            Row(horizontalArrangement = Arrangement.spacedBy(Spacing.xs)) {
-                PlayMode.values().forEach { m ->
-                    FilterChip(
-                        selected = mode == m,
-                        onClick = { playlistVm.setMode(m) },
-                        label = { Text(modeLabel(m)) },
-                    )
+            SectionCard(title = "播放模式") {
+                Row(
+                    Modifier.padding(Spacing.md),
+                    horizontalArrangement = Arrangement.spacedBy(Spacing.xs),
+                ) {
+                    PlayMode.values().forEach { m ->
+                        FilterChip(
+                            selected = mode == m,
+                            onClick = { playlistVm.setMode(m) },
+                            label = { Text(modeLabel(m)) },
+                        )
+                    }
                 }
             }
 
@@ -137,7 +140,7 @@ fun PlaylistScreen(
                     LazyColumn(
                         state = listState,
                         modifier = Modifier.fillMaxSize(),
-                        verticalArrangement = Arrangement.spacedBy(Spacing.xs),
+                        verticalArrangement = Arrangement.spacedBy(Spacing.sm),
                     ) {
                     itemsIndexed(items, key = { _, item -> item.id }) { index, item ->
                         val isCurrent = item.id == currentItemId

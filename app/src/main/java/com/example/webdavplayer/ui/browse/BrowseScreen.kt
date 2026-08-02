@@ -29,7 +29,6 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.ArrowBack
 import androidx.compose.material.icons.filled.ArrowDownward
 import androidx.compose.material.icons.filled.ArrowUpward
-import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.Folder
 import androidx.compose.material.icons.filled.Clear
 import androidx.compose.material.icons.filled.InsertDriveFile
@@ -499,7 +498,7 @@ private fun FileList(
     LazyColumn(
         Modifier.fillMaxSize(),
         contentPadding = PaddingValues(Spacing.md),
-        verticalArrangement = Arrangement.spacedBy(Spacing.xs),
+        verticalArrangement = Arrangement.spacedBy(Spacing.sm),
     ) {
         items(
             count = files.size,
@@ -527,7 +526,7 @@ private fun FileList(
     LazyColumn(
         Modifier.fillMaxSize(),
         contentPadding = PaddingValues(Spacing.md),
-        verticalArrangement = Arrangement.spacedBy(Spacing.xs),
+        verticalArrangement = Arrangement.spacedBy(Spacing.sm),
     ) {
         items(
             count = count,

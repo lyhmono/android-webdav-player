@@ -21,9 +21,7 @@ import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Brush
-import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.unit.dp
 import com.example.webdavplayer.ui.theme.Spacing
 
@@ -67,7 +65,7 @@ fun MediaCard(
         Row(
             modifier = Modifier
                 .fillMaxWidth()
-                .padding(horizontal = Spacing.md, vertical = Spacing.sm + 2.dp),
+                .padding(horizontal = Spacing.md, vertical = 10.dp),
             verticalAlignment = Alignment.CenterVertically,
             horizontalArrangement = Arrangement.spacedBy(Spacing.md),
             content = content,
@@ -114,8 +112,7 @@ fun MediaTopBar(
                     0f to bg.copy(alpha = 0.98f),
                     1f to bg.copy(alpha = 0.85f),
                 )
-            )
-            .clip(RoundedCornerShape(bottomStart = 0.dp, bottomEnd = 0.dp)),
+            ),
     ) {
         Row(
             modifier = Modifier
