@@ -141,12 +141,10 @@ fun PlaylistScreen(
                     ) {
                     itemsIndexed(items, key = { _, item -> item.id }) { index, item ->
                         val isCurrent = item.id == currentItemId
-                        val isDragging = dragFrom == index
                         PlaylistRow(
                             item = item,
                             isCurrent = isCurrent,
                             isPlaying = isCurrent && playerState == PlaybackState.PLAYING,
-                            isDragging = isDragging,
                             modifier = Modifier
                                 .fillMaxWidth()
                                 .animateItemPlacement(),
@@ -213,7 +211,6 @@ private fun PlaylistRow(
     modifier: Modifier = Modifier,
     isCurrent: Boolean = false,
     isPlaying: Boolean = false,
-    isDragging: Boolean = false,
     onClick: () -> Unit,
     onRemove: () -> Unit,
     dragModifier: Modifier = Modifier,

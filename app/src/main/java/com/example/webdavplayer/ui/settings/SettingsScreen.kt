@@ -33,6 +33,7 @@ import androidx.navigation.NavHostController
 import com.example.webdavplayer.domain.model.EngineType
 import com.example.webdavplayer.domain.model.TrustedCert
 import com.example.webdavplayer.ui.common.MediaCard
+import com.example.webdavplayer.ui.common.SectionCard
 import com.example.webdavplayer.ui.common.SectionHeader
 import com.example.webdavplayer.domain.common.FileFormatter
 import com.example.webdavplayer.domain.model.CachedMedia
@@ -73,15 +74,16 @@ fun SettingsScreen(
                 .padding(Spacing.lg),
             verticalArrangement = Arrangement.spacedBy(Spacing.md),
         ) {
-            SectionHeader("播放内核")
-            Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(Spacing.xs)) {
-                EngineType.values().forEach { t ->
-                    FilterChip(
-                        selected = engineType == t,
-                        onClick = { playerVm.switchEngine(t) },
-                        label = { Text(engineLabel(t)) },
-                        enabled = t != EngineType.VLC,
-                    )
+            SectionCard(title = "播放内核") {
+                Row(Modifier.fillMaxWidth().padding(Spacing.md), horizontalArrangement = Arrangement.spacedBy(Spacing.xs)) {
+                    EngineType.values().forEach { t ->
+                        FilterChip(
+                            selected = engineType == t,
+                            onClick = { playerVm.switchEngine(t) },
+                            label = { Text(engineLabel(t)) },
+                            enabled = t != EngineType.VLC,
+                        )
+                    }
                 }
             }
 
