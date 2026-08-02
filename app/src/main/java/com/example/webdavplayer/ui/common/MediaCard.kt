@@ -11,8 +11,11 @@ import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.RowScope
+import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.statusBars
+import androidx.compose.foundation.layout.windowInsetsPadding
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
@@ -97,7 +100,7 @@ fun SectionCard(
     }
 }
 
-/** 磨砂风格顶栏容器：深色渐变背景 + 顶部高光，模拟 iOS 毛玻璃。 */
+/** 磨砂风格顶栏容器：深色渐变背景（延伸到状态栏后）+ 内容自动避让状态栏。 */
 @Composable
 fun MediaTopBar(
     modifier: Modifier = Modifier,
@@ -117,6 +120,7 @@ fun MediaTopBar(
         Row(
             modifier = Modifier
                 .fillMaxWidth()
+                .windowInsetsPadding(WindowInsets.statusBars)
                 .padding(horizontal = Spacing.md, vertical = Spacing.sm),
             verticalAlignment = Alignment.CenterVertically,
             content = content,

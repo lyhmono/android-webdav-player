@@ -2,18 +2,18 @@ package com.example.webdavplayer.ui.theme
 
 import androidx.compose.ui.graphics.Color
 
-// ===================== 深色方案 (Dark) — VLC 橙 + 近黑磨砂 =====================
-val DarkPrimary = Color(0xFFFF8A4C)          // 强调橙
-val DarkOnPrimary = Color(0xFF1A0E00)
-val DarkPrimaryContainer = Color(0xFF5A3A1E)  // 橙底容器（选中态）
-val DarkOnPrimaryContainer = Color(0xFFFFDBC7)
+// ===================== 深色方案 (Dark) — 柔和紫 + 近黑磨砂（夜间友好） =====================
+val DarkPrimary = Color(0xFFB79CFF)          // 柔和紫罗兰
+val DarkOnPrimary = Color(0xFF1A0F33)
+val DarkPrimaryContainer = Color(0xFF4A3A6E)  // 紫底容器（选中态）
+val DarkOnPrimaryContainer = Color(0xFFEADDFF)
 
 val DarkSecondary = Color(0xFFB8B8C4)
 val DarkOnSecondary = Color(0xFF23232A)
 val DarkSecondaryContainer = Color(0xFF3A3A44)
 val DarkOnSecondaryContainer = Color(0xFFDCDCE6)
 
-val DarkTertiary = Color(0xFF9FA8DA)
+val DarkTertiary = Color(0xFFA5B4FC)
 val DarkOnTertiary = Color(0xFF1A1A2E)
 val DarkTertiaryContainer = Color(0xFF3A3A55)
 val DarkOnTertiaryContainer = Color(0xFFD0D4FF)
@@ -41,10 +41,10 @@ val DarkOnErrorContainer = Color(0xFFFFDADA)
 val DarkScrim = Color(0xFF000000)
 
 // ===================== 浅色方案 (Light) — 保留但降级为次要 =====================
-val LightPrimary = Color(0xFFB65A1E)
+val LightPrimary = Color(0xFF6B4FD8)
 val LightOnPrimary = Color(0xFFFFFFFF)
-val LightPrimaryContainer = Color(0xFFFFDBC7)
-val LightOnPrimaryContainer = Color(0xFF3A1A00)
+val LightPrimaryContainer = Color(0xFFEADDFF)
+val LightOnPrimaryContainer = Color(0xFF1A0F33)
 
 val LightSecondary = Color(0xFF5A5A66)
 val LightOnSecondary = Color(0xFFFFFFFF)
