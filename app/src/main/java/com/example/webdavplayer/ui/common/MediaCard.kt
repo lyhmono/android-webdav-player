@@ -1,6 +1,8 @@
 package com.example.webdavplayer.ui.common
 
 import androidx.compose.foundation.background
+import androidx.compose.foundation.clickable
+import androidx.compose.foundation.combinedClickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -35,11 +37,20 @@ fun MediaCard(
     modifier: Modifier = Modifier,
     selected: Boolean = false,
     onClick: (() -> Unit)? = null,
+    onLongClick: (() -> Unit)? = null,
     content: @Composable RowScope.() -> Unit,
 ) {
     val shape = RoundedCornerShape(12.dp)
+    val clickModifier = if (onLongClick != null) {
+        Modifier.combinedClickable(
+            onClick = { onClick?.invoke() },
+            onLongClick = onLongClick,
+        )
+    } else {
+        Modifier.clickable(enabled = onClick != null) { onClick?.invoke() }
+    }
     Card(
-        modifier = modifier,
+        modifier = modifier.then(clickModifier),
         shape = shape,
         colors = CardDefaults.cardColors(
             containerColor = if (selected) {
@@ -49,8 +60,6 @@ fun MediaCard(
             },
         ),
         elevation = CardDefaults.cardElevation(defaultElevation = 0.dp),
-        onClick = onClick ?: {},
-        enabled = onClick != null,
     ) {
         Row(
             modifier = Modifier
@@ -82,7 +91,7 @@ fun SectionCard(
             colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
             elevation = CardDefaults.cardElevation(defaultElevation = 0.dp),
         ) {
-            Column(modifier = Modifier.fillMaxWidth(), content = content)
+            Column(modifier = Modifier.fillMaxWidth()) { content() }
         }
     }
 }
