@@ -12,7 +12,9 @@ import androidx.compose.material3.dynamicLightColorScheme
 import androidx.compose.material3.lightColorScheme
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
 
 /**
  * 统一圆角规范（Material 3 形状阶，基于 4dp 栅格）。
@@ -27,10 +29,21 @@ val AppShapes = Shapes(
 )
 
 /**
- * 统一排版层级：采用 Material 3 默认排版骨架，
- * 保证 display / headline / title / body / label 各层一致（标题/正文/标签规范统一）。
+ * 统一排版层级：Apple TV 风格——标题 Medium、正文 Regular、行高 1.35-1.5。
  */
-val AppTypography: Typography = Typography()
+val AppTypography: Typography = Typography(
+    headlineLarge = Typography().headlineLarge.copy(fontWeight = FontWeight.Medium, lineHeight = 44.sp),
+    headlineMedium = Typography().headlineMedium.copy(fontWeight = FontWeight.Medium, lineHeight = 40.sp),
+    titleLarge = Typography().titleLarge.copy(fontWeight = FontWeight.Medium, lineHeight = 32.sp),
+    titleMedium = Typography().titleMedium.copy(fontWeight = FontWeight.Medium, lineHeight = 28.sp),
+    titleSmall = Typography().titleSmall.copy(fontWeight = FontWeight.Medium, lineHeight = 24.sp),
+    bodyLarge = Typography().bodyLarge.copy(lineHeight = 26.sp),
+    bodyMedium = Typography().bodyMedium.copy(lineHeight = 24.sp),
+    bodySmall = Typography().bodySmall.copy(lineHeight = 20.sp),
+    labelLarge = Typography().labelLarge.copy(fontWeight = FontWeight.Medium, lineHeight = 20.sp),
+    labelMedium = Typography().labelMedium.copy(lineHeight = 18.sp),
+    labelSmall = Typography().labelSmall.copy(lineHeight = 16.sp),
+)
 
 private val DarkColorScheme = darkColorScheme(
     primary = DarkPrimary,
@@ -104,7 +117,7 @@ private val LightColorScheme = lightColorScheme(
 @Composable
 fun WebDavPlayerTheme(
     darkTheme: Boolean = isSystemInDarkTheme(),
-    dynamicColor: Boolean = true,
+    dynamicColor: Boolean = false,
     content: @Composable () -> Unit,
 ) {
     val colorScheme = when {

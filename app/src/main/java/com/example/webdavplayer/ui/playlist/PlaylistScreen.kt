@@ -2,8 +2,6 @@
 
 package com.example.webdavplayer.ui.playlist
 
-import androidx.compose.foundation.background
-import androidx.compose.foundation.combinedClickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
@@ -28,7 +26,6 @@ import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.DragHandle
 import androidx.compose.material.icons.filled.Equalizer
 import androidx.compose.material.icons.filled.Image
-import androidx.compose.material.icons.filled.PlayArrow
 import androidx.compose.material.icons.filled.VideoLibrary
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
@@ -36,7 +33,6 @@ import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.FilterChip
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
-import androidx.compose.material3.ListItem
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
@@ -56,6 +52,7 @@ import com.example.webdavplayer.domain.model.MediaType
 import com.example.webdavplayer.domain.model.PlayMode
 import com.example.webdavplayer.domain.model.PlaybackState
 import com.example.webdavplayer.domain.model.PlaylistItem
+import com.example.webdavplayer.ui.common.MediaCard
 import com.example.webdavplayer.ui.common.SectionHeader
 import com.example.webdavplayer.ui.common.modeLabel
 import com.example.webdavplayer.ui.player.PlayerViewModel
@@ -221,24 +218,39 @@ private fun PlaylistRow(
     onRemove: () -> Unit,
     dragModifier: Modifier = Modifier,
 ) {
-    val bgColor = if (isDragging) {
-        MaterialTheme.colorScheme.surfaceVariant
-    } else if (isCurrent) {
-        MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.3f)
-    } else {
-        MaterialTheme.colorScheme.surface
-    }
-    ListItem(
-        headlineContent = {
+    MediaCard(
+        selected = isCurrent,
+        onClick = onClick,
+        modifier = modifier,
+    ) {
+        if (isPlaying) {
+            Icon(
+                Icons.Filled.Equalizer,
+                contentDescription = "正在播放",
+                tint = MaterialTheme.colorScheme.primary,
+            )
+        } else {
+            Icon(
+                when (item.mediaType) {
+                    MediaType.VIDEO -> Icons.Filled.VideoLibrary
+                    MediaType.AUDIO -> Icons.Filled.AudioFile
+                    MediaType.IMAGE -> Icons.Filled.Image
+                    MediaType.OTHER -> Icons.Filled.AudioFile
+                },
+                contentDescription = null,
+                tint = if (isCurrent) MaterialTheme.colorScheme.primary
+                    else MaterialTheme.colorScheme.onSurfaceVariant,
+            )
+        }
+        Column(Modifier.weight(1f)) {
             Text(
                 item.name,
-                color = if (isCurrent) MaterialTheme.colorScheme.primary
+                color = if (isCurrent) MaterialTheme.colorScheme.onPrimaryContainer
                     else MaterialTheme.colorScheme.onSurface,
-                fontWeight = if (isCurrent) androidx.compose.ui.text.font.FontWeight.Bold
-                    else null,
+                style = MaterialTheme.typography.titleSmall,
+                maxLines = 1,
+                overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis,
             )
-        },
-        supportingContent = {
             Text(
                 when (item.mediaType) {
                     MediaType.VIDEO -> "视频"
@@ -246,49 +258,19 @@ private fun PlaylistRow(
                     MediaType.IMAGE -> "图片"
                     MediaType.OTHER -> "其他"
                 },
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
             )
-        },
-        leadingContent = {
-            if (isPlaying) {
-                Icon(
-                    Icons.Filled.Equalizer,
-                    contentDescription = "正在播放",
-                    tint = MaterialTheme.colorScheme.primary,
-                )
-            } else {
-                Icon(
-                    when (item.mediaType) {
-                        MediaType.VIDEO -> Icons.Filled.VideoLibrary
-                        MediaType.AUDIO -> Icons.Filled.AudioFile
-                        MediaType.IMAGE -> Icons.Filled.Image
-                        MediaType.OTHER -> Icons.Filled.AudioFile
-                    },
-                    contentDescription = null,
-                    tint = if (isCurrent) MaterialTheme.colorScheme.primary
-                        else MaterialTheme.colorScheme.onSurfaceVariant,
-                )
-            }
-        },
-        trailingContent = {
-            Row(verticalAlignment = Alignment.CenterVertically) {
-                Icon(
-                    Icons.Filled.DragHandle,
-                    contentDescription = "拖拽排序",
-                    modifier = dragModifier,
-                )
-                IconButton(onClick = onClick) {
-                    Icon(Icons.Filled.PlayArrow, "播放")
-                }
-                IconButton(onClick = onRemove) {
-                    Icon(Icons.Filled.Delete, "移除")
-                }
-            }
-        },
-        modifier = modifier
-            .fillMaxWidth()
-            .background(bgColor)
-            .combinedClickable(onClick = onClick),
-    )
+        }
+        Icon(
+            Icons.Filled.DragHandle,
+            contentDescription = "拖拽排序",
+            modifier = dragModifier,
+        )
+        IconButton(onClick = onRemove) {
+            Icon(Icons.Filled.Delete, "移除")
+        }
+    }
 }
 
 // modeLabel 已抽取到 ui.common.Labels
