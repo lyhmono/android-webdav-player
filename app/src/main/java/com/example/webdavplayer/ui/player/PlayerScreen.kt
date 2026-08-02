@@ -139,7 +139,6 @@ fun PlayerScreen(
     }
 
     var menuExpanded by remember { mutableStateOf(false) }
-    var speedMenuExpanded by remember { mutableStateOf(false) }
     var modeMenuExpanded by remember { mutableStateOf(false) }
     var showSubtitleDialog by remember { mutableStateOf(false) }
     val snackbarHostState = remember { SnackbarHostState() }
@@ -184,16 +183,13 @@ fun PlayerScreen(
             if (isVideo && player != null) {
                 // 方案 C：PlayerSurface 直接绑定 ExoPlayer 实例（UI 直连引擎，不经 MediaSession）
                 // aspectRatio 适配：已知视频尺寸时按原始宽高比约束 Surface，避免拉伸变形
-                // 竖屏非全屏：贴顶显示（避免上下大黑边）；横屏全屏：居中（左右等宽黑边）
                 PlayerSurface(
                     player = player,
                     surfaceType = SURFACE_TYPE_SURFACE_VIEW,
                     modifier = if (videoAspect > 0f) {
                         Modifier
                             .aspectRatio(videoAspect)
-                            .align(
-                                if (fullscreen) Alignment.Center else Alignment.TopCenter,
-                            )
+                            .align(Alignment.Center)
                     } else {
                         Modifier.fillMaxSize()
                     },
@@ -229,6 +225,9 @@ fun PlayerScreen(
                         // #9：传入 State 而非值——position 变化只重组 PlayerControls 内部，不波及父级
                         positionState = playerVm.position.collectAsStateWithLifecycle(),
                         durationState = playerVm.duration.collectAsStateWithLifecycle(),
+                        currentSpeed = speed,
+                        speedOptions = playbackSpeeds,
+                        onSpeedSelected = { playerVm.setSpeed(it); controlsHideToken++ },
                         onBack = { navController.popBackStack() },
                         onTogglePlay = { playerVm.togglePlay(); controlsHideToken++ },
                         // #10：拖动状态在 PlayerControls 内部——onSeekFinished 才回调真正 seek
@@ -402,13 +401,6 @@ fun PlayerScreen(
                 }
                 Text(stateLabel(state), style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
 
-                SectionHeader("倍速")
-                Row(horizontalArrangement = Arrangement.spacedBy(Spacing.xs)) {
-                    playbackSpeeds.forEach { s ->
-                        FilterChip(selected = speed == s, onClick = { playerVm.setSpeed(s) }, label = { Text("${if (s % 1f == 0f) s.toInt() else s}x") })
-                    }
-                }
-
                 SectionHeader("模式")
                 Row(horizontalArrangement = Arrangement.spacedBy(Spacing.xs)) {
                     PlayMode.values().forEach { m ->
@@ -456,20 +448,11 @@ fun PlayerScreen(
         }
     }
 
-    // #20/#22：根级菜单（横屏全屏与竖屏共用）——一级：字幕/清除进度/倍速/模式；倍速与模式为二级子菜单
+    // #20/#22：根级菜单（横屏全屏与竖屏共用）——一级：字幕/清除进度/模式
     DropdownMenu(expanded = menuExpanded, onDismissRequest = { menuExpanded = false }) {
         DropdownMenuItem(text = { Text("字幕") }, onClick = { menuExpanded = false; showSubtitleDialog = true })
         DropdownMenuItem(text = { Text("清除进度") }, onClick = { menuExpanded = false; playerVm.clearProgressAndRestart() })
-        DropdownMenuItem(text = { Text("倍速") }, onClick = { menuExpanded = false; speedMenuExpanded = true })
         DropdownMenuItem(text = { Text("模式") }, onClick = { menuExpanded = false; modeMenuExpanded = true })
-    }
-    DropdownMenu(expanded = speedMenuExpanded, onDismissRequest = { speedMenuExpanded = false }) {
-        playbackSpeeds.forEach { s ->
-            DropdownMenuItem(
-                text = { Text("${if (s % 1f == 0f) s.toInt() else s}x${if (speed == s) "  ✓" else ""}") },
-                onClick = { playerVm.setSpeed(s); speedMenuExpanded = false },
-            )
-        }
     }
     DropdownMenu(expanded = modeMenuExpanded, onDismissRequest = { modeMenuExpanded = false }) {
         PlayMode.values().forEach { m ->

@@ -124,73 +124,78 @@ fun VideoGestureLayer(
     }
 
     Box(
-        modifier = modifier
-            .pointerInput(onToggleControls) {
-                if (onToggleControlsState.value == null) return@pointerInput
-                detectTapGestures(
-                    onTap = { onToggleControlsState.value?.invoke() },
-                )
-            }
-            .pointerInput(gesturesEnabled) {
-                // 控制栏可见时禁用拖拽（避免与 Slider 争手），仅保留点击
-                if (!gesturesEnabled) return@pointerInput
-                detectDragGestures(
-                    onDragStart = { start: Offset ->
-                        dragZone = when {
-                            start.y > size.height * 0.66f -> ZONE_SEEK
-                            start.x < size.width / 2f -> ZONE_BRIGHTNESS
-                            else -> ZONE_VOLUME
-                        }
-                    },
-                    onDrag = { _, dragAmount ->
-                        when (dragZone) {
-                            ZONE_BRIGHTNESS -> {
-                                val delta = -dragAmount.y / size.height.toFloat() * BRIGHTNESS_STEP
-                                brightness = (brightness + delta).coerceIn(0f, 1f)
-                                val attrs = window?.attributes
-                                if (attrs != null) {
-                                    attrs.screenBrightness = brightness
-                                    window.attributes = attrs
+        modifier = modifier.then(
+            // 控制栏可见时整个手势层不拦截任何事件——让触摸直接冒泡到 PlayerControls 的 Slider/按钮
+            if (!gesturesEnabled) {
+                Modifier
+            } else {
+                Modifier
+                    .pointerInput(onToggleControls) {
+                        if (onToggleControlsState.value == null) return@pointerInput
+                        detectTapGestures(
+                            onTap = { onToggleControlsState.value?.invoke() },
+                        )
+                    }
+                    .pointerInput(gesturesEnabled) {
+                        detectDragGestures(
+                            onDragStart = { start: Offset ->
+                                dragZone = when {
+                                    start.y > size.height * 0.66f -> ZONE_SEEK
+                                    start.x < size.width / 2f -> ZONE_BRIGHTNESS
+                                    else -> ZONE_VOLUME
                                 }
-                                hudIcon = Icons.Filled.BrightnessMedium
-                                hudText = "${(brightness * 100).toInt()}%"
-                                hudProgress = brightness
-                                hudVisible = true
-                                hudLastAt = System.currentTimeMillis()
-                            }
-                            ZONE_VOLUME -> {
-                                if (maxVolume > 0) {
-                                    val deltaSteps =
-                                        (-dragAmount.y / size.height.toFloat() * maxVolume).roundToInt()
-                                    volume = (volume + deltaSteps).coerceIn(0, maxVolume)
-                                    audioManager?.setStreamVolume(
-                                        AudioManager.STREAM_MUSIC,
-                                        volume,
-                                        0,
-                                    )
-                                    hudIcon = if (volume == 0) Icons.Filled.VolumeOff else Icons.Filled.VolumeUp
-                                    hudText = "$volume"
-                                    hudProgress = volume.toFloat() / maxVolume
-                                    hudVisible = true
-                                    hudLastAt = System.currentTimeMillis()
+                            },
+                            onDrag = { _, dragAmount ->
+                                when (dragZone) {
+                                    ZONE_BRIGHTNESS -> {
+                                        val delta = -dragAmount.y / size.height.toFloat() * BRIGHTNESS_STEP
+                                        brightness = (brightness + delta).coerceIn(0f, 1f)
+                                        val attrs = window?.attributes
+                                        if (attrs != null) {
+                                            attrs.screenBrightness = brightness
+                                            window.attributes = attrs
+                                        }
+                                        hudIcon = Icons.Filled.BrightnessMedium
+                                        hudText = "${(brightness * 100).toInt()}%"
+                                        hudProgress = brightness
+                                        hudVisible = true
+                                        hudLastAt = System.currentTimeMillis()
+                                    }
+                                    ZONE_VOLUME -> {
+                                        if (maxVolume > 0) {
+                                            val deltaSteps =
+                                                (-dragAmount.y / size.height.toFloat() * maxVolume).roundToInt()
+                                            volume = (volume + deltaSteps).coerceIn(0, maxVolume)
+                                            audioManager?.setStreamVolume(
+                                                AudioManager.STREAM_MUSIC,
+                                                volume,
+                                                0,
+                                            )
+                                            hudIcon = if (volume == 0) Icons.Filled.VolumeOff else Icons.Filled.VolumeUp
+                                            hudText = "$volume"
+                                            hudProgress = volume.toFloat() / maxVolume
+                                            hudVisible = true
+                                            hudLastAt = System.currentTimeMillis()
+                                        }
+                                    }
+                                    ZONE_SEEK -> {
+                                        // #7：满屏拖动 = 90 秒增量，不再随媒体时长线性放大（B 站/YouTube 同款）
+                                        val msPerPx = SEEK_FULL_SCREEN_MS / size.width.toFloat()
+                                        val deltaMs = (dragAmount.x * msPerPx).toLong()
+                                        onSeekByState.value(deltaMs)
+                                        hudIcon = if (dragAmount.x >= 0f) Icons.Filled.FastForward else Icons.Filled.Replay
+                                        hudText = formatHudTime(deltaMs)
+                                        hudProgress = -1f
+                                        hudVisible = true
+                                        hudLastAt = System.currentTimeMillis()
+                                    }
+                                    else -> Unit
                                 }
-                            }
-                            ZONE_SEEK -> {
-                                // #7：满屏拖动 = 90 秒增量，不再随媒体时长线性放大（B 站/YouTube 同款）
-                                val msPerPx = SEEK_FULL_SCREEN_MS / size.width.toFloat()
-                                val deltaMs = (dragAmount.x * msPerPx).toLong()
-                                onSeekByState.value(deltaMs)
-                                hudIcon = if (dragAmount.x >= 0f) Icons.Filled.FastForward else Icons.Filled.Replay
-                                hudText = formatHudTime(deltaMs)
-                                hudProgress = -1f
-                                hudVisible = true
-                                hudLastAt = System.currentTimeMillis()
-                            }
-                            else -> Unit
-                        }
+                            },
+                        )
                     },
-                )
             },
+        ),
     ) {
         // 手势提示 HUD：居中、半透明卡片，亮度/音量附带进度条，快退仅显示时间增量。
         AnimatedVisibility(

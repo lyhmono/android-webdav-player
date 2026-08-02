@@ -79,10 +79,12 @@ class ExoPlayerEngine(
 
     private fun ensurePlayer() {
         if (player == null) {
-            // LoadControl：WebDAV 流式播放需要较大缓冲区避免频繁卡顿
-            // minBuffer 50s / maxBuffer 150s / playbackBuffer 2.5s / backBuffer 30s
+            // LoadControl：WebDAV 流式播放优化
+            // minBuffer 15s / maxBuffer 50s / startBuffer 0.5s / backBuffer 10s
+            // startBuffer 小→快开播；minBuffer 小→减首帧等待；maxBuffer 大→网络好时多囤
             val loadControl = DefaultLoadControl.Builder()
-                .setBufferDurationsMs(50_000, 150_000, 2_500, 30_000)
+                .setBufferDurationsMs(15_000, 50_000, 500, 10_000)
+                .setPrioritizeTimeOverSizeThresholds(true)
                 .build()
             player = ExoPlayer.Builder(context)
                 .setLoadControl(loadControl)

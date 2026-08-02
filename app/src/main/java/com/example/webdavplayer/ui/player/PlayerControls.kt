@@ -1,6 +1,7 @@
 package com.example.webdavplayer.ui.player
 
 import androidx.compose.foundation.background
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -21,6 +22,8 @@ import androidx.compose.material.icons.filled.PlayArrow
 import androidx.compose.material.icons.filled.SkipNext
 import androidx.compose.material.icons.filled.SkipPrevious
 import androidx.compose.material3.FilledIconButton
+import androidx.compose.material3.DropdownMenu
+import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.IconButtonDefaults
@@ -56,12 +59,15 @@ fun PlayerControls(
     isPlaying: Boolean,
     positionState: androidx.compose.runtime.State<Long>,
     durationState: androidx.compose.runtime.State<Long>,
+    currentSpeed: Float = 1.0f,
     onBack: () -> Unit,
     onTogglePlay: () -> Unit,
     onSeekRequested: (Long) -> Unit,
     onPrev: () -> Unit,
     onNext: () -> Unit,
     onMore: () -> Unit,
+    onSpeedSelected: (Float) -> Unit = {},
+    speedOptions: List<Float> = listOf(0.5f, 0.75f, 1.0f, 1.25f, 1.5f, 2.0f),
     onToggleFullscreen: () -> Unit = {},
     isFullscreen: Boolean = false,
     modifier: Modifier = Modifier,
@@ -70,6 +76,7 @@ fun PlayerControls(
     val position = positionState.value
     val duration = durationState.value
     val displayPos = seekPosition ?: position
+    var speedMenuExpanded by remember { mutableStateOf(false) }
 
     Box(modifier.fillMaxSize()) {
         // 顶部渐变遮罩 + 标题栏
@@ -186,8 +193,28 @@ fun PlayerControls(
             Row(
                 modifier = Modifier.fillMaxWidth(),
                 horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically,
             ) {
                 Text(formatDuration(displayPos), color = Color.White.copy(alpha = 0.9f), style = MaterialTheme.typography.labelSmall)
+                // 倍速按钮：显示当前倍速，点击弹出选择菜单
+                Box {
+                    Text(
+                        text = "${if (currentSpeed % 1f == 0f) currentSpeed.toInt() else currentSpeed}x",
+                        color = Color.White.copy(alpha = 0.9f),
+                        style = MaterialTheme.typography.labelSmall,
+                        modifier = Modifier
+                            .clickable { speedMenuExpanded = true }
+                            .padding(horizontal = 8.dp, vertical = 2.dp),
+                    )
+                    DropdownMenu(expanded = speedMenuExpanded, onDismissRequest = { speedMenuExpanded = false }) {
+                        speedOptions.forEach { s ->
+                            DropdownMenuItem(
+                                text = { Text("${if (s % 1f == 0f) s.toInt() else s}x${if (s == currentSpeed) "  ✓" else ""}") },
+                                onClick = { onSpeedSelected(s); speedMenuExpanded = false },
+                            )
+                        }
+                    }
+                }
                 Text(formatDuration(duration), color = Color.White.copy(alpha = 0.7f), style = MaterialTheme.typography.labelSmall)
             }
         }
