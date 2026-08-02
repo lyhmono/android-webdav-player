@@ -193,7 +193,7 @@ fun VideoGestureLayer(
                                 }
                             },
                         )
-                    },
+                    }
             },
         ),
     ) {
