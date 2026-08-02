@@ -290,6 +290,24 @@ fun PlayerScreen(
                                     if (controlsVisible) controlsHideToken++
                                 },
                         )
+                    } else if (state == PlaybackState.ERROR) {
+                        // 图片加载失败：显示错误提示而非无限 loading
+                        Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                            Icon(
+                                Icons.Filled.Error,
+                                "加载失败",
+                                modifier = Modifier.size(48.dp),
+                                tint = Color.White.copy(alpha = 0.5f),
+                            )
+                            Spacer(Modifier.height(8.dp))
+                            Text("图片加载失败", color = Color.White, style = MaterialTheme.typography.titleMedium)
+                            Spacer(Modifier.height(4.dp))
+                            Text(
+                                "请检查网络或文件是否存在",
+                                color = Color.White.copy(alpha = 0.6f),
+                                style = MaterialTheme.typography.bodySmall,
+                            )
+                        }
                     } else {
                         CircularProgressIndicator(color = Color.White)
                     }
@@ -531,6 +549,20 @@ private fun AudioProgressBar(
             "${formatDuration(displayPos)} / ${formatDuration(duration)}",
             color = Color.White.copy(alpha = 0.85f),
             style = MaterialTheme.typography.labelSmall,
+        )
+    } else {
+        // duration 尚未知（刚 prepare）：显示不可拖动的占位条
+        Slider(
+            value = 0f,
+            onValueChange = {},
+            enabled = false,
+            valueRange = 0f..1f,
+            colors = SliderDefaults.colors(
+                thumbColor = Color.White.copy(alpha = 0.3f),
+                activeTrackColor = Color.White.copy(alpha = 0.2f),
+                inactiveTrackColor = Color.White.copy(alpha = 0.15f),
+            ),
+            modifier = Modifier.fillMaxWidth().padding(horizontal = 32.dp),
         )
     }
 }

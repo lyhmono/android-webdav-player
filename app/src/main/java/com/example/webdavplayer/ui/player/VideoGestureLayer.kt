@@ -43,6 +43,7 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.unit.dp
 import com.example.webdavplayer.ui.common.findActivity
 import com.example.webdavplayer.ui.theme.Spacing
+import kotlinx.coroutines.delay
 import kotlin.math.roundToInt
 
 /**
@@ -116,7 +117,7 @@ fun VideoGestureLayer(
     LaunchedEffect(Unit) {
         // 常驻守护协程，240ms 一次检查：超过 HUD_AUTO_HIDE_MS 无手势就淡出
         while (true) {
-            kotlinx.coroutines.delay(HUD_CHECK_INTERVAL_MS)
+            delay(HUD_CHECK_INTERVAL_MS)
             if (hudVisible && System.currentTimeMillis() - hudLastAt > HUD_AUTO_HIDE_MS) {
                 hudVisible = false
             }

@@ -183,6 +183,7 @@ class PlayerViewModel @Inject constructor(
     private fun loadImage(uri: String, headers: Map<String, String>) {
         imageJob?.cancel()
         _imageBitmap.value = null
+        _state.value = PlaybackState.PREPARING
         imageJob = viewModelScope.launch {
             val bmp = withContext(Dispatchers.IO) {
                 try {
@@ -199,7 +200,12 @@ class PlayerViewModel @Inject constructor(
                     null
                 }
             }
-            _imageBitmap.value = bmp
+            if (bmp != null) {
+                _imageBitmap.value = bmp
+                _state.value = PlaybackState.PLAYING
+            } else {
+                _state.value = PlaybackState.ERROR
+            }
         }
     }
 
