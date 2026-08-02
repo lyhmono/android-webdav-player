@@ -54,7 +54,6 @@ import androidx.compose.material3.SnackbarHost
 import androidx.compose.material3.SnackbarHostState
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
-import androidx.compose.material3.TopAppBar
 import androidx.compose.material.pullrefresh.PullRefreshIndicator
 import androidx.compose.material.pullrefresh.pullRefresh
 import androidx.compose.material.pullrefresh.rememberPullRefreshState
@@ -80,6 +79,7 @@ import com.example.webdavplayer.domain.model.RemoteFile
 import com.example.webdavplayer.ui.common.EmptyView
 import com.example.webdavplayer.ui.common.LoadingView
 import com.example.webdavplayer.ui.common.MediaCard
+import com.example.webdavplayer.ui.common.MediaTopBar
 import com.example.webdavplayer.ui.player.PlayerViewModel
 import com.example.webdavplayer.ui.theme.Spacing
 import com.example.webdavplayer.ui.playlist.PlaylistViewModel
@@ -175,58 +175,58 @@ fun BrowseScreen(
 
     Scaffold(
         topBar = {
-            TopAppBar(
-                title = {
-                    Column {
-                        Text(path)
-                        // 每秒驱动一次重组，让"更新于 Xs 前"随时间自动刷新。
-                        var nowTick by remember { mutableLongStateOf(0L) }
-                        LaunchedEffect(Unit) {
-                            while (true) {
-                                delay(1000)
-                                nowTick++
-                            }
-                        }
-                        val agoSecs = lastRefreshedAt?.let { (System.currentTimeMillis() - it) / 1000 }
-                        // nowTick 仅用于触发重组；读取保证 recomposition 发生。
-                        @Suppress("UNUSED_VARIABLE") val tick = nowTick
-                        if (agoSecs != null) {
-                            val agoText = when {
-                                agoSecs < 60 -> "${agoSecs}s"
-                                agoSecs < 3600 -> "${agoSecs / 60}m"
-                                else -> "${agoSecs / 3600}h"
-                            }
-                            Text(
-                                text = "缓存 · 更新于 $agoText 前",
-                                style = MaterialTheme.typography.labelSmall,
-                            )
+            MediaTopBar {
+                IconButton(onClick = {
+                    if (path == "/") {
+                        navController.navigate("servers") { popUpTo("servers") { inclusive = true } }
+                    } else {
+                        val parent = WebDavPath.parentOf(path)
+                        navController.navigate(
+                            "browse/${viewModel.serverId}?path=" +
+                                URLEncoder.encode(parent, "UTF-8"),
+                        ) {
+                            popUpTo("browse/${viewModel.serverId}") { inclusive = true }
                         }
                     }
-                },
-                navigationIcon = {
-                    IconButton(onClick = {
-                        if (path == "/") {
-                            navController.navigate("servers") { popUpTo("servers") { inclusive = true } }
-                        } else {
-                            val parent = WebDavPath.parentOf(path)
-                            navController.navigate(
-                                "browse/${viewModel.serverId}?path=" +
-                                    URLEncoder.encode(parent, "UTF-8"),
-                            ) {
-                                popUpTo("browse/${viewModel.serverId}") { inclusive = true }
-                            }
+                }) { Icon(Icons.Filled.ArrowBack, "返回") }
+                Column(Modifier.weight(1f)) {
+                    Text(
+                        path,
+                        style = MaterialTheme.typography.titleMedium,
+                        maxLines = 1,
+                        overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis,
+                    )
+                    // 每秒驱动一次重组，让"更新于 Xs 前"随时间自动刷新。
+                    var nowTick by remember { mutableLongStateOf(0L) }
+                    LaunchedEffect(Unit) {
+                        while (true) {
+                            delay(1000)
+                            nowTick++
                         }
-                    }) { Icon(Icons.Filled.ArrowBack, "返回") }
-                },
-                actions = {
-                    IconButton(onClick = { navController.navigate("playlist") }) {
-                        Icon(Icons.Filled.QueueMusic, "播放列表")
                     }
-                    IconButton(onClick = { navController.navigate("settings") }) {
-                        Icon(Icons.Filled.Settings, "设置")
+                    val agoSecs = lastRefreshedAt?.let { (System.currentTimeMillis() - it) / 1000 }
+                    // nowTick 仅用于触发重组；读取保证 recomposition 发生。
+                    @Suppress("UNUSED_VARIABLE") val tick = nowTick
+                    if (agoSecs != null) {
+                        val agoText = when {
+                            agoSecs < 60 -> "${agoSecs}s"
+                            agoSecs < 3600 -> "${agoSecs / 60}m"
+                            else -> "${agoSecs / 3600}h"
+                        }
+                        Text(
+                            text = "缓存 · 更新于 $agoText 前",
+                            style = MaterialTheme.typography.labelSmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        )
                     }
-                },
-            )
+                }
+                IconButton(onClick = { navController.navigate("playlist") }) {
+                    Icon(Icons.Filled.QueueMusic, "播放列表")
+                }
+                IconButton(onClick = { navController.navigate("settings") }) {
+                    Icon(Icons.Filled.Settings, "设置")
+                }
+            }
         },
         floatingActionButton = {
             ExtendedFloatingActionButton(

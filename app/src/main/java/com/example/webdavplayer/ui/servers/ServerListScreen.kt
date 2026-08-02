@@ -32,7 +32,6 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
-import androidx.compose.material3.TopAppBar
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -49,6 +48,7 @@ import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.navigation.NavHostController
 import com.example.webdavplayer.ui.common.EmptyView
 import com.example.webdavplayer.ui.common.MediaCard
+import com.example.webdavplayer.ui.common.MediaTopBar
 import com.example.webdavplayer.ui.player.PlayerViewModel
 import com.example.webdavplayer.ui.playlist.PlaylistViewModel
 import com.example.webdavplayer.ui.theme.Spacing
@@ -67,14 +67,16 @@ fun ServerListScreen(
 
     Scaffold(
         topBar = {
-            TopAppBar(
-                title = { Text("服务器") },
-                actions = {
-                    IconButton(onClick = { navController.navigate("log") }) {
-                        Icon(Icons.Filled.Info, contentDescription = "日志")
-                    }
-                },
-            )
+            MediaTopBar {
+                Text(
+                    "服务器",
+                    style = MaterialTheme.typography.titleLarge,
+                    modifier = Modifier.weight(1f).padding(start = Spacing.sm),
+                )
+                IconButton(onClick = { navController.navigate("log") }) {
+                    Icon(Icons.Filled.Info, contentDescription = "日志")
+                }
+            }
         },
         floatingActionButton = {
             ExtendedFloatingActionButton(

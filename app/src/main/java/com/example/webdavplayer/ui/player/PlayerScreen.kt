@@ -76,7 +76,7 @@ import com.example.webdavplayer.domain.model.MediaType
 import com.example.webdavplayer.domain.model.PlayMode
 import com.example.webdavplayer.domain.model.PlaybackState
 import com.example.webdavplayer.ui.common.MediaCard
-import com.example.webdavplayer.ui.common.SectionHeader
+import com.example.webdavplayer.ui.common.SectionCard
 import com.example.webdavplayer.ui.common.findActivity
 import com.example.webdavplayer.ui.common.formatDuration
 import com.example.webdavplayer.ui.common.modeLabel
@@ -419,48 +419,62 @@ fun PlayerScreen(
                 }
                 Text(stateLabel(state), style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
 
-                SectionHeader("模式")
-                Row(horizontalArrangement = Arrangement.spacedBy(Spacing.xs)) {
-                    PlayMode.values().forEach { m ->
-                        FilterChip(selected = mode == m, onClick = { playerVm.setMode(m) }, label = { Text(modeLabel(m)) })
+                SectionCard(title = "模式") {
+                    Row(
+                        Modifier.padding(Spacing.md),
+                        horizontalArrangement = Arrangement.spacedBy(Spacing.xs),
+                    ) {
+                        PlayMode.values().forEach { m ->
+                            FilterChip(selected = mode == m, onClick = { playerVm.setMode(m) }, label = { Text(modeLabel(m)) })
+                        }
                     }
                 }
 
-                SectionHeader("播放列表")
-                if (items.isEmpty()) {
-                    Text("播放列表为空", color = MaterialTheme.colorScheme.onSurfaceVariant)
-                } else {
-                    items.forEach { item ->
-                        val isCurrent = item.id == currentItemId
-                        MediaCard(
-                            selected = isCurrent,
-                            onClick = { playerVm.playItem(item) },
-                            onLongClick = { playlistVm.removeItem(item.id) },
-                            modifier = Modifier.fillMaxWidth(),
+                SectionCard(title = "播放列表") {
+                    if (items.isEmpty()) {
+                        Text(
+                            "播放列表为空",
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                            modifier = Modifier.padding(Spacing.md),
+                        )
+                    } else {
+                        Column(
+                            Modifier.padding(vertical = Spacing.xs),
+                            verticalArrangement = Arrangement.spacedBy(Spacing.xs),
                         ) {
-                            Icon(
-                                when (item.mediaType) {
-                                    MediaType.VIDEO -> Icons.Filled.VideoLibrary
-                                    MediaType.AUDIO -> Icons.Filled.AudioFile
-                                    MediaType.IMAGE -> Icons.Filled.Photo
-                                    MediaType.OTHER -> Icons.Filled.VideoLibrary
-                                },
-                                null,
-                                tint = if (isCurrent) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant,
-                            )
-                            Column(Modifier.weight(1f)) {
-                                Text(
-                                    item.name,
-                                    color = if (isCurrent) MaterialTheme.colorScheme.onPrimaryContainer
-                                        else MaterialTheme.colorScheme.onSurface,
-                                    fontWeight = if (isCurrent) FontWeight.Medium else null,
-                                    style = MaterialTheme.typography.titleSmall,
-                                    maxLines = 1,
-                                    overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis,
-                                )
-                            }
-                            if (isCurrent && isPlaying) {
-                                Icon(Icons.Filled.PlayArrow, "正在播放", tint = MaterialTheme.colorScheme.primary)
+                            items.forEach { item ->
+                                val isCurrent = item.id == currentItemId
+                                MediaCard(
+                                    selected = isCurrent,
+                                    onClick = { playerVm.playItem(item) },
+                                    onLongClick = { playlistVm.removeItem(item.id) },
+                                    modifier = Modifier.fillMaxWidth(),
+                                ) {
+                                    Icon(
+                                        when (item.mediaType) {
+                                            MediaType.VIDEO -> Icons.Filled.VideoLibrary
+                                            MediaType.AUDIO -> Icons.Filled.AudioFile
+                                            MediaType.IMAGE -> Icons.Filled.Photo
+                                            MediaType.OTHER -> Icons.Filled.VideoLibrary
+                                        },
+                                        null,
+                                        tint = if (isCurrent) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant,
+                                    )
+                                    Column(Modifier.weight(1f)) {
+                                        Text(
+                                            item.name,
+                                            color = if (isCurrent) MaterialTheme.colorScheme.onPrimaryContainer
+                                                else MaterialTheme.colorScheme.onSurface,
+                                            fontWeight = if (isCurrent) FontWeight.Medium else null,
+                                            style = MaterialTheme.typography.titleSmall,
+                                            maxLines = 1,
+                                            overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis,
+                                        )
+                                    }
+                                    if (isCurrent && isPlaying) {
+                                        Icon(Icons.Filled.PlayArrow, "正在播放", tint = MaterialTheme.colorScheme.primary)
+                                    }
+                                }
                             }
                         }
                     }
