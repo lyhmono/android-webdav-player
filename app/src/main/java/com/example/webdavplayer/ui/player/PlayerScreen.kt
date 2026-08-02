@@ -466,10 +466,9 @@ fun PlayerScreen(
         }
     }
 
-    // #20/#22：根级菜单（横屏全屏与竖屏共用）——一级：字幕/清除进度/模式
+    // #20/#22：根级菜单（横屏全屏与竖屏共用）——一级：字幕/模式
     DropdownMenu(expanded = menuExpanded, onDismissRequest = { menuExpanded = false }) {
         DropdownMenuItem(text = { Text("字幕") }, onClick = { menuExpanded = false; showSubtitleDialog = true })
-        DropdownMenuItem(text = { Text("清除进度") }, onClick = { menuExpanded = false; playerVm.clearProgressAndRestart() })
         DropdownMenuItem(text = { Text("模式") }, onClick = { menuExpanded = false; modeMenuExpanded = true })
     }
     DropdownMenu(expanded = modeMenuExpanded, onDismissRequest = { modeMenuExpanded = false }) {

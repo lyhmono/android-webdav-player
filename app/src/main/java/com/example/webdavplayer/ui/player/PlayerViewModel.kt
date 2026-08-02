@@ -158,11 +158,13 @@ class PlayerViewModel @Inject constructor(
         _title.value = item.name
         _currentItemId.value = item.id
         _currentMediaType.value = item.mediaType
-        // #26：切换曲目时立即清空旧引擎引用——UI 走 loading 分支，避免"新标题+旧画面"抖动
+        // 切歌清空旧画面状态——PlayerSurface/loading 分支不再看到上次残留
         _player.value = null
         _position.value = 0L
         _duration.value = 0L
         _videoAspect.value = 0f
+        // 清掉旧图片 Bitmap——避免切到视频后旧 Bitmap 内存不释放
+        _imageBitmap.value = null
         playJob = viewModelScope.launch {
             when (val r = playMedia(item)) {
                 is Result.Success -> {
@@ -253,6 +255,8 @@ class PlayerViewModel @Inject constructor(
         if (next != null) {
             playItem(next)
         } else {
+            // SEQUENTIAL 模式末尾：暂停底层引擎避免 UI 显示 ENDED 但实际还在播末首
+            playerRepository.pause()
             _state.value = PlaybackState.ENDED
         }
     }
