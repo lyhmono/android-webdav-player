@@ -13,6 +13,7 @@ import com.example.webdavplayer.domain.repository.MediaResolver
 import com.example.webdavplayer.domain.repository.ServerRepository
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
+import kotlinx.coroutines.withTimeoutOrNull
 import okhttp3.Credentials
 import java.io.File
 import javax.inject.Inject
@@ -84,7 +85,9 @@ class MediaResolverImpl @Inject constructor(
                     ?: return@withContext emptyList()
                 webDavClient.connect(cfg)
                 val parent = WebDavPath.parentOf(item.path)
-                val dir = webDavClient.listDirectory(parent)
+                // 加超时保护：超过 5 秒放弃字幕发现，不影响主媒体播放
+                val dir = withTimeoutOrNull(5_000L) { webDavClient.listDirectory(parent) }
+                    ?: return@withContext emptyList()
                 val mediaName = WebDavPath.nameOf(item.path)
                 val baseName = mediaName.substringBeforeLast('.')
                 dir.filter { !it.isDirectory && MediaConstants.isSiblingSubtitle(it.name, baseName) }

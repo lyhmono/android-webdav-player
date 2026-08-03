@@ -23,7 +23,6 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
-import androidx.paging.compose.itemKey
 import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.ArrowBack
@@ -349,10 +348,11 @@ fun BrowseScreen(
                         }
                     }
                     else -> {
+                        // 排序：Paging3 不支持本地排序，统一收集后排序渲染
+                        val allFiles = (0 until lazyItems.itemCount).mapNotNull { lazyItems[it] }
+                            .sortedBy(sortMode, sortAscending)
                         FileList(
-                            count = lazyItems.itemCount,
-                            key = lazyItems.itemKey { it.id },
-                            getItem = { index -> lazyItems[index] },
+                            files = allFiles,
                             onItemClick = { file ->
                                 if (file.isDirectory) {
                                     val child = viewModel.fullPath(file.name)
@@ -510,36 +510,6 @@ private fun FileList(
                 onClick = { onItemClick(files[index]) },
                 onLongClick = { onItemLongClick(files[index]) },
             )
-        }
-    }
-}
-
-/** 分页源重载：直接从 LazyPagingItems 取值。 */
-@Composable
-private fun FileList(
-    count: Int,
-    key: (Int) -> Any,
-    getItem: (Int) -> RemoteFile?,
-    onItemClick: (RemoteFile) -> Unit,
-    onItemLongClick: (RemoteFile) -> Unit,
-) {
-    LazyColumn(
-        Modifier.fillMaxSize(),
-        contentPadding = PaddingValues(Spacing.md),
-        verticalArrangement = Arrangement.spacedBy(Spacing.sm),
-    ) {
-        items(
-            count = count,
-            key = key,
-        ) { index ->
-            getItem(index)?.let { file ->
-                FileRow(
-                    file = file,
-                    modifier = Modifier.animateItemPlacement(),
-                    onClick = { onItemClick(file) },
-                    onLongClick = { onItemLongClick(file) },
-                )
-            }
         }
     }
 }

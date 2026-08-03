@@ -31,18 +31,17 @@ class PlayMediaUseCase @Inject constructor(
      */
     suspend operator fun invoke(item: PlaylistItem): Result<PlayableMedia> = Result.runCatching {
         val base = mediaResolver.resolve(item)
-        // 字幕发现失败（离线 / 无权限）时静默退化为无字幕，不影响主媒体播放。
-        // 本地缓存文件（file://）无同级服务器字幕可发现，直接跳过网络列举，避免离线回放仍打 PROPFIND。
+        // 先 prepare + play 主媒体（无字幕），让视频立即开播，字幕异步发现（有 5s 超时保护）。
+        // 避免 WebDAV PROPFIND 超时导致"一直准备中"。
+        playlistController.setCurrent(item)
+        playerRepository.prepare(base.copy(subtitles = emptyList()))
+        playerRepository.play()
+        // 字幕异步发现（失败/超时/离线 静默退化为无字幕）
         val subtitles = if (base.uri.startsWith("file", ignoreCase = true)) {
             emptyList()
         } else {
             runCatching { mediaResolver.discoverSubtitles(item) }.getOrDefault(emptyList())
         }
-        val media = base.copy(subtitles = subtitles)
-        playlistController.setCurrent(item)
-        playerRepository.prepare(media)
-        // 观看进度已禁用（云鹤要求）：不读取断点、不 seek、不弹恢复提示，一律从头播放。
-        playerRepository.play()
-        media
+        base.copy(subtitles = subtitles)
     }
 }
