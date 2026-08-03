@@ -263,8 +263,9 @@ fun PlayerScreen(
                 }
 
                 // U2：控制栏自动隐藏计时器——任何用户交互（token 变化）都重置 3 秒倒计时
-                LaunchedEffect(controlsVisible, controlsHideToken) {
-                    if (controlsVisible) {
+                // 菜单打开时暂停隐藏，避免菜单随控制栏一起消失
+                LaunchedEffect(controlsVisible, controlsHideToken, menuExpanded, modeMenuExpanded) {
+                    if (controlsVisible && !menuExpanded && !modeMenuExpanded) {
                         delay(CONTROLS_AUTO_HIDE_MS)
                         controlsVisible = false
                     }
