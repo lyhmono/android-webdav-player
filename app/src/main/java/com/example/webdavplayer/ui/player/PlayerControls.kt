@@ -70,6 +70,12 @@ fun PlayerControls(
     speedOptions: List<Float> = listOf(0.5f, 0.75f, 1.0f, 1.25f, 1.5f, 2.0f),
     onToggleFullscreen: () -> Unit = {},
     isFullscreen: Boolean = false,
+    moreMenuExpanded: Boolean = false,
+    onMoreMenuDismiss: () -> Unit = {},
+    moreMenuContent: @Composable () -> Unit = {},
+    modeMenuExpanded: Boolean = false,
+    onModeMenuDismiss: () -> Unit = {},
+    modeMenuContent: @Composable () -> Unit = {},
     modifier: Modifier = Modifier,
 ) {
     var seekPosition by remember { mutableStateOf<Long?>(null) }
@@ -113,8 +119,24 @@ fun PlayerControls(
                         overflow = TextOverflow.Ellipsis,
                     )
                 }
-                IconButton(onClick = onMore) {
-                    Icon(Icons.Filled.MoreVert, "更多", tint = Color.White)
+                Box {
+                    IconButton(onClick = onMore) {
+                        Icon(Icons.Filled.MoreVert, "更多", tint = Color.White)
+                    }
+                    // 更多菜单锚定在按钮处（右上角弹出），替代根级无锚菜单
+                    DropdownMenu(
+                        expanded = moreMenuExpanded,
+                        onDismissRequest = onMoreMenuDismiss,
+                    ) {
+                        moreMenuContent()
+                    }
+                    // 二级菜单（播放模式）：从"模式"展开，同样锚定在按钮处
+                    DropdownMenu(
+                        expanded = modeMenuExpanded,
+                        onDismissRequest = onModeMenuDismiss,
+                    ) {
+                        modeMenuContent()
+                    }
                 }
                 IconButton(onClick = onToggleFullscreen) {
                     Icon(

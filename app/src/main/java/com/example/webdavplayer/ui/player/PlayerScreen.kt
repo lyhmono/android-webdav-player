@@ -112,7 +112,7 @@ fun PlayerScreen(
     val videoAspect by playerVm.videoAspect.collectAsStateWithLifecycle()
     val isPlaying = state == PlaybackState.PLAYING
 
-    var isFullScreen by remember { mutableStateOf(false) }
+    var isFullScreen by rememberSaveable { mutableStateOf(false) }
     val isVideo = mediaType == MediaType.VIDEO
     // #1/#19：fullscreen 仅由用户主动切换的 isFullScreen 决定
     // 原逻辑用 isLandscape 参与 fullscreen 判定，导致自然横屏时用户点"退出全屏"仍锁 LANDSCAPE
@@ -237,6 +237,28 @@ fun PlayerScreen(
                         onMore = { menuExpanded = true; controlsHideToken++ },
                         onToggleFullscreen = { isFullScreen = !isFullScreen; controlsHideToken++ },
                         isFullscreen = fullscreen,
+                        moreMenuExpanded = menuExpanded,
+                        onMoreMenuDismiss = { menuExpanded = false },
+                        moreMenuContent = {
+                            DropdownMenuItem(
+                                text = { Text("字幕") },
+                                onClick = { menuExpanded = false; showSubtitleDialog = true },
+                            )
+                            DropdownMenuItem(
+                                text = { Text("模式") },
+                                onClick = { menuExpanded = false; modeMenuExpanded = true },
+                            )
+                        },
+                        modeMenuExpanded = modeMenuExpanded,
+                        onModeMenuDismiss = { modeMenuExpanded = false },
+                        modeMenuContent = {
+                            PlayMode.values().forEach { m ->
+                                DropdownMenuItem(
+                                    text = { Text("${modeLabel(m)}${if (mode == m) "  ✓" else ""}") },
+                                    onClick = { playerVm.setMode(m); modeMenuExpanded = false },
+                                )
+                            }
+                        },
                     )
                 }
 
@@ -336,14 +358,40 @@ fun PlayerScreen(
                                 overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis,
                                 modifier = Modifier.weight(1f),
                             )
-                            // #21：图片顶栏也暴露更多按钮（复用根级 DropdownMenu）
-                            IconButton(
-                                onClick = {
-                                    menuExpanded = true
-                                    controlsHideToken++
-                                },
-                            ) {
-                                Icon(Icons.Filled.MoreVert, "更多", tint = Color.White)
+                            // 图片顶栏更多菜单：锚定在按钮处弹出
+                            Box {
+                                IconButton(
+                                    onClick = {
+                                        menuExpanded = true
+                                        controlsHideToken++
+                                    },
+                                ) {
+                                    Icon(Icons.Filled.MoreVert, "更多", tint = Color.White)
+                                }
+                                DropdownMenu(
+                                    expanded = menuExpanded,
+                                    onDismissRequest = { menuExpanded = false },
+                                ) {
+                                    DropdownMenuItem(
+                                        text = { Text("字幕") },
+                                        onClick = { menuExpanded = false; showSubtitleDialog = true },
+                                    )
+                                    DropdownMenuItem(
+                                        text = { Text("模式") },
+                                        onClick = { menuExpanded = false; modeMenuExpanded = true },
+                                    )
+                                }
+                                DropdownMenu(
+                                    expanded = modeMenuExpanded,
+                                    onDismissRequest = { modeMenuExpanded = false },
+                                ) {
+                                    PlayMode.values().forEach { m ->
+                                        DropdownMenuItem(
+                                            text = { Text("${modeLabel(m)}${if (mode == m) "  ✓" else ""}") },
+                                            onClick = { playerVm.setMode(m); modeMenuExpanded = false },
+                                        )
+                                    }
+                                }
                             }
                         }
                     }
@@ -488,19 +536,7 @@ fun PlayerScreen(
         }
     }
 
-    // #20/#22：根级菜单（横屏全屏与竖屏共用）——一级：字幕/模式
-    DropdownMenu(expanded = menuExpanded, onDismissRequest = { menuExpanded = false }) {
-        DropdownMenuItem(text = { Text("字幕") }, onClick = { menuExpanded = false; showSubtitleDialog = true })
-        DropdownMenuItem(text = { Text("模式") }, onClick = { menuExpanded = false; modeMenuExpanded = true })
-    }
-    DropdownMenu(expanded = modeMenuExpanded, onDismissRequest = { modeMenuExpanded = false }) {
-        PlayMode.values().forEach { m ->
-            DropdownMenuItem(
-                text = { Text("${modeLabel(m)}${if (mode == m) "  ✓" else ""}") },
-                onClick = { playerVm.setMode(m); modeMenuExpanded = false },
-            )
-        }
-    }
+    // 菜单已内嵌到 PlayerControls（视频）与图片顶栏（图片）的触发按钮处，锚定弹出
 
     // 字幕对话框
     if (showSubtitleDialog) {
