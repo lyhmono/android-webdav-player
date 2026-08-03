@@ -85,7 +85,7 @@ class BrowseViewModel @Inject constructor(
             _error.value = null
             when (val r = browseUseCase.refreshIfStale(serverId, p)) {
                 is Result.Success -> { /* 缓存已更新 */ }
-                is Result.Error -> _error.value = r.throwable.message ?: "加载失败"
+                is Result.Error -> _error.value = friendlyError(r.throwable)
             }
             // 无论是否触发了网络刷新，都同步一次“最后刷新时间”（秒显缓存时也应有值）。
             _lastRefreshedAt.value = browseUseCase.lastRefreshedAt(serverId, p)
@@ -104,7 +104,7 @@ class BrowseViewModel @Inject constructor(
             _error.value = null
             when (val r = browseUseCase.refresh(serverId, _path.value)) {
                 is Result.Success -> { /* 缓存已更新 */ }
-                is Result.Error -> _error.value = r.throwable.message ?: "刷新失败"
+                is Result.Error -> _error.value = friendlyError(r.throwable)
             }
             _lastRefreshedAt.value = browseUseCase.lastRefreshedAt(serverId, _path.value)
             _isLoading.value = false
@@ -122,7 +122,7 @@ class BrowseViewModel @Inject constructor(
         viewModelScope.launch {
             when (val r = addVideos(serverId, dir.parentPath, replace = false)) {
                 is Result.Success -> _videosAdded.value = r.data.size
-                is Result.Error -> _error.value = r.throwable.message ?: "添加失败"
+                is Result.Error -> _error.value = friendlyError(r.throwable)
             }
         }
     }
@@ -134,7 +134,7 @@ class BrowseViewModel @Inject constructor(
                     _message.value = "上传成功"
                     forceRefreshCurrentDir()
                 }
-                is Result.Error -> _error.value = r.throwable.message ?: "上传失败"
+                is Result.Error -> _error.value = friendlyError(r.throwable)
             }
         }
     }
@@ -146,7 +146,7 @@ class BrowseViewModel @Inject constructor(
                     _message.value = "重命名成功"
                     forceRefreshCurrentDir()
                 }
-                is Result.Error -> _error.value = r.throwable.message ?: "重命名失败"
+                is Result.Error -> _error.value = friendlyError(r.throwable)
             }
         }
     }
@@ -158,7 +158,7 @@ class BrowseViewModel @Inject constructor(
                     _message.value = "移动成功"
                     forceRefreshCurrentDir()
                 }
-                is Result.Error -> _error.value = r.throwable.message ?: "移动失败"
+                is Result.Error -> _error.value = friendlyError(r.throwable)
             }
         }
     }
@@ -170,7 +170,7 @@ class BrowseViewModel @Inject constructor(
                     _message.value = "已删除"
                     forceRefreshCurrentDir()
                 }
-                is Result.Error -> _error.value = r.throwable.message ?: "删除失败"
+                is Result.Error -> _error.value = friendlyError(r.throwable)
             }
         }
     }
@@ -209,8 +209,22 @@ class BrowseViewModel @Inject constructor(
         viewModelScope.launch {
             when (val r = cacheRepository.download(serverId, path)) {
                 is Result.Success -> _message.value = "已下载到本地：${r.data.name}"
-                is Result.Error -> _error.value = r.throwable.message ?: "下载失败"
+                is Result.Error -> _error.value = friendlyError(r.throwable)
             }
+        }
+    }
+
+    /**
+     * 将 WebDAV 异常转译为可读的中文提示（401/404/超时 是最常见的用户可见错误）。
+     */
+    private fun friendlyError(t: Throwable): String {
+        val msg = t.message ?: ""
+        return when {
+            msg.contains("401") -> "认证失败（401）：请检查用户名和密码"
+            msg.contains("404") -> "路径不存在（404）：目录可能已被移动或删除"
+            t is java.net.SocketTimeoutException || msg.contains("timeout") ->
+                "连接超时：服务器响应慢，请检查网络或稍后重试"
+            else -> msg.ifBlank { "网络错误" }
         }
     }
 }
