@@ -14,7 +14,6 @@ import com.example.webdavplayer.domain.model.MediaType
 import com.example.webdavplayer.domain.model.PlayMode
 import com.example.webdavplayer.domain.model.PlaybackState
 import com.example.webdavplayer.domain.model.PlaylistItem
-import com.example.webdavplayer.domain.model.SubtitleTrack
 import com.example.webdavplayer.domain.player.PlaylistController
 import com.example.webdavplayer.domain.repository.PlayerRepository
 import com.example.webdavplayer.domain.repository.PlaylistRepository
@@ -73,10 +72,6 @@ class PlayerViewModel @Inject constructor(
     /** 当前媒体类型（用于视频手势层门控 / 图片查看分支）。 */
     private val _currentMediaType = MutableStateFlow(MediaType.OTHER)
     val currentMediaType: StateFlow<MediaType> = _currentMediaType.asStateFlow()
-
-    /** 当前媒体的可选字幕轨列表（来自 [PlayMediaUseCase] 发现结果）。 */
-    private val _subtitles = MutableStateFlow<List<SubtitleTrack>>(emptyList())
-    val subtitles: StateFlow<List<SubtitleTrack>> = _subtitles.asStateFlow()
 
     /** 底层 ExoPlayer 实例（PlayerSurface 直接绑定渲染；引擎 prepare 后才非空）。 */
     private val _player = MutableStateFlow<Player?>(null)
@@ -168,7 +163,6 @@ class PlayerViewModel @Inject constructor(
         playJob = viewModelScope.launch {
             when (val r = playMedia(item)) {
                 is Result.Success -> {
-                    _subtitles.value = r.data.subtitles
                     if (r.data.mediaType == MediaType.IMAGE) {
                         // 图片：不走播放引擎，直接下载 Bitmap 展示
                         loadImage(r.data.uri, r.data.headers)
@@ -225,18 +219,6 @@ class PlayerViewModel @Inject constructor(
     fun setSpeed(speed: Float) {
         _speed.value = speed
         playerRepository.setSpeed(speed)
-    }
-
-    /**
-     * 选择字幕语言（null = 关闭）。直连引擎设置轨道参数。
-     */
-    fun selectSubtitle(language: String?) {
-        playerRepository.selectSubtitle(language)
-    }
-
-    /** 启用字幕（不指定语言，由播放器自动选第一条可用文本轨）。 */
-    fun enableSubtitles() {
-        playerRepository.enableSubtitles()
     }
 
     fun next() {

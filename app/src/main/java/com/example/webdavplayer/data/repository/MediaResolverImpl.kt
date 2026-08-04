@@ -3,17 +3,12 @@ package com.example.webdavplayer.data.repository
 import com.example.webdavplayer.data.log.AppLogger
 import com.example.webdavplayer.data.remote.WebDavClient
 import com.example.webdavplayer.data.remote.WebDavPath
-import com.example.webdavplayer.domain.common.MediaConstants
 import com.example.webdavplayer.domain.model.AuthType
 import com.example.webdavplayer.domain.model.PlayableMedia
 import com.example.webdavplayer.domain.model.PlaylistItem
-import com.example.webdavplayer.domain.model.SubtitleTrack
 import com.example.webdavplayer.domain.repository.CacheRepository
 import com.example.webdavplayer.domain.repository.MediaResolver
 import com.example.webdavplayer.domain.repository.ServerRepository
-import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.withContext
-import kotlinx.coroutines.withTimeoutOrNull
 import okhttp3.Credentials
 import java.io.File
 import javax.inject.Inject
@@ -77,32 +72,4 @@ class MediaResolverImpl @Inject constructor(
             throw e
         }
     }
-
-    override suspend fun discoverSubtitles(item: PlaylistItem): List<SubtitleTrack> =
-        withContext(Dispatchers.IO) {
-            try {
-                val cfg = serverRepository.getById(item.serverId)
-                    ?: return@withContext emptyList()
-                webDavClient.connect(cfg)
-                val parent = WebDavPath.parentOf(item.path)
-                // 加超时保护：超过 5 秒放弃字幕发现，不影响主媒体播放
-                val dir = withTimeoutOrNull(5_000L) { webDavClient.listDirectory(parent) }
-                    ?: return@withContext emptyList()
-                val mediaName = WebDavPath.nameOf(item.path)
-                val baseName = mediaName.substringBeforeLast('.')
-                dir.filter { !it.isDirectory && MediaConstants.isSiblingSubtitle(it.name, baseName) }
-                    .map { sub ->
-                        val fullPath = if (sub.parentPath == "/") "/${sub.name}" else "${sub.parentPath}/${sub.name}"
-                        SubtitleTrack(
-                            uri = WebDavPath.join(WebDavPath.resolveRoot(cfg.baseUrl, cfg.path), fullPath),
-                            mimeType = MediaConstants.subtitleMimeType(sub.name),
-                            language = MediaConstants.subtitleLanguageFromName(sub.name),
-                            label = sub.name,
-                        )
-                    }
-            } catch (e: Exception) {
-                AppLogger.logException("MediaResolver", e)
-                throw e
-            }
-        }
 }

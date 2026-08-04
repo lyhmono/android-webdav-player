@@ -35,18 +35,6 @@ interface PlayerRepository {
 
     fun setListener(listener: EngineListener?)
 
-    /**
-     * 选择字幕语言（null = 关闭字幕）。
-     * 默认空实现，由 [com.example.webdavplayer.data.repository.PlayerRepositoryImpl] 覆写为真实逻辑。
-     */
-    fun selectSubtitle(language: String?) { /* no-op by default */ }
-
-    /**
-     * 启用字幕（不指定语言，由播放器自动选第一条可用文本轨）。
-     * 默认空实现，见 [com.example.webdavplayer.domain.player.PlayerEngine.enableSubtitles] 说明。
-     */
-    fun enableSubtitles() { /* no-op by default */ }
-
     fun getState(): PlaybackState
 
     /** 获取当前播放引擎实时进度（毫秒），不依赖 MediaController。 */

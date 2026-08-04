@@ -107,7 +107,6 @@ fun PlayerScreen(
     val isOnline by playerVm.isOnline.collectAsStateWithLifecycle()
     val currentItemId by playerVm.currentItemId.collectAsStateWithLifecycle()
     val speed by playerVm.speed.collectAsStateWithLifecycle()
-    val subtitles by playerVm.subtitles.collectAsStateWithLifecycle()
     val player by playerVm.player.collectAsStateWithLifecycle()
     val videoAspect by playerVm.videoAspect.collectAsStateWithLifecycle()
     val isPlaying = state == PlaybackState.PLAYING
@@ -140,7 +139,6 @@ fun PlayerScreen(
 
     var menuExpanded by remember { mutableStateOf(false) }
     var modeMenuExpanded by remember { mutableStateOf(false) }
-    var showSubtitleDialog by remember { mutableStateOf(false) }
     val snackbarHostState = remember { SnackbarHostState() }
 
     // 控制栏显隐（默认隐藏：点击视频框只切换控制栏，不误触播放/暂停按钮）
@@ -240,10 +238,6 @@ fun PlayerScreen(
                         moreMenuExpanded = menuExpanded,
                         onMoreMenuDismiss = { menuExpanded = false },
                         moreMenuContent = {
-                            DropdownMenuItem(
-                                text = { Text("字幕") },
-                                onClick = { menuExpanded = false; showSubtitleDialog = true },
-                            )
                             DropdownMenuItem(
                                 text = { Text("模式") },
                                 onClick = { menuExpanded = false; modeMenuExpanded = true },
@@ -373,10 +367,6 @@ fun PlayerScreen(
                                     expanded = menuExpanded,
                                     onDismissRequest = { menuExpanded = false },
                                 ) {
-                                    DropdownMenuItem(
-                                        text = { Text("字幕") },
-                                        onClick = { menuExpanded = false; showSubtitleDialog = true },
-                                    )
                                     DropdownMenuItem(
                                         text = { Text("模式") },
                                         onClick = { menuExpanded = false; modeMenuExpanded = true },
@@ -538,37 +528,6 @@ fun PlayerScreen(
     }
 
     // 菜单已内嵌到 PlayerControls（视频）与图片顶栏（图片）的触发按钮处，锚定弹出
-
-    // 字幕对话框
-    if (showSubtitleDialog) {
-        AlertDialog(
-            onDismissRequest = { showSubtitleDialog = false },
-            title = { Text("字幕") },
-            text = {
-                Column {
-                    SubtitleChoiceRow("关闭字幕") { playerVm.selectSubtitle(null); showSubtitleDialog = false }
-                    subtitles.forEach { sub ->
-                        SubtitleChoiceRow(
-                            buildString {
-                                append("${sub.label}${sub.mimeType?.let { "（${it}）" }.orEmpty()}")
-                                sub.language?.let { append(" · ${it}") }
-                            },
-                            onClick = {
-                                if (sub.language != null) playerVm.selectSubtitle(sub.language) else playerVm.enableSubtitles()
-                                showSubtitleDialog = false
-                            },
-                        )
-                    }
-                }
-            },
-            confirmButton = { TextButton(onClick = { showSubtitleDialog = false }) { Text("完成") } },
-        )
-    }
-}
-
-@Composable
-private fun SubtitleChoiceRow(label: String, onClick: () -> Unit) {
-    ListItem(headlineContent = { Text(label) }, modifier = Modifier.fillMaxWidth().clickable(onClick = onClick))
 }
 
 /**
