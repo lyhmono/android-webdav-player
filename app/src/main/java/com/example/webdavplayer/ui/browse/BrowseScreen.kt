@@ -100,7 +100,6 @@ fun BrowseScreen(
     val isLoading by viewModel.isLoading.collectAsStateWithLifecycle()
     val error by viewModel.error.collectAsStateWithLifecycle()
     val message by viewModel.message.collectAsStateWithLifecycle()
-    val videosAdded by viewModel.videosAdded.collectAsStateWithLifecycle()
     val isOnline by viewModel.isOnline.collectAsStateWithLifecycle()
     val lastRefreshedAt by viewModel.lastRefreshedAt.collectAsStateWithLifecycle()
 
@@ -150,17 +149,6 @@ fun BrowseScreen(
         error?.let {
             snackbarHostState.showSnackbar("错误：$it")
             viewModel.consumeError()
-        }
-    }
-    LaunchedEffect(videosAdded) {
-        videosAdded?.let { count ->
-            if (count > 0) {
-                snackbarHostState.showSnackbar("已将 $count 个视频加入播放列表")
-                navController.navigate("playlist")
-            } else {
-                snackbarHostState.showSnackbar("该目录未找到视频文件")
-            }
-            viewModel.consumeVideosAdded()
         }
     }
 

@@ -43,8 +43,6 @@ import com.example.webdavplayer.domain.model.TrustedCert
 import com.example.webdavplayer.ui.common.MediaCard
 import com.example.webdavplayer.ui.common.SectionCard
 import com.example.webdavplayer.ui.common.SectionHeader
-import com.example.webdavplayer.domain.common.FileFormatter
-import com.example.webdavplayer.domain.model.CachedMedia
 import com.example.webdavplayer.ui.player.PlayerViewModel
 import com.example.webdavplayer.ui.playlist.PlaylistViewModel
 import com.example.webdavplayer.ui.common.SectionHeader
@@ -61,7 +59,6 @@ fun SettingsScreen(
 ) {
     val engineType by viewModel.engineType.collectAsStateWithLifecycle()
     val certs by viewModel.certs.collectAsStateWithLifecycle()
-    val cached by viewModel.cachedMedia.collectAsStateWithLifecycle()
     val downloadDir by viewModel.downloadDir.collectAsStateWithLifecycle()
 
     Scaffold(
@@ -207,33 +204,6 @@ private fun CertRow(
         }
         IconButton(onClick = onRemove) {
             Icon(Icons.Filled.Delete, "移除")
-        }
-    }
-}
-
-@Composable
-private fun CachedRow(
-    cached: CachedMedia,
-    onRemove: () -> Unit,
-    modifier: Modifier = Modifier,
-) {
-    MediaCard(
-        onClick = null,
-        modifier = modifier,
-    ) {
-        Column(Modifier.weight(1f)) {
-            Text(cached.name, style = MaterialTheme.typography.titleSmall, maxLines = 1,
-                overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis)
-            Text(
-                "${FileFormatter.formatSize(cached.size)} · ${cached.path}",
-                style = MaterialTheme.typography.bodySmall,
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
-                maxLines = 1,
-                overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis,
-            )
-        }
-        IconButton(onClick = onRemove) {
-            Icon(Icons.Filled.Delete, "删除缓存")
         }
     }
 }

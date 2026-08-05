@@ -12,7 +12,6 @@ import com.example.webdavplayer.domain.model.PlaylistItem
 import com.example.webdavplayer.domain.model.RemoteFile
 import com.example.webdavplayer.domain.repository.CacheRepository
 import com.example.webdavplayer.domain.repository.PlaylistRepository
-import com.example.webdavplayer.domain.usecase.AddDirVideosToPlaylistUseCase
 import com.example.webdavplayer.domain.usecase.BrowseDirectoryUseCase
 import com.example.webdavplayer.domain.usecase.PlayMediaUseCase
 import com.example.webdavplayer.domain.usecase.RenameMoveDeleteUseCase
@@ -36,7 +35,6 @@ import javax.inject.Inject
 class BrowseViewModel @Inject constructor(
     savedStateHandle: SavedStateHandle,
     private val browseUseCase: BrowseDirectoryUseCase,
-    private val addVideos: AddDirVideosToPlaylistUseCase,
     private val uploadUseCase: UploadFileUseCase,
     private val fileOps: RenameMoveDeleteUseCase,
     private val playMedia: PlayMediaUseCase,
@@ -61,9 +59,6 @@ class BrowseViewModel @Inject constructor(
 
     private val _message = MutableStateFlow<String?>(null)
     val message: StateFlow<String?> = _message.asStateFlow()
-
-    private val _videosAdded = MutableStateFlow<Int?>(null)
-    val videosAdded: StateFlow<Int?> = _videosAdded.asStateFlow()
 
     /** 目录缓存最后刷新时间戳（毫秒），供 UI 显示“更新于 Xs 前”（§1.3 优化）。 */
     private val _lastRefreshedAt = MutableStateFlow<Long?>(null)
@@ -115,16 +110,6 @@ class BrowseViewModel @Inject constructor(
     fun fullPath(name: String): String {
         val p = _path.value
         return if (p == "/") "/$name" else "$p/$name"
-    }
-
-    /** 长按目录：识别其中视频并加入播放列表（§1.5）。 */
-    fun onDirLongClick(dir: RemoteFile) {
-        viewModelScope.launch {
-            when (val r = addVideos(serverId, dir.parentPath, replace = false)) {
-                is Result.Success -> _videosAdded.value = r.data.size
-                is Result.Error -> _error.value = friendlyError(r.throwable)
-            }
-        }
     }
 
     fun upload(parentPath: String, fileName: String, source: Source, size: Long?) {
@@ -198,10 +183,6 @@ class BrowseViewModel @Inject constructor(
 
     fun consumeError() {
         _error.value = null
-    }
-
-    fun consumeVideosAdded() {
-        _videosAdded.value = null
     }
 
     /** 下载当前文件到本地离线缓存（P2）。 */
