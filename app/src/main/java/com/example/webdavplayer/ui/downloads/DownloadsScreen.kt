@@ -54,7 +54,7 @@ fun DownloadsScreen(
     ) { padding ->
         if (downloads.isEmpty()) {
             EmptyView(
-                label = "暂无已下载文件，在浏览页长按文件选择「下载」即可",
+                message = "暂无已下载文件，在浏览页长按文件选择「下载」即可",
                 modifier = Modifier.padding(padding),
             )
         } else {

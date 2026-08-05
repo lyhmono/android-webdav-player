@@ -11,6 +11,7 @@ import com.example.webdavplayer.data.remote.WebDavPath
 import com.example.webdavplayer.domain.model.CachedMedia
 import com.example.webdavplayer.domain.repository.CacheRepository
 import com.example.webdavplayer.domain.repository.ServerRepository
+import com.example.webdavplayer.domain.repository.SettingsRepository
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.map
@@ -41,7 +42,11 @@ class CacheRepositoryImpl @Inject constructor(
     /** 下载根目录：优先用户设置的 downloadDir，否则默认 cacheDir/cache。 */
     private suspend fun downloadRoot(): File {
         val custom = settingsRepository.getDownloadDir()
-        return if (!custom.isNullOrBlank()) File(custom) else File(context.cacheDir, "cache")
+        return if (!custom.isNullOrBlank()) {
+            File(custom!!)
+        } else {
+            File(context.cacheDir, "cache")
+        }
     }
 
     override suspend fun download(serverId: String, path: String): Result<CachedMedia> =
