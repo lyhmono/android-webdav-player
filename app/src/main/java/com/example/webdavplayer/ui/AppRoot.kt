@@ -1,5 +1,11 @@
 package com.example.webdavplayer.ui
 
+import androidx.compose.animation.AnimatedContentTransitionScope
+import androidx.compose.animation.core.tween
+import androidx.compose.animation.fadeIn
+import androidx.compose.animation.fadeOut
+import androidx.compose.animation.slideIntoContainer
+import androidx.compose.animation.slideOutOfContainer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
@@ -36,7 +42,15 @@ fun AppRoot() {
             val playerVm: PlayerViewModel = hiltViewModel()
             val playlistVm: PlaylistViewModel = hiltViewModel()
 
-            NavHost(navController = navController, startDestination = "servers") {
+            NavHost(
+                navController = navController,
+                startDestination = "servers",
+                // 统一页面切换动画：前进 = 从右滑入；后退 = 向右滑出
+                enterTransition = { slideIntoContainer(AnimatedContentTransitionScope.SlideDirection.Left, tween(280)) + fadeIn(tween(280)) },
+                exitTransition = { slideOutOfContainer(AnimatedContentTransitionScope.SlideDirection.Left, tween(280)) + fadeOut(tween(280)) },
+                popEnterTransition = { slideIntoContainer(AnimatedContentTransitionScope.SlideDirection.Right, tween(280)) + fadeIn(tween(280)) },
+                popExitTransition = { slideOutOfContainer(AnimatedContentTransitionScope.SlideDirection.Right, tween(280)) + fadeOut(tween(280)) },
+            ) {
                 composable("servers") {
                     ServerListScreen(navController, playerVm, playlistVm)
                 }

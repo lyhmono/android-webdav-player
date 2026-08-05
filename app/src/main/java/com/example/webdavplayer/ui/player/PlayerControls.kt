@@ -170,7 +170,7 @@ fun PlayerControls(
                 Icon(Icons.Filled.SkipPrevious, "上一条", tint = Color.White.copy(alpha = 0.8f), modifier = Modifier.size(30.dp))
             }
             Spacer(Modifier.width(16.dp))
-            // 大播放/暂停按钮：半透明深色底 + 圆角 + 边框光
+            // 大播放/暂停按钮：半透明深色底 + 圆角 + 边框光 + 图标 Crossfade 切换
             Surface(
                 onClick = onTogglePlay,
                 modifier = Modifier.size(68.dp),
@@ -179,12 +179,18 @@ fun PlayerControls(
                 border = androidx.compose.foundation.BorderStroke(1.5.dp, Color.White.copy(alpha = 0.25f)),
             ) {
                 Box(contentAlignment = Alignment.Center) {
-                    Icon(
-                        if (isPlaying) Icons.Filled.Pause else Icons.Filled.PlayArrow,
-                        "播/暂停",
-                        tint = Color.White.copy(alpha = 0.98f),
-                        modifier = Modifier.size(38.dp),
-                    )
+                    androidx.compose.animation.Crossfade(
+                        targetState = isPlaying,
+                        animationSpec = tween(180),
+                        label = "playPause",
+                    ) { playing ->
+                        Icon(
+                            if (playing) Icons.Filled.Pause else Icons.Filled.PlayArrow,
+                            "播/暂停",
+                            tint = Color.White.copy(alpha = 0.98f),
+                            modifier = Modifier.size(38.dp),
+                        )
+                    }
                 }
             }
             Spacer(Modifier.width(16.dp))

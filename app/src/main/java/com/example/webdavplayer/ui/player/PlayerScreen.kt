@@ -214,8 +214,10 @@ fun PlayerScreen(
                 // 控制层（U1：去掉 clickable Box，改由 VGL 的 onToggleControls 驱动）
                 androidx.compose.animation.AnimatedVisibility(
                     visible = controlsVisible,
-                    enter = androidx.compose.animation.fadeIn(animationSpec = tween(200)),
-                    exit = androidx.compose.animation.fadeOut(animationSpec = tween(200)),
+                    enter = androidx.compose.animation.fadeIn(animationSpec = tween(220)) +
+                        androidx.compose.animation.slideInVertically(initialOffsetY = { it / 8 }, animationSpec = tween(220)),
+                    exit = androidx.compose.animation.fadeOut(animationSpec = tween(200)) +
+                        androidx.compose.animation.slideOutVertically(targetOffsetY = { -it / 8 }, animationSpec = tween(200)),
                 ) {
                     PlayerControls(
                         title = title,
@@ -332,8 +334,10 @@ fun PlayerScreen(
                     androidx.compose.animation.AnimatedVisibility(
                         visible = controlsVisible,
                         modifier = Modifier.align(Alignment.TopCenter).fillMaxWidth(),
-                        enter = androidx.compose.animation.fadeIn(animationSpec = tween(200)),
-                        exit = androidx.compose.animation.fadeOut(animationSpec = tween(200)),
+                        enter = androidx.compose.animation.fadeIn(animationSpec = tween(220)) +
+                            androidx.compose.animation.slideInVertically(initialOffsetY = { -it / 6 }, animationSpec = tween(220)),
+                        exit = androidx.compose.animation.fadeOut(animationSpec = tween(200)) +
+                            androidx.compose.animation.slideOutVertically(targetOffsetY = { -it / 6 }, animationSpec = tween(200)),
                     ) {
                         Row(
                             modifier = Modifier
