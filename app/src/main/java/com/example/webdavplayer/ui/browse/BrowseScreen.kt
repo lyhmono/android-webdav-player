@@ -338,11 +338,7 @@ fun BrowseScreen(
                                     }
                                 },
                                 onItemLongClick = { file ->
-                                    if (file.isDirectory) {
-                                        viewModel.onDirLongClick(file)
-                                    } else {
-                                        fileAction = file
-                                    }
+                                    fileAction = file
                                 },
                             )
                         }
@@ -366,11 +362,7 @@ fun BrowseScreen(
                                 }
                             },
                             onItemLongClick = { file ->
-                                if (file.isDirectory) {
-                                    viewModel.onDirLongClick(file)
-                                } else {
-                                    fileAction = file
-                                }
+                                fileAction = file
                             },
                         )
                     }
@@ -448,10 +440,13 @@ fun BrowseScreen(
                     },
                     dismissButton = {
                         Row {
-                            TextButton(onClick = {
-                                viewModel.downloadFile(viewModel.fullPath(file.name))
-                                fileAction = null
-                            }) { Text("下载") }
+                            // 文件夹不支持下载（WebDAV GET 对目录无效）
+                            if (!file.isDirectory) {
+                                TextButton(onClick = {
+                                    viewModel.downloadFile(viewModel.fullPath(file.name))
+                                    fileAction = null
+                                }) { Text("下载") }
+                            }
                             TextButton(onClick = {
                                 moveText = file.parentPath
                                 showMove = true
