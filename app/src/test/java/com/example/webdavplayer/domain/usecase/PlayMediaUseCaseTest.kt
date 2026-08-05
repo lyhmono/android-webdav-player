@@ -1,30 +1,25 @@
 package com.example.webdavplayer.domain.usecase
 
-import android.view.TextureView
 import com.example.webdavplayer.common.Result
 import com.example.webdavplayer.data.repository.PlaylistControllerImpl
 import com.example.webdavplayer.domain.model.EngineListener
 import com.example.webdavplayer.domain.model.EngineType
 import com.example.webdavplayer.domain.model.MediaType
 import com.example.webdavplayer.domain.model.PlayableMedia
-import com.example.webdavplayer.domain.model.PlaybackProgress
 import com.example.webdavplayer.domain.model.PlaybackState
 import com.example.webdavplayer.domain.model.PlaylistItem
-import com.example.webdavplayer.domain.model.SubtitleTrack
 import com.example.webdavplayer.domain.player.PlaylistController
 import com.example.webdavplayer.domain.repository.MediaResolver
-import com.example.webdavplayer.domain.repository.PlaybackProgressRepository
 import com.example.webdavplayer.domain.repository.PlayerRepository
 import kotlinx.coroutines.runBlocking
 import org.junit.Assert.assertEquals
-import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
 import org.junit.Test
 
 /**
- * [PlayMediaUseCase] 断点续播单元测试（修复 G：进度被保存却从未读取/seek，续播实际失效）。
+ * [PlayMediaUseCase] 单元测试。
  *
- * 验证：prepare 之后、play 之前，若存在正进度则 seek 到断点；无进度 / 进度为 0 则不跳转（从头播放）。
+ * 验证：prepare 之后 play，事件顺序为 prepare → play（观看进度已禁用，不 seek）。
  */
 class PlayMediaUseCaseTest {
 
@@ -37,8 +32,6 @@ class PlayMediaUseCaseTest {
             serverId = item.serverId,
             trustSelfSigned = false,
         )
-
-        override suspend fun discoverSubtitles(item: PlaylistItem): List<SubtitleTrack> = emptyList()
     }
 
     private class FakePlayerRepository : PlayerRepository {
@@ -56,19 +49,10 @@ class PlayMediaUseCaseTest {
         override fun setSpeed(speed: Float) {}
         override fun setListener(listener: EngineListener?) {}
         override fun getState(): PlaybackState = PlaybackState.IDLE
+        override fun getCurrentPosition(): Long = 0L
+        override fun getDurationMs(): Long = 0L
+        override fun getPlayer(): androidx.media3.common.Player? = null
         override fun release() {}
-        override fun setVideoSurface(view: TextureView?) {
-            // no-op: test fake
-        }
-    }
-
-    private class FakeProgressRepository(var saved: PlaybackProgress? = null) :
-        PlaybackProgressRepository {
-        override suspend fun save(progress: PlaybackProgress) {}
-        override suspend fun get(serverId: String, path: String): PlaybackProgress? = saved
-        override suspend fun clear(serverId: String, path: String) {}
-        override suspend fun clearServer(serverId: String) {}
-        override suspend fun clearAll() {}
     }
 
     private fun item(path: String): PlaylistItem = PlaylistItem(
@@ -82,51 +66,19 @@ class PlayMediaUseCaseTest {
     )
 
     @Test
-    fun play_resumesFromSavedProgress_whenPositionPositive() = runBlocking {
+    fun play_preparesThenPlays() = runBlocking {
         val player = FakePlayerRepository()
         val useCase = PlayMediaUseCase(
             player,
             PlaylistControllerImpl(),
             FakeMediaResolver(),
-            FakeProgressRepository(PlaybackProgress("s1", "/a.mp4", 12_000L, 0L)),
         )
 
         val r = useCase(item("/a.mp4"))
 
         assertTrue("应返回成功", r is Result.Success)
-        // 顺序：prepare → seek(断点) → play
-        assertEquals(listOf("prepare", "seek:12000", "play"), player.events)
-    }
-
-    @Test
-    fun play_doesNotSeek_whenNoSavedProgress() = runBlocking {
-        val player = FakePlayerRepository()
-        val useCase = PlayMediaUseCase(
-            player,
-            PlaylistControllerImpl(),
-            FakeMediaResolver(),
-            FakeProgressRepository(null),
-        )
-
-        useCase(item("/b.mp4"))
-
+        // 观看进度已禁用：一律 prepare → play，不 seek
         assertEquals(listOf("prepare", "play"), player.events)
-        assertNull(player.lastSeekTo)
-    }
-
-    @Test
-    fun play_doesNotSeek_whenSavedProgressIsZero() = runBlocking {
-        val player = FakePlayerRepository()
-        val useCase = PlayMediaUseCase(
-            player,
-            PlaylistControllerImpl(),
-            FakeMediaResolver(),
-            FakeProgressRepository(PlaybackProgress("s1", "/c.mp4", 0L, 0L)),
-        )
-
-        useCase(item("/c.mp4"))
-
-        assertEquals(listOf("prepare", "play"), player.events)
-        assertNull(player.lastSeekTo)
+        assertEquals(null, player.lastSeekTo)
     }
 }

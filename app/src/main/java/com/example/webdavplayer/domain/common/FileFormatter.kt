@@ -28,6 +28,7 @@ object FileFormatter {
     fun mediaTypeLabel(mediaType: MediaType): String = when (mediaType) {
         MediaType.VIDEO -> "视频"
         MediaType.AUDIO -> "音频"
+        MediaType.IMAGE -> "图片"
         MediaType.OTHER -> "文件"
     }
 }

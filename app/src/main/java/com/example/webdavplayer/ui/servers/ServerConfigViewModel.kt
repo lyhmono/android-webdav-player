@@ -6,7 +6,6 @@ import androidx.lifecycle.viewModelScope
 import com.example.webdavplayer.common.Result
 import com.example.webdavplayer.data.log.AppLogger
 import com.example.webdavplayer.domain.exception.CertUntrustedException
-import com.example.webdavplayer.domain.model.AuthType
 import com.example.webdavplayer.domain.model.ServerConfig
 import com.example.webdavplayer.domain.model.TrustedCert
 import com.example.webdavplayer.domain.usecase.ManageServerUseCase
@@ -66,7 +65,7 @@ class ServerConfigViewModel @Inject constructor(
                             pendingConfig = config,
                         )
                     } else {
-                        _lastError.value = t.message ?: t.toString()
+                        _lastError.value = friendlyError(t)
                         AppLogger.logException("ServerConfig", t)
                     }
                 }
@@ -110,5 +109,17 @@ class ServerConfigViewModel @Inject constructor(
     /** 编辑模式：加载已有服务器配置填充表单。 */
     suspend fun loadServerForEdit(id: String): ServerConfig? {
         return manageServer.getServer(id)
+    }
+
+    /** 将 WebDAV 异常转译为可读的中文提示（401/404/超时 是最常见的用户可见错误）。 */
+    private fun friendlyError(t: Throwable): String {
+        val msg = t.message ?: ""
+        return when {
+            msg.contains("401") -> "认证失败（401）：请检查用户名和密码"
+            msg.contains("404") -> "路径不存在（404）：请检查 WebDAV 根路径是否填写正确"
+            t is java.net.SocketTimeoutException || msg.contains("timeout") ->
+                "连接超时：服务器响应慢，请检查网络或稍后重试"
+            else -> msg.ifBlank { "连接失败" }
+        }
     }
 }

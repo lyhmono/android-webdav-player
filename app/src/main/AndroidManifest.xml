@@ -6,10 +6,6 @@
     <uses-permission android:name="android.permission.INTERNET" />
     <uses-permission android:name="android.permission.ACCESS_NETWORK_STATE" />
 
-    <!-- 后台播放：前台服务（mediaPlayback 类型，Android 14+ 必需） -->
-    <uses-permission android:name="android.permission.FOREGROUND_SERVICE" />
-    <uses-permission android:name="android.permission.FOREGROUND_SERVICE_MEDIA_PLAYBACK" />
-
     <application
         android:name=".WebDavPlayerApp"
         android:allowBackup="true"
@@ -30,16 +26,5 @@
                 <category android:name="android.intent.category.LAUNCHER" />
             </intent-filter>
         </activity>
-
-        <!-- 后台媒体会话服务（C1）：承载 MediaSession + 前台通知 -->
-        <service
-            android:name=".service.PlaybackService"
-            android:exported="false"
-            android:foregroundServiceType="mediaPlayback"
-            tools:ignore="ExportedService">
-            <intent-filter>
-                <action android:name="androidx.media3.session.MediaSessionService" />
-            </intent-filter>
-        </service>
     </application>
 </manifest>

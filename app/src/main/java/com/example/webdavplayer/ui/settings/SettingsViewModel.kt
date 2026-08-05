@@ -33,6 +33,10 @@ class SettingsViewModel @Inject constructor(
     val cachedMedia: StateFlow<List<CachedMedia>> = cacheRepository.observeAll()
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
 
+    /** 当前下载目录路径；null = 默认（app 私有 cacheDir）。 */
+    val downloadDir: StateFlow<String?> = settingsRepository.observeDownloadDir()
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), null)
+
     fun removeCert(id: String) = viewModelScope.launch {
         manageServer.removeCert(id)
     }
@@ -40,5 +44,10 @@ class SettingsViewModel @Inject constructor(
     /** 删除指定缓存（清理本地文件 + Room 记录）。 */
     fun deleteCache(id: String) = viewModelScope.launch {
         cacheRepository.delete(id)
+    }
+
+    /** 设置下载目录（null = 恢复默认 cacheDir）。 */
+    fun setDownloadDir(path: String?) = viewModelScope.launch {
+        settingsRepository.setDownloadDir(path)
     }
 }

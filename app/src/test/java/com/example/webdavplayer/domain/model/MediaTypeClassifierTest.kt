@@ -25,7 +25,8 @@ class MediaTypeClassifierTest {
             ContentTypeCase("VIDEO/MPEG", MediaType.VIDEO), // 忽略大小写
             ContentTypeCase("audio/mpeg", MediaType.AUDIO),
             ContentTypeCase("audio/MP3", MediaType.AUDIO),  // 忽略大小写
-            ContentTypeCase("image/png", null),
+            ContentTypeCase("image/png", MediaType.IMAGE),
+            ContentTypeCase("image/jpeg", MediaType.IMAGE),
             ContentTypeCase("application/octet-stream", null),
             ContentTypeCase("text/plain", null),
             ContentTypeCase("", null),
@@ -63,9 +64,20 @@ class MediaTypeClassifierTest {
     }
 
     @Test
+    fun fromExtension_imageTable() {
+        val imageNames = listOf(
+            "photo.jpg", "pic.JPEG", "shot.png", "anim.gif", "web.webp",
+            "scan.bmp", "img.heic", "art.heif", "bg.avif", "icon.svg",
+        )
+        imageNames.forEach { name ->
+            assertEquals("fromExtension($name) should be IMAGE", MediaType.IMAGE, MediaTypeClassifier.fromExtension(name))
+        }
+    }
+
+    @Test
     fun fromExtension_otherTable() {
         val otherNames = listOf(
-            "doc.pdf", "image.png", "archive.zip", "readme.txt",
+            "doc.pdf", "archive.zip", "readme.txt",
             "noextension", ".hidden",
         )
         otherNames.forEach { name ->
@@ -100,10 +112,16 @@ class MediaTypeClassifierTest {
         val cases = listOf(
             ClassifyCase(null, "readme.txt", MediaType.OTHER),
             ClassifyCase("application/octet-stream", "data.bin", MediaType.OTHER),
-            ClassifyCase("", "image.png", MediaType.OTHER),
         )
         cases.forEach { (ct, name, exp) ->
             assertEquals("classify($ct, $name)", exp, MediaTypeClassifier.classify(ct, name))
         }
+    }
+
+    @Test
+    fun classify_imageExtensionBacksUp() {
+        // contentType 未知/空 + 图片扩展名 → IMAGE
+        assertEquals(MediaType.IMAGE, MediaTypeClassifier.classify(null, "photo.png"))
+        assertEquals(MediaType.IMAGE, MediaTypeClassifier.classify("application/octet-stream", "pic.jpg"))
     }
 }

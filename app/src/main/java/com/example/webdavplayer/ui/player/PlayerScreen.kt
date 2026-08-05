@@ -1,34 +1,41 @@
-@file:OptIn(ExperimentalFoundationApi::class)
+@file:OptIn(UnstableApi::class)
 
 package com.example.webdavplayer.ui.player
 
+import android.content.pm.ActivityInfo
+import androidx.compose.animation.core.tween
+import androidx.compose.foundation.ExperimentalFoundationApi
+import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
-import androidx.compose.foundation.combinedClickable
+import androidx.compose.foundation.gestures.detectHorizontalDragGestures
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
-import androidx.compose.foundation.layout.aspectRatio
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.lazy.LazyColumn
-import androidx.compose.foundation.lazy.items
-import androidx.compose.foundation.ExperimentalFoundationApi
+import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.aspectRatio
+import androidx.compose.foundation.layout.WindowInsets
+import androidx.compose.foundation.layout.statusBars
+import androidx.compose.foundation.layout.asPaddingValues
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.ArrowBack
 import androidx.compose.material.icons.filled.AudioFile
-import androidx.compose.material.icons.filled.PlayArrow
-import androidx.compose.material.icons.filled.Fullscreen
-import androidx.compose.material.icons.filled.FullscreenExit
+import androidx.compose.material.icons.filled.Error
 import androidx.compose.material.icons.filled.MoreVert
-import androidx.compose.material.icons.filled.QueueMusic
+import androidx.compose.material.icons.filled.Pause
+import androidx.compose.material.icons.filled.Photo
+import androidx.compose.material.icons.filled.PlayArrow
 import androidx.compose.material.icons.filled.VideoLibrary
-import androidx.compose.material.icons.filled.WifiOff
 import androidx.compose.material3.AlertDialog
+import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.ExperimentalMaterial3Api
@@ -37,36 +44,51 @@ import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.ListItem
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.Scaffold
-import androidx.compose.material3.Slider
 import androidx.compose.material3.SnackbarHost
 import androidx.compose.material3.SnackbarHostState
+import androidx.compose.material3.Slider
+import androidx.compose.material3.SliderDefaults
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
-import androidx.compose.material3.TopAppBar
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.platform.LocalConfiguration
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.asImageBitmap
+import androidx.compose.ui.input.pointer.pointerInput
+import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.LocalDensity
+import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import androidx.media3.common.util.UnstableApi
+import androidx.media3.ui.compose.PlayerSurface
+import androidx.media3.ui.compose.SURFACE_TYPE_SURFACE_VIEW
 import androidx.navigation.NavHostController
-import com.example.webdavplayer.BuildConfig
 import com.example.webdavplayer.domain.model.MediaType
+import com.example.webdavplayer.domain.model.PlayMode
 import com.example.webdavplayer.domain.model.PlaybackState
-import com.example.webdavplayer.ui.common.SectionHeader
+import com.example.webdavplayer.ui.common.MediaCard
+import com.example.webdavplayer.ui.common.SectionCard
+import com.example.webdavplayer.ui.common.findActivity
 import com.example.webdavplayer.ui.common.formatDuration
+import com.example.webdavplayer.ui.common.modeLabel
 import com.example.webdavplayer.ui.common.stateLabel
 import com.example.webdavplayer.ui.playlist.PlaylistViewModel
 import com.example.webdavplayer.ui.theme.Spacing
+import kotlinx.coroutines.delay
 
-/** 播放倍速档位（1.0 = 正常速度）。 */
 private val playbackSpeeds = listOf(0.5f, 0.75f, 1.0f, 1.25f, 1.5f, 2.0f)
+
+/** 控制栏自动隐藏时长 */
+private const val CONTROLS_AUTO_HIDE_MS = 3000L
 
 @OptIn(ExperimentalMaterial3Api::class, ExperimentalFoundationApi::class)
 @Composable
@@ -77,350 +99,511 @@ fun PlayerScreen(
 ) {
     val title by playerVm.title.collectAsStateWithLifecycle()
     val state by playerVm.state.collectAsStateWithLifecycle()
-    val position by playerVm.position.collectAsStateWithLifecycle()
-    val duration by playerVm.duration.collectAsStateWithLifecycle()
-    val engineType by playerVm.engineType.collectAsStateWithLifecycle()
+    // #9: 不在父级订阅 position/duration——只在 PlayerControls / AudioProgressBar 内部订阅
+    //   原代码 200ms 进度回调让整个 PlayerScreen 重组（含 PlayerSurface）
     val items by playerVm.items.collectAsStateWithLifecycle()
     val mode by playerVm.mode.collectAsStateWithLifecycle()
     val mediaType by playerVm.currentMediaType.collectAsStateWithLifecycle()
     val isOnline by playerVm.isOnline.collectAsStateWithLifecycle()
-    val resumedPosition by playerVm.resumedPosition.collectAsStateWithLifecycle()
     val currentItemId by playerVm.currentItemId.collectAsStateWithLifecycle()
     val speed by playerVm.speed.collectAsStateWithLifecycle()
-    val subtitles by playerVm.subtitles.collectAsStateWithLifecycle()
-    val isVlcAvailable = BuildConfig.FLAVOR == "full"
+    val player by playerVm.player.collectAsStateWithLifecycle()
+    val videoAspect by playerVm.videoAspect.collectAsStateWithLifecycle()
     val isPlaying = state == PlaybackState.PLAYING
 
-    val configuration = LocalConfiguration.current
-    val isLandscape = configuration.orientation == android.content.res.Configuration.ORIENTATION_LANDSCAPE
-    var isFullScreen by remember { mutableStateOf(false) }
-
+    var isFullScreen by rememberSaveable { mutableStateOf(false) }
+    // 用户主动退出全屏后，不再因视频比例自动重新全屏
+    var userExitedFullscreen by rememberSaveable { mutableStateOf(false) }
     val isVideo = mediaType == MediaType.VIDEO
-    // 视频手势层仅在视频 + 横屏/全屏时启用（C4）；且限定在视频区内。
-    val showGesture = isVideo && (isFullScreen || isLandscape)
+    // #1/#19：fullscreen 仅由用户主动切换的 isFullScreen 决定
+    val fullscreen = isVideo && isFullScreen
+
+    val context = LocalContext.current
+    val activity = context.findActivity()
+    DisposableEffect(isFullScreen, isVideo, videoAspect) {
+        activity?.requestedOrientation = when {
+            !isVideo -> ActivityInfo.SCREEN_ORIENTATION_UNSPECIFIED
+            isFullScreen && videoAspect >= 1f -> ActivityInfo.SCREEN_ORIENTATION_SENSOR_LANDSCAPE
+            isFullScreen && videoAspect in 0.001f..1f -> ActivityInfo.SCREEN_ORIENTATION_PORTRAIT
+            // 视频非全屏：不锁方向，允许用户自由旋转
+            else -> ActivityInfo.SCREEN_ORIENTATION_UNSPECIFIED
+        }
+        onDispose {
+            activity?.requestedOrientation = ActivityInfo.SCREEN_ORIENTATION_UNSPECIFIED
+        }
+    }
+
+    // 视频比例首次确定后自动进入全屏（横屏视频→横向，竖屏视频→竖向）
+    LaunchedEffect(videoAspect, isVideo) {
+        if (isVideo && videoAspect > 0f && !isFullScreen && !userExitedFullscreen) {
+            isFullScreen = true
+        }
+    }
+
+    // 页面退出时暂停播放——驱动 ExoPlayerEngine onIsPlayingChanged(false) → stopProgress()
+    // 单例引擎继续持有 VM 退出后不再空跑 200ms progressJob 浪费 CPU
+    DisposableEffect(Unit) {
+        onDispose { if (state == PlaybackState.PLAYING) playerVm.pause() }
+    }
 
     var menuExpanded by remember { mutableStateOf(false) }
-    var showSubtitleDialog by remember { mutableStateOf(false) }
-
+    var modeMenuExpanded by remember { mutableStateOf(false) }
     val snackbarHostState = remember { SnackbarHostState() }
 
-    // 网络断开提示
+    // 控制栏显隐（默认隐藏：点击视频框只切换控制栏，不误触播放/暂停按钮）
+    var controlsVisible by rememberSaveable { mutableStateOf(false) }
+    // U2：自动隐藏 token——每次用户交互（点视频区/点控制栏按钮）都自增，重置 3 秒计时
+    var controlsHideToken by remember { mutableStateOf(0) }
+
+    // #4：网络状态提示（断网/恢复各提示一次；首次进入不弹）
+    var wasOnline by remember { mutableStateOf(isOnline) }
     LaunchedEffect(isOnline) {
-        if (!isOnline) {
-            snackbarHostState.showSnackbar("网络已断开，播放可能受到影响")
+        if (isOnline != wasOnline) {
+            snackbarHostState.showSnackbar(if (isOnline) "网络已恢复" else "网络已断开")
+            wasOnline = isOnline
+        }
+    }
+    LaunchedEffect(items) {
+        // #3：currentItemId 不在新列表（被 replace 清掉/不在目标服务器）或首次进入都自动播第一项
+        if (items.isNotEmpty() && items.none { it.id == currentItemId }) {
+            playerVm.playItem(items.first())
         }
     }
 
-    // 播放进度恢复提示
-    LaunchedEffect(resumedPosition) {
-        resumedPosition?.let { pos ->
-            if (pos > 0) {
-                snackbarHostState.showSnackbar("已从 ${formatDuration(pos)} 续播")
-                playerVm.consumeResumedPosition()
-            }
-        }
+    // 切换到新视频时重置"用户已主动退出全屏"标记，允许新视频再次自动全屏
+    LaunchedEffect(currentItemId) {
+        userExitedFullscreen = false
+        isFullScreen = false
+        // videoAspect 回调到新值后会自动拉起全屏
     }
 
-    // scrubbing 本地状态：拖动期间不 seek，松手才提交到引擎。
-    var isScrubbing by remember { mutableStateOf(false) }
-    var scrubValue by remember { mutableStateOf(position.toFloat()) }
-    val maxValue = duration.coerceAtLeast(1).toFloat()
+    ImmersiveModeEffect(enabled = fullscreen)
 
-    // 全屏沉浸（仅全屏态启用，隐藏状态栏/导航栏）。
-    ImmersiveModeEffect(enabled = isFullScreen)
+    // ===== 视频区：PlayerSurface + 自定义控制层 + 手势层 =====
+    // 非全屏时尊重状态栏；全屏沉浸式时贴边铺满
+    val statusBarsTop = WindowInsets.statusBars.asPaddingValues().calculateTopPadding()
 
-    // 横向手势快进/快退（落到 PlayerRepository.seekTo）。
-    val onSeekBy: (Long) -> Unit = { delta ->
-        playerVm.seekTo((position + delta).coerceIn(0, duration.coerceAtLeast(1)))
-    }
-
-    /** 视频区：按内核切换渲染方式（手势层限定在本视频区内，不遮挡控制条）。 */
-    @Composable
-    fun VideoArea(videoModifier: Modifier) {
-        if (isVideo) {
-            Box(videoModifier) {
-                // 双内核统一走 VideoSurfaceHost 穿透路径：TextureView → playerVm.attachVideoSurface
-                // → PlayerRepository.setVideoSurface → 当前引擎（ExoPlayer / VLC）。不再依赖
-                // PlayerView / MediaController 的视频表面钩子（Media3 的 SimpleBasePlayer 该钩子
-                // 在本编译环境下不可 override，而 VLC 早已证明此直连路径可行）。
-                VideoSurfaceHost(
-                    modifier = Modifier.fillMaxSize(),
-                    onSurfaceReady = { playerVm.attachVideoSurface(it) },
-                    onSurfaceDestroyed = { playerVm.detachVideoSurface() },
-                )
-                if (showGesture) {
-                    VideoGestureLayer(
-                        modifier = Modifier.fillMaxSize(),
-                        isVideo = true,
-                        durationMs = duration,
-                        onSeekBy = onSeekBy,
-                    )
-                }
-            }
-        }
-    }
-
-    if (isFullScreen || isLandscape) {
-        // 横屏 / 全屏：无 TopAppBar，视频铺满，控制条叠加底部。
-        Box(Modifier.fillMaxSize()) {
-            VideoArea(Modifier.fillMaxSize())
-            PlayerControlBar(
-                modifier = Modifier
-                    .align(Alignment.BottomCenter)
-                    .background(MaterialTheme.colorScheme.surface.copy(alpha = 0.65f)),
-                isPlaying = isPlaying,
-                mode = mode,
-                engineType = engineType,
-                isVlcAvailable = isVlcAvailable,
-                showMoreMenu = true,
-                onTogglePlay = { playerVm.togglePlay() },
-                onPrevious = { playerVm.previous() },
-                onNext = { playerVm.next() },
-                onSetMode = { playerVm.setMode(it) },
-                onSwitchEngine = { playerVm.switchEngine(it) },
-                onOpenPlaylist = { navController.navigate("playlist") },
-                onClearProgress = { playerVm.clearProgressAndRestart() },
-                onBack = { navController.popBackStack() },
-                onToggleFullScreen = { isFullScreen = !isFullScreen },
-                isFullScreen = isFullScreen,
-                onShowSubtitles = { showSubtitleDialog = true },
-            )
-            // 网络断开 / 进度恢复提示（横屏态也展示）
-            SnackbarHost(snackbarHostState)
-        }
-    } else {
-        // 竖屏：Scaffold + TopAppBar（视频框在上、控制区在下）。
-        Scaffold(
-            topBar = {
-                TopAppBar(
-                    title = { Text("播放") },
-                    navigationIcon = {
-                        IconButton(onClick = { navController.popBackStack() }) {
-                            Icon(Icons.Filled.ArrowBack, "返回")
-                        }
-                    },
-                    actions = {
-                        IconButton(onClick = { isFullScreen = !isFullScreen }) {
-                            Icon(
-                                if (isFullScreen) Icons.Filled.FullscreenExit else Icons.Filled.Fullscreen,
-                                "全屏",
-                            )
-                        }
-                        IconButton(onClick = { navController.navigate("playlist") }) {
-                            Icon(Icons.Filled.QueueMusic, "播放列表")
-                        }
-                        IconButton(onClick = { menuExpanded = true }) {
-                            Icon(Icons.Filled.MoreVert, "更多")
-                        }
-                        DropdownMenu(
-                            expanded = menuExpanded,
-                            onDismissRequest = { menuExpanded = false },
-                        ) {
-                            DropdownMenuItem(
-                                text = { Text("字幕") },
-                                onClick = {
-                                    menuExpanded = false
-                                    showSubtitleDialog = true
-                                },
-                            )
-                            DropdownMenuItem(
-                                text = { Text("清除进度/从头播放") },
-                                onClick = {
-                                    menuExpanded = false
-                                    playerVm.clearProgressAndRestart()
-                                },
-                            )
-                        }
-                    },
-                )
-            },
-            snackbarHost = { SnackbarHost(snackbarHostState) },
-        ) { padding ->
-            Column(
-                Modifier
-                    .fillMaxSize()
-                    .padding(padding)
-                    .padding(Spacing.lg),
-                horizontalAlignment = Alignment.CenterHorizontally,
-                verticalArrangement = Arrangement.spacedBy(Spacing.md),
-            ) {
-                Text(title.ifEmpty { "未选择媒体" }, style = MaterialTheme.typography.titleLarge)
-                Text(stateLabel(state), style = MaterialTheme.typography.bodyMedium)
-
-                // 视频区（竖屏为固定比例框；音频不显示）。
-                if (isVideo) {
-                    VideoArea(
+    Column(Modifier.fillMaxSize().background(MaterialTheme.colorScheme.background)) {
+        Box(
+            Modifier
+                .fillMaxWidth()
+                .weight(1f)
+                .background(Color.Black)
+                .then(
+                    if (fullscreen) Modifier
+                    else Modifier.padding(top = statusBarsTop),
+                ),
+        ) {
+            if (isVideo && player != null) {
+                // 方案 C：PlayerSurface 直接绑定 ExoPlayer 实例（UI 直连引擎，不经 MediaSession）
+                // aspectRatio 适配：已知视频尺寸时按原始宽高比约束 Surface，避免拉伸变形
+                PlayerSurface(
+                    player = player,
+                    surfaceType = SURFACE_TYPE_SURFACE_VIEW,
+                    modifier = if (videoAspect > 0f) {
                         Modifier
-                            .fillMaxWidth()
-                            .aspectRatio(16f / 9f),
-                    )
-                }
-
-                Slider(
-                    value = (if (isScrubbing) scrubValue else position.toFloat()).coerceIn(0f, maxValue),
-                    onValueChange = {
-                        isScrubbing = true
-                        scrubValue = it
+                            .aspectRatio(videoAspect)
+                            .align(Alignment.Center)
+                    } else {
+                        Modifier.fillMaxSize()
                     },
-                    onValueChangeFinished = {
-                        isScrubbing = false
-                        playerVm.seekTo(scrubValue.toLong())
-                    },
-                    valueRange = 0f..maxValue,
-                    modifier = Modifier.fillMaxWidth(),
-                )
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.SpaceBetween,
-                ) {
-                    Text(
-                        formatDuration(position),
-                        style = MaterialTheme.typography.labelMedium,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant,
-                    )
-                    Text(
-                        formatDuration(duration),
-                        style = MaterialTheme.typography.labelMedium,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant,
-                    )
-                }
-
-                PlayerControlBar(
-                    isPlaying = isPlaying,
-                    mode = mode,
-                    engineType = engineType,
-                    isVlcAvailable = isVlcAvailable,
-                    showMoreMenu = false,
-                    onTogglePlay = { playerVm.togglePlay() },
-                    onPrevious = { playerVm.previous() },
-                    onNext = { playerVm.next() },
-                    onSetMode = { playerVm.setMode(it) },
-                    onSwitchEngine = { playerVm.switchEngine(it) },
-                    onOpenPlaylist = { navController.navigate("playlist") },
-                    onClearProgress = { playerVm.clearProgressAndRestart() },
                 )
 
-                Spacer(Modifier.height(Spacing.sm))
-                SectionHeader("播放倍速")
-                Row(horizontalArrangement = Arrangement.spacedBy(Spacing.xs)) {
-                    playbackSpeeds.forEach { s ->
-                        FilterChip(
-                            selected = speed == s,
-                            onClick = { playerVm.setSpeed(s) },
-                            label = { Text("${if (s % 1f == 0f) s.toInt() else s}x") },
-                        )
-                    }
-                }
+                // 手势层（亮度/音量/快进退 + 点击切换控制栏）— 横竖屏统一启用（#18）
+                VideoGestureLayer(
+                    modifier = Modifier.fillMaxSize(),
+                    isVideo = true,
+                    // #17：控制栏可见时禁用拖拽（避免与进度条 Slider 争手），点击切换保留
+                    gesturesEnabled = !controlsVisible,
+                    // #9: 不再依赖外层 position 变量——直接同步读 StateFlow 当前值
+                    onSeekBy = { delta ->
+                        val cur = playerVm.position.value
+                        val dur = playerVm.duration.value
+                        playerVm.seekTo((cur + delta).coerceIn(0, dur.coerceAtLeast(1)))
+                    },
+                    onToggleControls = {
+                        controlsVisible = !controlsVisible
+                        if (controlsVisible) controlsHideToken++
+                    },
+                )
 
-                Spacer(Modifier.height(Spacing.sm))
-                SectionHeader("播放列表")
-                LazyColumn(
-                    Modifier.fillMaxWidth().weight(1f),
-                    verticalArrangement = Arrangement.spacedBy(Spacing.xs),
+                // 控制层（U1：去掉 clickable Box，改由 VGL 的 onToggleControls 驱动）
+                androidx.compose.animation.AnimatedVisibility(
+                    visible = controlsVisible,
+                    enter = androidx.compose.animation.fadeIn(animationSpec = tween(220)) +
+                        androidx.compose.animation.slideInVertically(initialOffsetY = { it / 8 }, animationSpec = tween(220)),
+                    exit = androidx.compose.animation.fadeOut(animationSpec = tween(200)) +
+                        androidx.compose.animation.slideOutVertically(targetOffsetY = { -it / 8 }, animationSpec = tween(200)),
                 ) {
-                    items(items, key = { it.id }) { item ->
-                        val isCurrent = item.id == currentItemId
-                        ListItem(
-                            headlineContent = {
-                                Text(
-                                    item.name,
-                                    color = if (isCurrent) MaterialTheme.colorScheme.primary
-                                        else MaterialTheme.colorScheme.onSurface,
-                                    fontWeight = if (isCurrent) androidx.compose.ui.text.font.FontWeight.Bold
-                                        else null,
+                    PlayerControls(
+                        title = title,
+                        isPlaying = isPlaying,
+                        // #9：传入 State 而非值——position 变化只重组 PlayerControls 内部，不波及父级
+                        positionState = playerVm.position.collectAsStateWithLifecycle(),
+                        durationState = playerVm.duration.collectAsStateWithLifecycle(),
+                        currentSpeed = speed,
+                        speedOptions = playbackSpeeds,
+                        onSpeedSelected = { playerVm.setSpeed(it); controlsHideToken++ },
+                        onBack = { navController.popBackStack() },
+                        onTogglePlay = { playerVm.togglePlay(); controlsHideToken++ },
+                        // #10：拖动状态在 PlayerControls 内部——onSeekFinished 才回调真正 seek
+                        onSeekRequested = { playerVm.seekTo(it); controlsHideToken++ },
+                        onPrev = { playerVm.previous(); controlsHideToken++ },
+                        onNext = { playerVm.next(); controlsHideToken++ },
+                        onMore = { menuExpanded = true; controlsHideToken++ },
+                        onToggleFullscreen = {
+                            isFullScreen = !isFullScreen
+                            if (!isFullScreen) userExitedFullscreen = true
+                            controlsHideToken++
+                        },
+                        isFullscreen = fullscreen,
+                        moreMenuExpanded = menuExpanded,
+                        onMoreMenuDismiss = { menuExpanded = false },
+                        moreMenuContent = {
+                            DropdownMenuItem(
+                                text = { Text("模式") },
+                                onClick = { menuExpanded = false; modeMenuExpanded = true },
+                            )
+                        },
+                        modeMenuExpanded = modeMenuExpanded,
+                        onModeMenuDismiss = { modeMenuExpanded = false },
+                        modeMenuContent = {
+                            PlayMode.values().forEach { m ->
+                                DropdownMenuItem(
+                                    text = { Text("${modeLabel(m)}${if (mode == m) "  ✓" else ""}") },
+                                    onClick = { playerVm.setMode(m); modeMenuExpanded = false },
                                 )
-                            },
-                            leadingContent = {
-                                Icon(
-                                    if (item.mediaType == MediaType.VIDEO) {
-                                        Icons.Filled.VideoLibrary
-                                    } else {
-                                        Icons.Filled.AudioFile
-                                    },
-                                    null,
-                                    tint = if (isCurrent) MaterialTheme.colorScheme.primary
-                                        else MaterialTheme.colorScheme.onSurfaceVariant,
-                                )
-                            },
-                            trailingContent = {
-                                if (isCurrent && state == PlaybackState.PLAYING) {
-                                    Icon(
-                                        Icons.Filled.PlayArrow,
-                                        contentDescription = "正在播放",
-                                        tint = MaterialTheme.colorScheme.primary,
-                                    )
-                                }
-                            },
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .animateItemPlacement()
-                                .combinedClickable(
-                                    onClick = { playerVm.playItem(item) },
-                                    onLongClick = { playlistVm.removeItem(item.id) },
-                                ),
-                        )
-                    }
-                }
-            }
-        }
-    }
-
-    // 字幕选择对话框（P2）：列出当前媒体的可选字幕轨，或关闭。
-    if (showSubtitleDialog) {
-        AlertDialog(
-            onDismissRequest = { showSubtitleDialog = false },
-            title = { Text("字幕") },
-            text = {
-                Column(verticalArrangement = Arrangement.spacedBy(Spacing.xs)) {
-                    SubtitleChoiceRow(
-                        label = "关闭",
-                        onClick = {
-                            playerVm.selectSubtitle(null)
-                            showSubtitleDialog = false
+                            }
                         },
                     )
-                    if (subtitles.isEmpty()) {
-                        Text(
-                            "当前目录下未找到字幕文件（.srt / .vtt / .ass）",
-                            style = MaterialTheme.typography.bodySmall,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant,
-                        )
-                    } else {
-                        subtitles.forEach { sub ->
-                            SubtitleChoiceRow(
-                                label = buildString {
-                                    append(sub.label)
-                                    sub.language?.let { append(" · $it") }
-                                },
-                                onClick = {
-                                    // 无语言后缀的字幕（language 为 null）无法按语言选，
-                                    // 用 enableSubtitles 直接开启文本轨；否则按语言选。
-                                    if (sub.language != null) {
-                                        playerVm.selectSubtitle(sub.language)
-                                    } else {
-                                        playerVm.enableSubtitles()
-                                    }
-                                    showSubtitleDialog = false
-                                },
+                }
+
+                // U2：控制栏自动隐藏计时器——任何用户交互（token 变化）都重置 3 秒倒计时
+                // 菜单打开时暂停隐藏，避免菜单随控制栏一起消失
+                LaunchedEffect(controlsVisible, controlsHideToken, menuExpanded, modeMenuExpanded) {
+                    if (controlsVisible && !menuExpanded && !modeMenuExpanded) {
+                        delay(CONTROLS_AUTO_HIDE_MS)
+                        controlsVisible = false
+                    }
+                }
+            } else if (isVideo && player == null) {
+                // #24：区分 loading 与 error——prepare 失败时显示错误提示而非无限 loading
+                Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
+                    if (state == PlaybackState.ERROR) {
+                        Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                            Icon(
+                                Icons.Filled.Error,
+                                "播放失败",
+                                modifier = Modifier.size(48.dp),
+                                tint = Color.White.copy(alpha = 0.5f),
                             )
+                            Spacer(Modifier.height(8.dp))
+                            Text("播放失败", color = Color.White, style = MaterialTheme.typography.titleMedium)
+                            Spacer(Modifier.height(4.dp))
+                            Text(
+                                "请检查网络或文件是否存在",
+                                color = Color.White.copy(alpha = 0.6f),
+                                style = MaterialTheme.typography.bodySmall,
+                            )
+                        }
+                    } else {
+                        CircularProgressIndicator(color = Color.White)
+                    }
+                }
+            } else if (mediaType == MediaType.IMAGE) {
+                // 图片查看：直接展示解码后的 Bitmap；点击切换顶部信息栏（#16），不直接退出
+                val imageBitmap by playerVm.imageBitmap.collectAsStateWithLifecycle()
+                val bmp = imageBitmap
+                Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
+                    if (bmp != null) {
+                        Image(
+                            bitmap = bmp.asImageBitmap(),
+                            contentDescription = title,
+                            modifier = Modifier
+                                .fillMaxSize()
+                                .clickable(
+                                    interactionSource = remember { androidx.compose.foundation.interaction.MutableInteractionSource() },
+                                    indication = null,
+                                ) {
+                                    controlsVisible = !controlsVisible
+                                    if (controlsVisible) controlsHideToken++
+                                },
+                        )
+                    } else if (state == PlaybackState.ERROR) {
+                        // 图片加载失败：显示错误提示而非无限 loading
+                        Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                            Icon(
+                                Icons.Filled.Error,
+                                "加载失败",
+                                modifier = Modifier.size(48.dp),
+                                tint = Color.White.copy(alpha = 0.5f),
+                            )
+                            Spacer(Modifier.height(8.dp))
+                            Text("图片加载失败", color = Color.White, style = MaterialTheme.typography.titleMedium)
+                            Spacer(Modifier.height(4.dp))
+                            Text(
+                                "请检查网络或文件是否存在",
+                                color = Color.White.copy(alpha = 0.6f),
+                                style = MaterialTheme.typography.bodySmall,
+                            )
+                        }
+                    } else {
+                        CircularProgressIndicator(color = Color.White)
+                    }
+                    // 图片顶部信息栏（返回 + 标题），复用控制栏显隐状态
+                    androidx.compose.animation.AnimatedVisibility(
+                        visible = controlsVisible,
+                        modifier = Modifier.align(Alignment.TopCenter).fillMaxWidth(),
+                        enter = androidx.compose.animation.fadeIn(animationSpec = tween(220)) +
+                            androidx.compose.animation.slideInVertically(initialOffsetY = { -it / 6 }, animationSpec = tween(220)),
+                        exit = androidx.compose.animation.fadeOut(animationSpec = tween(200)) +
+                            androidx.compose.animation.slideOutVertically(targetOffsetY = { -it / 6 }, animationSpec = tween(200)),
+                    ) {
+                        Row(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .background(Color.Black.copy(alpha = 0.4f))
+                                .padding(horizontal = 8.dp, vertical = 8.dp),
+                            verticalAlignment = Alignment.CenterVertically,
+                        ) {
+                            IconButton(onClick = { navController.popBackStack() }) {
+                                Icon(Icons.Filled.ArrowBack, "返回", tint = Color.White)
+                            }
+                            Text(
+                                text = title.ifEmpty { "未选择媒体" },
+                                color = Color.White,
+                                style = MaterialTheme.typography.titleMedium,
+                                maxLines = 1,
+                                overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis,
+                                modifier = Modifier.weight(1f),
+                            )
+                            // 图片顶栏更多菜单：锚定在按钮处弹出
+                            Box {
+                                IconButton(
+                                    onClick = {
+                                        menuExpanded = true
+                                        controlsHideToken++
+                                    },
+                                ) {
+                                    Icon(Icons.Filled.MoreVert, "更多", tint = Color.White)
+                                }
+                                DropdownMenu(
+                                    expanded = menuExpanded,
+                                    onDismissRequest = { menuExpanded = false },
+                                ) {
+                                    DropdownMenuItem(
+                                        text = { Text("模式") },
+                                        onClick = { menuExpanded = false; modeMenuExpanded = true },
+                                    )
+                                }
+                                DropdownMenu(
+                                    expanded = modeMenuExpanded,
+                                    onDismissRequest = { modeMenuExpanded = false },
+                                ) {
+                                    PlayMode.values().forEach { m ->
+                                        DropdownMenuItem(
+                                            text = { Text("${modeLabel(m)}${if (mode == m) "  ✓" else ""}") },
+                                            onClick = { playerVm.setMode(m); modeMenuExpanded = false },
+                                        )
+                                    }
+                                }
+                            }
                         }
                     }
                 }
-            },
-            confirmButton = {
-                TextButton(onClick = { showSubtitleDialog = false }) { Text("完成") }
-            },
-        )
+            } else if (!isVideo && currentItemId != null) {
+                // A5：音频模式也显示标题 + 播放按钮；左右滑动切上一首/下一首（#23）
+                val density = LocalDensity.current
+                var dragAccum by remember { mutableStateOf(0f) }
+                Box(
+                    Modifier
+                        .fillMaxSize()
+                        .pointerInput(Unit) {
+                            detectHorizontalDragGestures(
+                                onDragStart = { dragAccum = 0f },
+                                onHorizontalDrag = { _, dragAmount ->
+                                    dragAccum += dragAmount
+                                    val threshold = with(density) { 80.dp.toPx() }
+                                    if (dragAccum > threshold) {
+                                        playerVm.next()
+                                        dragAccum = 0f
+                                    } else if (dragAccum < -threshold) {
+                                        playerVm.previous()
+                                        dragAccum = 0f
+                                    }
+                                },
+                            )
+                        },
+                    contentAlignment = Alignment.Center,
+                ) {
+                    Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                        Icon(Icons.Filled.AudioFile, "音频", modifier = Modifier.size(100.dp), tint = Color.White.copy(alpha = 0.25f))
+                        Spacer(Modifier.height(16.dp))
+                        Text(title.ifEmpty { "未选择媒体" }, color = Color.White, style = MaterialTheme.typography.titleMedium)
+                        Spacer(Modifier.height(16.dp))
+                        IconButton(
+                            onClick = { playerVm.togglePlay() },
+                            modifier = Modifier.size(72.dp),
+                        ) {
+                            Icon(
+                                if (isPlaying) Icons.Filled.Pause else Icons.Filled.PlayArrow,
+                                "播放",
+                                modifier = Modifier.size(48.dp),
+                                tint = Color.White,
+                            )
+                        }
+                        // 音频进度条（#9/#10：独立组件，内部订阅 position/duration，避免父级重组）
+                        AudioProgressBar(
+                            positionState = playerVm.position.collectAsStateWithLifecycle(),
+                            durationState = playerVm.duration.collectAsStateWithLifecycle(),
+                            onSeekRequested = { playerVm.seekTo(it) },
+                        )
+                    }
+                }
+            } else {
+                // #3：尚未确定媒体类型（初始帧）/ 引擎未就绪——显示 loading，避免闪现音频占位图标
+                Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
+                    CircularProgressIndicator(color = Color.White)
+                }
+            }
+        }
+
+        // A4：横屏时隐藏下半部信息区
+        if (!fullscreen) {
+            Column(
+                Modifier.weight(1f).verticalScroll(rememberScrollState()).padding(horizontal = Spacing.lg, vertical = Spacing.md),
+                verticalArrangement = Arrangement.spacedBy(Spacing.sm),
+            ) {
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    IconButton(onClick = { navController.popBackStack() }) { Icon(Icons.Filled.ArrowBack, "返回") }
+                    Text(title.ifEmpty { "未选择媒体" }, style = MaterialTheme.typography.titleLarge)
+                    // #20：菜单统一由根级 DropdownMenu 承接（横屏全屏时也可用）
+                    IconButton(onClick = { menuExpanded = true }) { Icon(Icons.Filled.MoreVert, "更多") }
+                }
+                Text(stateLabel(state), style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
+
+                SectionCard(title = "模式") {
+                    Row(
+                        Modifier.padding(Spacing.md),
+                        horizontalArrangement = Arrangement.spacedBy(Spacing.xs),
+                    ) {
+                        PlayMode.values().forEach { m ->
+                            FilterChip(selected = mode == m, onClick = { playerVm.setMode(m) }, label = { Text(modeLabel(m)) })
+                        }
+                    }
+                }
+
+                SectionCard(title = "播放列表") {
+                    if (items.isEmpty()) {
+                        Text(
+                            "播放列表为空",
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                            modifier = Modifier.padding(Spacing.md),
+                        )
+                    } else {
+                        Column(
+                            Modifier.padding(vertical = Spacing.xs),
+                            verticalArrangement = Arrangement.spacedBy(Spacing.xs),
+                        ) {
+                            items.forEach { item ->
+                                val isCurrent = item.id == currentItemId
+                                MediaCard(
+                                    selected = isCurrent,
+                                    onClick = { playerVm.playItem(item) },
+                                    onLongClick = { playlistVm.removeItem(item.id) },
+                                    modifier = Modifier.fillMaxWidth(),
+                                ) {
+                                    Icon(
+                                        when (item.mediaType) {
+                                            MediaType.VIDEO -> Icons.Filled.VideoLibrary
+                                            MediaType.AUDIO -> Icons.Filled.AudioFile
+                                            MediaType.IMAGE -> Icons.Filled.Photo
+                                            MediaType.OTHER -> Icons.Filled.VideoLibrary
+                                        },
+                                        null,
+                                        tint = if (isCurrent) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant,
+                                    )
+                                    Column(Modifier.weight(1f)) {
+                                        Text(
+                                            item.name,
+                                            color = if (isCurrent) MaterialTheme.colorScheme.onPrimaryContainer
+                                                else MaterialTheme.colorScheme.onSurface,
+                                            fontWeight = if (isCurrent) FontWeight.Medium else null,
+                                            style = MaterialTheme.typography.titleSmall,
+                                            maxLines = 1,
+                                            overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis,
+                                        )
+                                    }
+                                    if (isCurrent && isPlaying) {
+                                        Icon(Icons.Filled.PlayArrow, "正在播放", tint = MaterialTheme.colorScheme.primary)
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+                Spacer(Modifier.height(Spacing.lg))
+            }
+        }
+        // P6-2：SnackbarHost 仅在非全屏时显示，避免全屏沉浸式时 snackbar 破坏体验
+        if (!fullscreen) {
+            SnackbarHost(snackbarHostState)
+        }
     }
+
+    // 菜单已内嵌到 PlayerControls（视频）与图片顶栏（图片）的触发按钮处，锚定弹出
 }
 
-/** 字幕选择项（点击即应用）。 */
+/**
+ * #9/#10：音频模式竖屏进度条——独立 Composable，内部订阅 position/duration + seekPosition。
+ * 父级 PlayerScreen 不再订阅 position，避免 200ms 进度回调触发整体重组。
+ */
 @Composable
-private fun SubtitleChoiceRow(label: String, onClick: () -> Unit) {
-    ListItem(
-        headlineContent = { Text(label) },
-        modifier = Modifier
-            .fillMaxWidth()
-            .clickable(onClick = onClick),
-    )
+private fun AudioProgressBar(
+    positionState: androidx.compose.runtime.State<Long>,
+    durationState: androidx.compose.runtime.State<Long>,
+    onSeekRequested: (Long) -> Unit,
+) {
+    var seekPosition by remember { mutableStateOf<Long?>(null) }
+    val position = positionState.value
+    val duration = durationState.value
+    val displayPos = seekPosition ?: position
+
+    if (duration > 0) {
+        Slider(
+            value = (displayPos.toFloat() / duration).coerceIn(0f, 1f),
+            onValueChange = { ratio -> seekPosition = (ratio * duration).toLong() },
+            onValueChangeFinished = {
+                val final = seekPosition ?: position
+                seekPosition = null
+                onSeekRequested(final)
+            },
+            valueRange = 0f..1f,
+            colors = SliderDefaults.colors(
+                thumbColor = Color.White,
+                activeTrackColor = Color.White.copy(alpha = 0.9f),
+                inactiveTrackColor = Color.White.copy(alpha = 0.3f),
+            ),
+            modifier = Modifier.fillMaxWidth().padding(horizontal = 32.dp),
+        )
+        Text(
+            "${formatDuration(displayPos)} / ${formatDuration(duration)}",
+            color = Color.White.copy(alpha = 0.85f),
+            style = MaterialTheme.typography.labelSmall,
+        )
+    } else {
+        // duration 尚未知（刚 prepare）：显示不可拖动的占位条
+        Slider(
+            value = 0f,
+            onValueChange = {},
+            enabled = false,
+            valueRange = 0f..1f,
+            colors = SliderDefaults.colors(
+                thumbColor = Color.White.copy(alpha = 0.3f),
+                activeTrackColor = Color.White.copy(alpha = 0.2f),
+                inactiveTrackColor = Color.White.copy(alpha = 0.15f),
+            ),
+            modifier = Modifier.fillMaxWidth().padding(horizontal = 32.dp),
+        )
+    }
 }

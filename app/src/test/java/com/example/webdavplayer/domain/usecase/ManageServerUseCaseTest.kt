@@ -43,6 +43,9 @@ class ManageServerUseCaseTest {
         override fun observeEngineType() = flowOf(EngineType.MEDIA3)
         override fun getEngineType() = EngineType.MEDIA3
         override suspend fun setEngineType(type: EngineType) {}
+        override fun observeDownloadDir() = flowOf<String?>(null)
+        override fun getDownloadDir() = null
+        override suspend fun setDownloadDir(path: String?) {}
     }
 
     private class FakeServers : ServerRepository {

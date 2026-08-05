@@ -1,15 +1,13 @@
 package com.example.webdavplayer.data.player
 
 import android.content.Context
-import android.net.Uri
-import android.view.Surface
-import android.view.TextureView
 import androidx.media3.common.C
 import androidx.media3.common.MediaItem
 import androidx.media3.common.PlaybackException
 import androidx.media3.common.Player
 import androidx.media3.common.util.UnstableApi
 import androidx.media3.exoplayer.ExoPlayer
+import androidx.media3.exoplayer.DefaultLoadControl
 import com.example.webdavplayer.domain.model.EngineListener
 import com.example.webdavplayer.domain.model.PlayableMedia
 import com.example.webdavplayer.domain.model.PlaybackState
@@ -27,9 +25,8 @@ import okhttp3.OkHttpClient
  * Media3 / ExoPlayer 内核实现（§1.2 默认内核）。
  * 仅负责「当前这一条媒体的解码渲染」，进度/列表由上层持有。
  *
- * 视频 Surface 穿透抽象层直达此内核：[setVideoSurface] 缓存 [pendingView]（TextureView），
- * 在 [ensurePlayer] 构建 ExoPlayer 实例后立即把其 SurfaceTexture 包成 Surface 绑定
- * （并设定 [C.VIDEO_SCALING_MODE_SCALE_TO_FIT]）。
+ * 视频渲染由 media3-ui-compose PlayerSurface 直接绑定 [getPlayer] 返回的 ExoPlayer（方案 C），
+ * 本内核不再管理 Surface 生命周期。
  */
 @UnstableApi
 class ExoPlayerEngine(
@@ -41,7 +38,6 @@ class ExoPlayerEngine(
     private var listener: EngineListener? = null
     private var okHttpClient: OkHttpClient? = null
     private var state: PlaybackState = PlaybackState.IDLE
-    private var pendingView: TextureView? = null
     private val scope = CoroutineScope(Dispatchers.Main + SupervisorJob())
     private var progressJob: Job? = null
 
@@ -74,15 +70,28 @@ class ExoPlayerEngine(
             updateState(PlaybackState.ERROR)
             listener?.onError(error)
         }
+
+        override fun onVideoSizeChanged(videoSize: androidx.media3.common.VideoSize) {
+            listener?.onVideoSizeChanged(videoSize.width, videoSize.height)
+        }
     }
 
     private fun ensurePlayer() {
         if (player == null) {
-            player = ExoPlayer.Builder(context).build().apply {
-                addListener(playerListener)
-                videoScalingMode = C.VIDEO_SCALING_MODE_SCALE_TO_FIT
-                pendingView?.let { setVideoSurface(it) }
-            }
+            // LoadControl：WebDAV 流式播放优化
+            // minBuffer 30s / maxBuffer 300s / startBuffer 10s / rebuffer 30s
+            // startBuffer 10s → 首帧快；maxBuffer 300s → 网络好时大量囤积；
+            // rebuffer 30s → 中断后缓冲充足才恢复，避免 1-2 秒自动暂停
+            val loadControl = DefaultLoadControl.Builder()
+                .setBufferDurationsMs(30_000, 300_000, 10_000, 30_000)
+                .setPrioritizeTimeOverSizeThresholds(false)
+                .build()
+            player = ExoPlayer.Builder(context)
+                .setLoadControl(loadControl)
+                .build().apply {
+                    addListener(playerListener)
+                    videoScalingMode = C.VIDEO_SCALING_MODE_SCALE_TO_FIT
+                }
         }
     }
 
@@ -99,28 +108,10 @@ class ExoPlayerEngine(
             val source = streamingSource.createExoMediaSource(client, media)
             player!!.setMediaSource(source)
         } else {
-            // 本地文件（离线缓存）：直接设置 URI；字幕以外部文本轨附带，不走流式数据源。
-            val item = MediaItem.Builder()
-                .setUri(media.uri)
-                .setSubtitleConfigurations(
-                    media.subtitles.map { sub ->
-                        MediaItem.SubtitleConfiguration.Builder(Uri.parse(sub.uri))
-                            .setMimeType(sub.mimeType)
-                            .setLanguage(sub.language)
-                            .setLabel(sub.label)
-                            .build()
-                    },
-                )
-                .build()
-            player!!.setMediaItem(item)
+            // 本地文件（离线缓存）：直接设置 URI。
+            player!!.setMediaItem(MediaItem.fromUri(media.uri))
         }
         player!!.prepare()
-        // 字幕默认关闭：避免主媒体带字幕时自动显示，由用户经「字幕」菜单显式开启。
-        player!!.setTrackSelectionParameters(
-            player!!.trackSelectionParameters.buildUpon()
-                .setTrackTypeDisabled(C.TRACK_TYPE_TEXT, true)
-                .build(),
-        )
         updateState(PlaybackState.PREPARING)
     }
 
@@ -141,45 +132,21 @@ class ExoPlayerEngine(
         player?.setPlaybackSpeed(speed)
     }
 
-    override fun selectSubtitle(language: String?) {
-        val p = player ?: return
-        val params = p.trackSelectionParameters.buildUpon()
-        if (language == null) {
-            // 关闭字幕：禁用文本轨。
-            params.setTrackTypeDisabled(C.TRACK_TYPE_TEXT, true)
-        } else {
-            // 按语言选择文本轨；若无可匹配语言则保持禁用状态由播放器择一。
-            params.setPreferredTextLanguage(language)
-                .setTrackTypeDisabled(C.TRACK_TYPE_TEXT, false)
-        }
-        p.setTrackSelectionParameters(params.build())
-    }
-
-    override fun enableSubtitles() {
-        val p = player ?: return
-        // 不指定语言：仅解除文本轨禁用，由播放器自动选第一条可用文本轨。
-        p.setTrackSelectionParameters(
-            p.trackSelectionParameters.buildUpon()
-                .setTrackTypeDisabled(C.TRACK_TYPE_TEXT, false)
-                .build(),
-        )
-    }
-
     override fun setListener(listener: EngineListener?) {
         this.listener = listener
     }
 
     override fun getState(): PlaybackState = state
 
-    override fun setVideoSurface(view: TextureView?) {
-        pendingView = view
-        // 把 TextureView 的 SurfaceTexture 包成 Surface 交给 ExoPlayer（view 为 null 时解绑）。
-        player?.setVideoSurface(view?.surfaceTexture?.let { Surface(it) })
-    }
+    override fun getCurrentPosition(): Long = player?.currentPosition ?: 0L
+
+    override fun getDurationMs(): Long = player?.duration?.takeIf { it > 0 } ?: 0L
+
+    /** 暴露底层 ExoPlayer 实例（PlayerSurface 直接绑定渲染，方案 C）。 */
+    override fun getPlayer(): Player? = player
 
     override fun release() {
         stopProgress()
-        player?.setVideoSurface(null)
         player?.release()
         player = null
         updateState(PlaybackState.IDLE)

@@ -1,14 +1,14 @@
 package com.example.webdavplayer.data.repository
 
 import android.content.Context
-import android.view.TextureView
-import dagger.hilt.android.qualifiers.ApplicationContext
+import androidx.media3.common.util.UnstableApi
 import com.example.webdavplayer.data.player.ExoPlayerEngine
 import com.example.webdavplayer.data.player.PlayerEngineFactory
 import com.example.webdavplayer.data.remote.WebDavClient
 import com.example.webdavplayer.domain.model.EngineListener
 import com.example.webdavplayer.domain.model.EngineType
 import com.example.webdavplayer.domain.model.PlayableMedia
+import dagger.hilt.android.qualifiers.ApplicationContext
 import com.example.webdavplayer.domain.model.PlaybackState
 import com.example.webdavplayer.domain.player.PlayerEngine
 import com.example.webdavplayer.domain.repository.PlayerRepository
@@ -25,8 +25,8 @@ import javax.inject.Singleton
  * 持有当前 [PlayerEngine]；应用内切换内核 = `release()` 旧 + `Factory.create()` 新
  * + `prepare()` 当前媒体（§1.2）。内核无状态记忆，进度/列表由上层持有。
  *
- * 视频 Surface 穿透抽象层直达内核：[setVideoSurface] 缓存 [videoSurface] 并转发给当前引擎，
- * 在 [prepare] / [setEngineType] 重建引擎后通过 [reapplyVideoSurface] 重新绑定，避免画面丢失。
+ * 视频渲染由 media3-ui-compose PlayerSurface 直接绑定 [getPlayer] 返回的 ExoPlayer（方案 C），
+ * 本仓库不再管理 Surface 生命周期。
  */
 @Singleton
 class PlayerRepositoryImpl @Inject constructor(
@@ -46,7 +46,6 @@ class PlayerRepositoryImpl @Inject constructor(
     /** 当前倍速（播放偏好，跨曲目 / 跨内核重建后重放）。可能从非主线程设置，需保证可见性。 */
     @Volatile
     private var currentSpeed: Float = 1.0f
-    private var videoSurface: TextureView? = null
 
     override fun getEngineType(): EngineType = settingsRepository.getEngineType()
 
@@ -58,7 +57,6 @@ class PlayerRepositoryImpl @Inject constructor(
         engine?.release()
         engine = playerEngineFactory.create(type, context)
         listener?.let { engine!!.setListener(it) }
-        reapplyVideoSurface()
         connectFor(media)
         // ExoPlayer 内核需要注入共享 OkHttp（含自签信任 + 鉴权）；
         // VLC 内核使用 libVLC 自建网络栈，不需要也不支持此注入。
@@ -74,7 +72,6 @@ class PlayerRepositoryImpl @Inject constructor(
             engine = playerEngineFactory.create(settingsRepository.getEngineType(), context)
         }
         listener?.let { engine!!.setListener(it) }
-        reapplyVideoSurface()
         connectFor(media)
         // ExoPlayer 内核需要注入共享 OkHttp；VLC 自建网络栈无需此注入。
         (engine as? ExoPlayerEngine)?.setOkHttpClient(webDavClient.getOkHttpClient())
@@ -99,14 +96,6 @@ class PlayerRepositoryImpl @Inject constructor(
         engine?.setSpeed(speed)
     }
 
-    override fun selectSubtitle(language: String?) {
-        engine?.selectSubtitle(language)
-    }
-
-    override fun enableSubtitles() {
-        engine?.enableSubtitles()
-    }
-
     override fun setListener(listener: EngineListener?) {
         this.listener = listener
         engine?.setListener(listener)
@@ -114,19 +103,15 @@ class PlayerRepositoryImpl @Inject constructor(
 
     override fun getState(): PlaybackState = engine?.getState() ?: PlaybackState.IDLE
 
+    override fun getCurrentPosition(): Long = engine?.getCurrentPosition() ?: 0L
+
+    override fun getDurationMs(): Long = engine?.getDurationMs() ?: 0L
+
+    override fun getPlayer(): androidx.media3.common.Player? = engine?.getPlayer()
+
     override fun release() {
         engine?.release()
         engine = null
-    }
-
-    override fun setVideoSurface(view: TextureView?) {
-        videoSurface = view
-        engine?.setVideoSurface(view)
-    }
-
-    /** 内核重建后重新绑定已缓存的 Surface（避免切换内核/重连后画面丢失）。 */
-    private fun reapplyVideoSurface() {
-        videoSurface?.let { engine?.setVideoSurface(it) }
     }
 
     private suspend fun connectFor(media: PlayableMedia) {

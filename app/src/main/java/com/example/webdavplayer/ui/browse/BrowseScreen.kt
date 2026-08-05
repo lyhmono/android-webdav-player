@@ -9,8 +9,9 @@ import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.material.ExperimentalMaterialApi
+import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
-import androidx.compose.foundation.combinedClickable
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -22,16 +23,15 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
-import androidx.paging.compose.itemKey
 import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.ArrowBack
 import androidx.compose.material.icons.filled.ArrowDownward
 import androidx.compose.material.icons.filled.ArrowUpward
-import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.Folder
 import androidx.compose.material.icons.filled.Clear
 import androidx.compose.material.icons.filled.InsertDriveFile
+import androidx.compose.material.icons.filled.Image
 import androidx.compose.material.icons.filled.Movie
 import androidx.compose.material.icons.filled.MusicNote
 import androidx.compose.material.icons.filled.QueueMusic
@@ -42,10 +42,9 @@ import androidx.compose.material.icons.filled.Upload
 import androidx.compose.material.icons.filled.WifiOff
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.ExperimentalMaterial3Api
-import androidx.compose.material3.FloatingActionButton
+import androidx.compose.material3.ExtendedFloatingActionButton
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
-import androidx.compose.material3.ListItem
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Scaffold
@@ -53,7 +52,6 @@ import androidx.compose.material3.SnackbarHost
 import androidx.compose.material3.SnackbarHostState
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
-import androidx.compose.material3.TopAppBar
 import androidx.compose.material.pullrefresh.PullRefreshIndicator
 import androidx.compose.material.pullrefresh.pullRefresh
 import androidx.compose.material.pullrefresh.rememberPullRefreshState
@@ -66,6 +64,7 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
@@ -77,6 +76,8 @@ import com.example.webdavplayer.domain.common.FileFormatter
 import com.example.webdavplayer.domain.model.RemoteFile
 import com.example.webdavplayer.ui.common.EmptyView
 import com.example.webdavplayer.ui.common.LoadingView
+import com.example.webdavplayer.ui.common.MediaCard
+import com.example.webdavplayer.ui.common.MediaTopBar
 import com.example.webdavplayer.ui.player.PlayerViewModel
 import com.example.webdavplayer.ui.theme.Spacing
 import com.example.webdavplayer.ui.playlist.PlaylistViewModel
@@ -172,63 +173,65 @@ fun BrowseScreen(
 
     Scaffold(
         topBar = {
-            TopAppBar(
-                title = {
-                    Column {
-                        Text(path)
-                        // 每秒驱动一次重组，让"更新于 Xs 前"随时间自动刷新。
-                        var nowTick by remember { mutableLongStateOf(0L) }
-                        LaunchedEffect(Unit) {
-                            while (true) {
-                                delay(1000)
-                                nowTick++
-                            }
-                        }
-                        val agoSecs = lastRefreshedAt?.let { (System.currentTimeMillis() - it) / 1000 }
-                        // nowTick 仅用于触发重组；读取保证 recomposition 发生。
-                        @Suppress("UNUSED_VARIABLE") val tick = nowTick
-                        if (agoSecs != null) {
-                            val agoText = when {
-                                agoSecs < 60 -> "${agoSecs}s"
-                                agoSecs < 3600 -> "${agoSecs / 60}m"
-                                else -> "${agoSecs / 3600}h"
-                            }
-                            Text(
-                                text = "缓存 · 更新于 $agoText 前",
-                                style = MaterialTheme.typography.labelSmall,
-                            )
+            MediaTopBar {
+                IconButton(onClick = {
+                    if (path == "/") {
+                        navController.navigate("servers") { popUpTo("servers") { inclusive = true } }
+                    } else {
+                        val parent = WebDavPath.parentOf(path)
+                        navController.navigate(
+                            "browse/${viewModel.serverId}?path=" +
+                                URLEncoder.encode(parent, "UTF-8"),
+                        ) {
+                            popUpTo("browse/${viewModel.serverId}") { inclusive = true }
                         }
                     }
-                },
-                navigationIcon = {
-                    IconButton(onClick = {
-                        if (path == "/") {
-                            navController.navigate("servers") { popUpTo("servers") { inclusive = true } }
-                        } else {
-                            val parent = WebDavPath.parentOf(path)
-                            navController.navigate(
-                                "browse/${viewModel.serverId}?path=" +
-                                    URLEncoder.encode(parent, "UTF-8"),
-                            ) {
-                                popUpTo("browse/${viewModel.serverId}") { inclusive = true }
-                            }
+                }) { Icon(Icons.Filled.ArrowBack, "返回") }
+                Column(Modifier.weight(1f)) {
+                    Text(
+                        path,
+                        style = MaterialTheme.typography.titleMedium,
+                        maxLines = 1,
+                        overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis,
+                    )
+                    // 每秒驱动一次重组，让"更新于 Xs 前"随时间自动刷新。
+                    var nowTick by remember { mutableLongStateOf(0L) }
+                    LaunchedEffect(Unit) {
+                        while (true) {
+                            delay(1000)
+                            nowTick++
                         }
-                    }) { Icon(Icons.Filled.ArrowBack, "返回") }
-                },
-                actions = {
-                    IconButton(onClick = { navController.navigate("playlist") }) {
-                        Icon(Icons.Filled.QueueMusic, "播放列表")
                     }
-                    IconButton(onClick = { navController.navigate("settings") }) {
-                        Icon(Icons.Filled.Settings, "设置")
+                    val agoSecs = lastRefreshedAt?.let { (System.currentTimeMillis() - it) / 1000 }
+                    // nowTick 仅用于触发重组；读取保证 recomposition 发生。
+                    @Suppress("UNUSED_VARIABLE") val tick = nowTick
+                    if (agoSecs != null) {
+                        val agoText = when {
+                            agoSecs < 60 -> "${agoSecs}s"
+                            agoSecs < 3600 -> "${agoSecs / 60}m"
+                            else -> "${agoSecs / 3600}h"
+                        }
+                        Text(
+                            text = "缓存 · 更新于 $agoText 前",
+                            style = MaterialTheme.typography.labelSmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        )
                     }
-                },
-            )
+                }
+                IconButton(onClick = { navController.navigate("playlist") }) {
+                    Icon(Icons.Filled.QueueMusic, "播放列表")
+                }
+                IconButton(onClick = { navController.navigate("settings") }) {
+                    Icon(Icons.Filled.Settings, "设置")
+                }
+            }
         },
         floatingActionButton = {
-            FloatingActionButton(onClick = { uploadLauncher.launch("*/*") }) {
-                Icon(Icons.Filled.Upload, "上传")
-            }
+            ExtendedFloatingActionButton(
+                onClick = { uploadLauncher.launch("*/*") },
+                icon = { Icon(Icons.Filled.Upload, contentDescription = null) },
+                text = { Text("上传") },
+            )
         },
         snackbarHost = { SnackbarHost(snackbarHostState) },
     ) { padding ->
@@ -335,20 +338,17 @@ fun BrowseScreen(
                                     }
                                 },
                                 onItemLongClick = { file ->
-                                    if (file.isDirectory) {
-                                        viewModel.onDirLongClick(file)
-                                    } else {
-                                        fileAction = file
-                                    }
+                                    fileAction = file
                                 },
                             )
                         }
                     }
                     else -> {
+                        // 排序：Paging3 不支持本地排序，统一收集后排序渲染
+                        val allFiles = (0 until lazyItems.itemCount).mapNotNull { lazyItems[it] }
+                            .sortedBy(sortMode, sortAscending)
                         FileList(
-                            count = lazyItems.itemCount,
-                            key = lazyItems.itemKey { it.id },
-                            getItem = { index -> lazyItems[index] },
+                            files = allFiles,
                             onItemClick = { file ->
                                 if (file.isDirectory) {
                                     val child = viewModel.fullPath(file.name)
@@ -362,11 +362,7 @@ fun BrowseScreen(
                                 }
                             },
                             onItemLongClick = { file ->
-                                if (file.isDirectory) {
-                                    viewModel.onDirLongClick(file)
-                                } else {
-                                    fileAction = file
-                                }
+                                fileAction = file
                             },
                         )
                     }
@@ -444,10 +440,13 @@ fun BrowseScreen(
                     },
                     dismissButton = {
                         Row {
-                            TextButton(onClick = {
-                                viewModel.downloadFile(viewModel.fullPath(file.name))
-                                fileAction = null
-                            }) { Text("下载") }
+                            // 文件夹不支持下载（WebDAV GET 对目录无效）
+                            if (!file.isDirectory) {
+                                TextButton(onClick = {
+                                    viewModel.downloadFile(viewModel.fullPath(file.name))
+                                    fileAction = null
+                                }) { Text("下载") }
+                            }
                             TextButton(onClick = {
                                 moveText = file.parentPath
                                 showMove = true
@@ -494,7 +493,7 @@ private fun FileList(
     LazyColumn(
         Modifier.fillMaxSize(),
         contentPadding = PaddingValues(Spacing.md),
-        verticalArrangement = Arrangement.spacedBy(Spacing.xs),
+        verticalArrangement = Arrangement.spacedBy(Spacing.sm),
     ) {
         items(
             count = files.size,
@@ -510,36 +509,6 @@ private fun FileList(
     }
 }
 
-/** 分页源重载：直接从 LazyPagingItems 取值。 */
-@Composable
-private fun FileList(
-    count: Int,
-    key: (Int) -> Any,
-    getItem: (Int) -> RemoteFile?,
-    onItemClick: (RemoteFile) -> Unit,
-    onItemLongClick: (RemoteFile) -> Unit,
-) {
-    LazyColumn(
-        Modifier.fillMaxSize(),
-        contentPadding = PaddingValues(Spacing.md),
-        verticalArrangement = Arrangement.spacedBy(Spacing.xs),
-    ) {
-        items(
-            count = count,
-            key = key,
-        ) { index ->
-            getItem(index)?.let { file ->
-                FileRow(
-                    file = file,
-                    modifier = Modifier.animateItemPlacement(),
-                    onClick = { onItemClick(file) },
-                    onLongClick = { onItemLongClick(file) },
-                )
-            }
-        }
-    }
-}
-
 @Composable
 private fun FileRow(
     file: RemoteFile,
@@ -547,33 +516,48 @@ private fun FileRow(
     onLongClick: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
-    ListItem(
-        headlineContent = { Text(file.name) },
-        supportingContent = {
-            val sub = if (file.isDirectory) {
-                "目录"
-            } else {
-                "${FileFormatter.mediaTypeLabel(file.mediaType)} · ${FileFormatter.formatSize(file.size)}"
-            }
-            Text(sub)
-        },
-        leadingContent = {
+    MediaCard(
+        onClick = onClick,
+        onLongClick = onLongClick,
+        modifier = modifier,
+    ) {
+        Box(
+            modifier = Modifier
+                .size(40.dp)
+                .clip(CircleShape)
+                .background(MaterialTheme.colorScheme.surfaceVariant),
+            contentAlignment = Alignment.Center,
+        ) {
             val icon = if (file.isDirectory) {
                 Icons.Filled.Folder
             } else {
                 when (file.mediaType) {
                     com.example.webdavplayer.domain.model.MediaType.VIDEO -> Icons.Filled.Movie
                     com.example.webdavplayer.domain.model.MediaType.AUDIO -> Icons.Filled.MusicNote
+                    com.example.webdavplayer.domain.model.MediaType.IMAGE -> Icons.Filled.Image
                     com.example.webdavplayer.domain.model.MediaType.OTHER -> Icons.Filled.InsertDriveFile
                 }
             }
-            Icon(icon, contentDescription = null)
-        },
-        modifier = modifier
-            .fillMaxWidth()
-            .combinedClickable(
-                onClick = onClick,
-                onLongClick = onLongClick,
-            ),
-    )
+            Icon(icon, contentDescription = null, tint = MaterialTheme.colorScheme.onSurfaceVariant)
+        }
+        Column(Modifier.weight(1f)) {
+            Text(
+                file.name,
+                style = MaterialTheme.typography.titleSmall,
+                maxLines = 1,
+                overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis,
+            )
+            Text(
+                text = if (file.isDirectory) {
+                    "目录"
+                } else {
+                    "${FileFormatter.mediaTypeLabel(file.mediaType)} · ${FileFormatter.formatSize(file.size)}"
+                },
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                maxLines = 1,
+                overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis,
+            )
+        }
+    }
 }

@@ -3,7 +3,6 @@ package com.example.webdavplayer.data.remote
 import com.example.webdavplayer.data.log.AppLogger
 import com.example.webdavplayer.domain.exception.CertUntrustedException
 import com.example.webdavplayer.domain.model.AuthType
-import com.example.webdavplayer.domain.model.MediaType
 import com.example.webdavplayer.domain.model.RemoteFile
 import com.example.webdavplayer.domain.model.ServerConfig
 import com.example.webdavplayer.domain.repository.TrustedCertRepository

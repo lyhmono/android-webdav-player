@@ -29,6 +29,7 @@ class EnginePreference @Inject constructor(
 
     private val key = stringPreferencesKey("engine_type")
     private val currentServerKey = stringPreferencesKey("current_server_id")
+    private val downloadDirKey = stringPreferencesKey("download_dir")
 
     val engineTypeFlow: Flow<EngineType> = dataStore.data.map { prefs ->
         prefs[key]
@@ -55,6 +56,19 @@ class EnginePreference @Inject constructor(
     suspend fun setCurrentServerId(id: String?) {
         dataStore.edit { prefs ->
             if (id == null) prefs.remove(currentServerKey) else prefs[currentServerKey] = id
+        }
+    }
+
+    /** 观察下载目录（绝对路径）。null = 默认 cacheDir。 */
+    val downloadDirFlow: Flow<String?> = dataStore.data.map { prefs -> prefs[downloadDirKey] }
+
+    /** 读取下载目录（同步）。 */
+    suspend fun getDownloadDir(): String? = dataStore.data.first()[downloadDirKey]
+
+    /** 写入下载目录（null = 恢复默认 cacheDir）。 */
+    suspend fun setDownloadDir(path: String?) {
+        dataStore.edit { prefs ->
+            if (path == null) prefs.remove(downloadDirKey) else prefs[downloadDirKey] = path
         }
     }
 }

@@ -23,4 +23,13 @@ interface SettingsRepository {
 
     /** 写入当前服务器 id（null 表示清除）。 */
     suspend fun setCurrentServerId(id: String?)
+
+    /** 观察下载目录（绝对路径）。默认 null = app 私有缓存目录。 */
+    fun observeDownloadDir(): Flow<String?>
+
+    /** 读取下载目录（同步，用于非挂起上下文）；null = 默认（cacheDir）。 */
+    fun getDownloadDir(): String?
+
+    /** 写入下载目录（null = 恢复默认 cacheDir）。 */
+    suspend fun setDownloadDir(path: String?)
 }
