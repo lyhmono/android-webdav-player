@@ -112,22 +112,31 @@ fun PlayerScreen(
     val isPlaying = state == PlaybackState.PLAYING
 
     var isFullScreen by rememberSaveable { mutableStateOf(false) }
+    // 用户主动退出全屏后，不再因视频比例自动重新全屏
+    var userExitedFullscreen by rememberSaveable { mutableStateOf(false) }
     val isVideo = mediaType == MediaType.VIDEO
     // #1/#19：fullscreen 仅由用户主动切换的 isFullScreen 决定
-    // 原逻辑用 isLandscape 参与 fullscreen 判定，导致自然横屏时用户点"退出全屏"仍锁 LANDSCAPE
     val fullscreen = isVideo && isFullScreen
 
     val context = LocalContext.current
     val activity = context.findActivity()
-    DisposableEffect(isFullScreen, isVideo) {
+    DisposableEffect(isFullScreen, isVideo, videoAspect) {
         activity?.requestedOrientation = when {
             !isVideo -> ActivityInfo.SCREEN_ORIENTATION_UNSPECIFIED
-            isFullScreen -> ActivityInfo.SCREEN_ORIENTATION_SENSOR_LANDSCAPE
-            // 视频非全屏：不锁方向，允许用户自由旋转设备（点全屏按钮才主动进入横屏）
+            isFullScreen && videoAspect >= 1f -> ActivityInfo.SCREEN_ORIENTATION_SENSOR_LANDSCAPE
+            isFullScreen && videoAspect in 0.001f..1f -> ActivityInfo.SCREEN_ORIENTATION_PORTRAIT
+            // 视频非全屏：不锁方向，允许用户自由旋转
             else -> ActivityInfo.SCREEN_ORIENTATION_UNSPECIFIED
         }
         onDispose {
             activity?.requestedOrientation = ActivityInfo.SCREEN_ORIENTATION_UNSPECIFIED
+        }
+    }
+
+    // 视频比例首次确定后自动进入全屏（横屏视频→横向，竖屏视频→竖向）
+    LaunchedEffect(videoAspect, isVideo) {
+        if (isVideo && videoAspect > 0f && !isFullScreen && !userExitedFullscreen) {
+            isFullScreen = true
         }
     }
 
@@ -159,6 +168,13 @@ fun PlayerScreen(
         if (items.isNotEmpty() && items.none { it.id == currentItemId }) {
             playerVm.playItem(items.first())
         }
+    }
+
+    // 切换到新视频时重置"用户已主动退出全屏"标记，允许新视频再次自动全屏
+    LaunchedEffect(currentItemId) {
+        userExitedFullscreen = false
+        isFullScreen = false
+        // videoAspect 回调到新值后会自动拉起全屏
     }
 
     ImmersiveModeEffect(enabled = fullscreen)
@@ -235,7 +251,11 @@ fun PlayerScreen(
                         onPrev = { playerVm.previous(); controlsHideToken++ },
                         onNext = { playerVm.next(); controlsHideToken++ },
                         onMore = { menuExpanded = true; controlsHideToken++ },
-                        onToggleFullscreen = { isFullScreen = !isFullScreen; controlsHideToken++ },
+                        onToggleFullscreen = {
+                            isFullScreen = !isFullScreen
+                            if (!isFullScreen) userExitedFullscreen = true
+                            controlsHideToken++
+                        },
                         isFullscreen = fullscreen,
                         moreMenuExpanded = menuExpanded,
                         onMoreMenuDismiss = { menuExpanded = false },
