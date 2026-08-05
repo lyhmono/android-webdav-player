@@ -34,8 +34,15 @@ class CacheRepositoryImpl @Inject constructor(
     private val webDavClient: WebDavClient,
     private val serverRepository: ServerRepository,
     private val cacheDao: CachedMediaDao,
+    private val settingsRepository: SettingsRepository,
     @ApplicationContext private val context: Context,
 ) : CacheRepository {
+
+    /** 下载根目录：优先用户设置的 downloadDir，否则默认 cacheDir/cache。 */
+    private suspend fun downloadRoot(): File {
+        val custom = settingsRepository.getDownloadDir()
+        return if (!custom.isNullOrBlank()) File(custom) else File(context.cacheDir, "cache")
+    }
 
     override suspend fun download(serverId: String, path: String): Result<CachedMedia> =
         withContext(Dispatchers.IO) {
@@ -45,7 +52,10 @@ class CacheRepositoryImpl @Inject constructor(
                 webDavClient.connect(cfg)
                 val norm = WebDavPath.normalize(path)
                 val name = WebDavPath.nameOf(norm)
-                val localFile = cacheFile(serverId, norm)
+                val root = downloadRoot()
+                // 按 serverId 分子目录 + 保留原始文件名（前缀 sha256 防碰撞）
+                val safeName = "${sha256Hex(norm).take(8)}_$name"
+                val localFile = File(File(root, serverId), safeName)
                 localFile.parentFile?.mkdirs()
 
                 val source = webDavClient.openStream(norm)
@@ -69,7 +79,7 @@ class CacheRepositoryImpl @Inject constructor(
         withContext(Dispatchers.IO) {
             val norm = WebDavPath.normalize(path)
             val entity = cacheDao.getByServerPath(serverId, norm) ?: return@withContext null
-            val file = cacheFile(serverId, norm)
+            val file = localFileOf(serverId, norm, entity.name)
             if (file.exists()) file.absolutePath else null
         }
 
@@ -79,12 +89,15 @@ class CacheRepositoryImpl @Inject constructor(
     override suspend fun delete(id: String) = withContext(Dispatchers.IO) {
         val entity = cacheDao.getById(id) ?: return@withContext
         cacheDao.deleteById(id)
-        cacheFile(entity.serverId, entity.path).delete()
+        localFileOf(entity.serverId, entity.path, entity.name).delete()
     }
 
-    /** 本地缓存文件路径：`cacheDir/cache/$serverId/${sha256Hex(path)}.bin`。 */
-    private fun cacheFile(serverId: String, path: String): File =
-        File(context.cacheDir, "cache/$serverId/${sha256Hex(path)}.bin")
+    /** 本地缓存文件路径：`<downloadRoot>/$serverId/${sha256Hex(path).take(8)}_$name`。 */
+    private suspend fun localFileOf(serverId: String, path: String, name: String): File {
+        val root = downloadRoot()
+        val safeName = "${sha256Hex(path).take(8)}_$name"
+        return File(File(root, serverId), safeName)
+    }
 }
 
 /**

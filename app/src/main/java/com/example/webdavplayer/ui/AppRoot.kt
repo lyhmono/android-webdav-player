@@ -19,6 +19,7 @@ import androidx.navigation.compose.composable
 import androidx.navigation.compose.rememberNavController
 import androidx.navigation.navArgument
 import com.example.webdavplayer.ui.browse.BrowseScreen
+import com.example.webdavplayer.ui.downloads.DownloadsScreen
 import com.example.webdavplayer.ui.player.PlayerScreen
 import com.example.webdavplayer.ui.player.PlayerViewModel
 import com.example.webdavplayer.ui.playlist.PlaylistScreen
@@ -88,6 +89,9 @@ fun AppRoot() {
                 }
                 composable("settings") {
                     SettingsScreen(navController, playerVm, playlistVm)
+                }
+                composable("downloads") {
+                    DownloadsScreen(onBack = { navController.popBackStack() })
                 }
                 composable("log") {
                     LogScreen(navController)

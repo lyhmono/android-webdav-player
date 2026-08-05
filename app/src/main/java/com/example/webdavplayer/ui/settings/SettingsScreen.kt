@@ -5,8 +5,10 @@ package com.example.webdavplayer.ui.settings
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
@@ -14,17 +16,25 @@ import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.ArrowBack
 import androidx.compose.material.icons.filled.Delete
+import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.FilterChip
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
 import androidx.compose.material3.TopAppBar
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
+import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.navigation.NavHostController
@@ -52,6 +62,7 @@ fun SettingsScreen(
     val engineType by viewModel.engineType.collectAsStateWithLifecycle()
     val certs by viewModel.certs.collectAsStateWithLifecycle()
     val cached by viewModel.cachedMedia.collectAsStateWithLifecycle()
+    val downloadDir by viewModel.downloadDir.collectAsStateWithLifecycle()
 
     Scaffold(
         topBar = {
@@ -85,26 +96,70 @@ fun SettingsScreen(
                 }
             }
 
-            SectionHeader("离线缓存")
-            if (cached.isEmpty()) {
-                Text(
-                    "暂无",
-                    style = MaterialTheme.typography.bodySmall,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                )
-            } else {
-                LazyColumn(
-                    Modifier.fillMaxWidth().weight(1f),
-                    verticalArrangement = Arrangement.spacedBy(Spacing.xs),
-                ) {
-                    items(cached, key = { it.id }) { m ->
-                        CachedRow(
-                            cached = m,
-                            onRemove = { viewModel.deleteCache(m.id) },
-                            modifier = Modifier.animateItemPlacement(),
-                        )
-                    }
+            SectionHeader("下载")
+
+            // 下载管理入口
+            Row(
+                Modifier.fillMaxWidth().padding(Spacing.md),
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.SpaceBetween,
+            ) {
+                Text("下载管理", style = MaterialTheme.typography.bodyLarge)
+                TextButton(onClick = { navController.navigate("downloads") }) { Text("查看已下载文件") }
+            }
+
+            // 默认下载目录
+            var showDirDialog by remember { mutableStateOf(false) }
+            val dirLabel = downloadDir ?: "默认（应用私有缓存目录）"
+            Row(
+                Modifier.fillMaxWidth().padding(Spacing.md),
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.SpaceBetween,
+            ) {
+                Column(Modifier.weight(1f)) {
+                    Text("默认下载目录", style = MaterialTheme.typography.bodyLarge)
+                    Text(
+                        dirLabel,
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        maxLines = 2,
+                        overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis,
+                    )
                 }
+                TextButton(onClick = { showDirDialog = true }) { Text("修改") }
+            }
+
+            if (showDirDialog) {
+                var dirText by remember { mutableStateOf(downloadDir ?: "") }
+                AlertDialog(
+                    onDismissRequest = { showDirDialog = false },
+                    title = { Text("默认下载目录") },
+                    text = {
+                        Column {
+                            Text(
+                                "输入绝对路径。留空恢复默认（应用私有缓存目录）。",
+                                style = MaterialTheme.typography.bodySmall,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                            )
+                            Spacer(Modifier.height(8.dp))
+                            OutlinedTextField(
+                                value = dirText,
+                                onValueChange = { dirText = it },
+                                label = { Text("绝对路径") },
+                                modifier = Modifier.fillMaxWidth(),
+                            )
+                        }
+                    },
+                    confirmButton = {
+                        TextButton(onClick = {
+                            viewModel.setDownloadDir(dirText.ifBlank { null })
+                            showDirDialog = false
+                        }) { Text("确定") }
+                    },
+                    dismissButton = {
+                        TextButton(onClick = { showDirDialog = false }) { Text("取消") }
+                    },
+                )
             }
 
             SectionHeader("已信任的自签证书")

@@ -25,4 +25,10 @@ class SettingsRepositoryImpl @Inject constructor(
     override fun getCurrentServerId(): String? = runBlocking { enginePreference.getCurrentServerId() }
 
     override suspend fun setCurrentServerId(id: String?) = enginePreference.setCurrentServerId(id)
+
+    override fun observeDownloadDir(): Flow<String?> = enginePreference.downloadDirFlow
+
+    override fun getDownloadDir(): String? = runBlocking { enginePreference.getDownloadDir() }
+
+    override suspend fun setDownloadDir(path: String?) = enginePreference.setDownloadDir(path)
 }
