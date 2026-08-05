@@ -193,5 +193,8 @@ class PlaylistRepositoryImplTest {
             kotlinx.coroutines.flow.flowOf(com.example.webdavplayer.domain.model.EngineType.MEDIA3)
         override fun getEngineType() = com.example.webdavplayer.domain.model.EngineType.MEDIA3
         override suspend fun setEngineType(type: com.example.webdavplayer.domain.model.EngineType) {}
+        override fun observeDownloadDir() = kotlinx.coroutines.flow.flowOf<String?>(null)
+        override fun getDownloadDir() = null
+        override suspend fun setDownloadDir(path: String?) {}
     }
 }
