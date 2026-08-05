@@ -39,6 +39,7 @@ fun DownloadsScreen(
     viewModel: DownloadsViewModel = hiltViewModel(),
 ) {
     val downloads by viewModel.downloads.collectAsStateWithLifecycle()
+    val downloadDir by viewModel.downloadDir.collectAsStateWithLifecycle()
 
     Scaffold(
         topBar = {
@@ -52,22 +53,41 @@ fun DownloadsScreen(
             )
         },
     ) { padding ->
-        if (downloads.isEmpty()) {
-            EmptyView(
-                message = "暂无已下载文件，在浏览页长按文件选择「下载」即可",
-                modifier = Modifier.padding(padding),
-            )
-        } else {
-            LazyColumn(
-                modifier = Modifier.fillMaxSize().padding(padding),
-                contentPadding = PaddingValues(vertical = 8.dp),
-                verticalArrangement = Arrangement.spacedBy(4.dp),
+        Column(Modifier.fillMaxSize().padding(padding)) {
+            // 显示当前下载目录（核心诉求：让用户知道文件存哪）
+            Row(
+                Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 8.dp),
+                verticalAlignment = androidx.compose.ui.Alignment.CenterVertically,
             ) {
-                items(downloads, key = { it.id }) { item ->
-                    DownloadRow(
-                        item = item,
-                        onDelete = { viewModel.delete(item.id) },
-                    )
+                Text(
+                    "保存位置：",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
+                Text(
+                    downloadDir ?: "应用私有缓存目录（可在设置中修改）",
+                    style = MaterialTheme.typography.bodySmall,
+                    maxLines = 2,
+                    overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis,
+                )
+            }
+            if (downloads.isEmpty()) {
+                EmptyView(
+                    message = "暂无已下载文件，在浏览页长按文件选择「下载」即可",
+                    modifier = Modifier.weight(1f),
+                )
+            } else {
+                LazyColumn(
+                    modifier = Modifier.fillMaxSize(),
+                    contentPadding = PaddingValues(vertical = 8.dp),
+                    verticalArrangement = Arrangement.spacedBy(4.dp),
+                ) {
+                    items(downloads, key = { it.id }) { item ->
+                        DownloadRow(
+                            item = item,
+                            onDelete = { viewModel.delete(item.id) },
+                        )
+                    }
                 }
             }
         }
