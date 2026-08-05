@@ -26,9 +26,10 @@ import javax.inject.Singleton
 /**
  * 离线缓存仓库实现（P2）。
  *
- * - 本地文件存储：`cacheDir/cache/$serverId/${path.hashCode()}.bin`
- * - 元数据：Room（[CachedMediaDao]）
+ * - 本地文件存储：`downloadRoot/$serverId/${sha8}_${originalName}`
+ * - 元数据 + 真实落盘路径：Room（[CachedMediaDao]）
  * - 下载：经 [WebDavClient.openStream] 流式写入本地，不整文件加载到内存
+ * - 删除：v5 起优先按 entity.localPath 精确清理；旧记录（localPath=null）fallback 到拼接路径兜底
  */
 @Singleton
 class CacheRepositoryImpl @Inject constructor(
@@ -43,7 +44,7 @@ class CacheRepositoryImpl @Inject constructor(
     private suspend fun downloadRoot(): File {
         val custom = settingsRepository.getDownloadDir()
         return if (!custom.isNullOrBlank()) {
-            File(custom!!)
+            File(custom)
         } else {
             File(context.cacheDir, "cache")
         }
@@ -58,7 +59,7 @@ class CacheRepositoryImpl @Inject constructor(
                 val norm = WebDavPath.normalize(path)
                 val name = WebDavPath.nameOf(norm)
                 val root = downloadRoot()
-                // 按 serverId 分子目录 + 保留原始文件名（前缀 sha256 防碰撞）
+                // 按 serverId 分子目录 + 保留原始文件名（前缀 sha8 防碰撞）
                 val safeName = "${sha256Hex(norm).take(8)}_$name"
                 val localFile = File(File(root, serverId), safeName)
                 localFile.parentFile?.mkdirs()
@@ -75,7 +76,8 @@ class CacheRepositoryImpl @Inject constructor(
                     size = localFile.length(),
                     downloadedAt = System.currentTimeMillis(),
                 )
-                cacheDao.upsert(cached.toEntity())
+                // v5：把真实落盘绝对路径一并入库，删除时按此精确清理
+                cacheDao.upsert(cached.toEntity(localPath = localFile.absolutePath))
                 cached
             }
         }
@@ -84,7 +86,9 @@ class CacheRepositoryImpl @Inject constructor(
         withContext(Dispatchers.IO) {
             val norm = WebDavPath.normalize(path)
             val entity = cacheDao.getByServerPath(serverId, norm) ?: return@withContext null
-            val file = localFileOf(serverId, norm, entity.name)
+            // v5：优先用 entity 记录的真实路径
+            val file = entity.localPath?.let { File(it) }
+                ?: localFileOf(serverId, norm, entity.name)
             if (file.exists()) file.absolutePath else null
         }
 
@@ -94,10 +98,16 @@ class CacheRepositoryImpl @Inject constructor(
     override suspend fun delete(id: String) = withContext(Dispatchers.IO) {
         val entity = cacheDao.getById(id) ?: return@withContext
         cacheDao.deleteById(id)
-        localFileOf(entity.serverId, entity.path, entity.name).delete()
+        // v5：优先按 entity.localPath 精确删；旧记录 fallback 到拼接路径
+        val file = entity.localPath?.let { File(it) }
+            ?: localFileOf(entity.serverId, entity.path, entity.name)
+        file.delete()
     }
 
-    /** 本地缓存文件路径：`<downloadRoot>/$serverId/${sha256Hex(path).take(8)}_$name`。 */
+    override suspend fun getEffectiveRootDir(): String =
+        withContext(Dispatchers.IO) { downloadRoot().absolutePath }
+
+    /** 旧记录兜底：按 `downloadRoot/$serverId/${sha8}_${name}` 拼接定位文件。 */
     private suspend fun localFileOf(serverId: String, path: String, name: String): File {
         val root = downloadRoot()
         val safeName = "${sha256Hex(path).take(8)}_$name"

@@ -23,15 +23,29 @@ class DownloadsViewModel @Inject constructor(
     val downloads = cacheRepository.observeAll()
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
 
-    /** 当前下载目录路径；null = 默认（cacheDir）。 */
+    /** 用户配置的下载目录原始值；null = 未自定义。 */
     val downloadDir = settingsRepository.observeDownloadDir()
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), null)
+
+    /** 真实生效的根目录绝对路径（自定义 or 默认 cacheDir/cache）。 */
+    private val _effectiveRootDir = MutableStateFlow<String?>(null)
+    val effectiveRootDir: StateFlow<String?> = _effectiveRootDir.asStateFlow()
+
+    init {
+        viewModelScope.launch {
+            _effectiveRootDir.value = cacheRepository.getEffectiveRootDir()
+        }
+    }
 
     fun delete(id: String) {
         viewModelScope.launch { cacheRepository.delete(id) }
     }
 
     fun setDownloadDir(path: String?) {
-        viewModelScope.launch { settingsRepository.setDownloadDir(path) }
+        viewModelScope.launch {
+            settingsRepository.setDownloadDir(path)
+            // 路径变更后刷新生效目录展示
+            _effectiveRootDir.value = cacheRepository.getEffectiveRootDir()
+        }
     }
 }

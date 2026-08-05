@@ -50,7 +50,14 @@ fun AppRoot() {
                 popEnterTransition = { slideIntoContainer(AnimatedContentTransitionScope.SlideDirection.Right, tween(280)) + fadeIn(tween(280)) },
                 popExitTransition = { slideOutOfContainer(AnimatedContentTransitionScope.SlideDirection.Right, tween(280)) + fadeOut(tween(280)) },
             ) {
-                composable("servers") {
+                composable(
+                    "servers",
+                    // 启动首屏无转场动画，避免冷启动时多一次 slide 动画
+                    enterTransition = { fadeIn(tween(280)) },
+                    exitTransition = { fadeOut(tween(280)) },
+                    popEnterTransition = { fadeIn(tween(280)) },
+                    popExitTransition = { fadeOut(tween(280)) },
+                ) {
                     ServerListScreen(navController, playerVm, playlistVm)
                 }
                 composable(

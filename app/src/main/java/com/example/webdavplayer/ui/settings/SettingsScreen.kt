@@ -128,6 +128,7 @@ fun SettingsScreen(
 
             if (showDirDialog) {
                 var dirText by remember { mutableStateOf(downloadDir ?: "") }
+                var dirError by remember { mutableStateOf<String?>(null) }
                 AlertDialog(
                     onDismissRequest = { showDirDialog = false },
                     title = { Text("默认下载目录") },
@@ -141,16 +142,34 @@ fun SettingsScreen(
                             Spacer(Modifier.height(8.dp))
                             OutlinedTextField(
                                 value = dirText,
-                                onValueChange = { dirText = it },
+                                onValueChange = { dirText = it; dirError = null },
                                 label = { Text("绝对路径") },
+                                isError = dirError != null,
+                                supportingText = dirError?.let { { Text(it) } },
                                 modifier = Modifier.fillMaxWidth(),
                             )
                         }
                     },
                     confirmButton = {
                         TextButton(onClick = {
-                            viewModel.setDownloadDir(dirText.ifBlank { null })
-                            showDirDialog = false
+                            val trimmed = dirText.trim()
+                            if (trimmed.isBlank()) {
+                                viewModel.setDownloadDir(null)
+                                showDirDialog = false
+                            } else {
+                                // 校验目录可写：不存在则尝试创建
+                                val dir = java.io.File(trimmed)
+                                if (!dir.exists()) dir.mkdirs()
+                                when {
+                                    !dir.exists() -> dirError = "目录不存在且无法创建"
+                                    !dir.canWrite() -> dirError = "无写入权限"
+                                    !dir.isDirectory -> dirError = "路径不是目录"
+                                    else -> {
+                                        viewModel.setDownloadDir(trimmed)
+                                        showDirDialog = false
+                                    }
+                                }
+                            }
                         }) { Text("确定") }
                     },
                     dismissButton = {

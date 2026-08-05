@@ -39,7 +39,7 @@ fun DownloadsScreen(
     viewModel: DownloadsViewModel = hiltViewModel(),
 ) {
     val downloads by viewModel.downloads.collectAsStateWithLifecycle()
-    val downloadDir by viewModel.downloadDir.collectAsStateWithLifecycle()
+    val effectiveRootDir by viewModel.effectiveRootDir.collectAsStateWithLifecycle()
 
     Scaffold(
         topBar = {
@@ -54,7 +54,7 @@ fun DownloadsScreen(
         },
     ) { padding ->
         Column(Modifier.fillMaxSize().padding(padding)) {
-            // 显示当前下载目录（核心诉求：让用户知道文件存哪）
+            // 显示真实生效的保存位置（自定义 or 默认 cacheDir），让用户精准知道文件存哪
             Row(
                 Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 8.dp),
                 verticalAlignment = androidx.compose.ui.Alignment.CenterVertically,
@@ -65,7 +65,7 @@ fun DownloadsScreen(
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                 )
                 Text(
-                    downloadDir ?: "应用私有缓存目录（可在设置中修改）",
+                    effectiveRootDir ?: "加载中…",
                     style = MaterialTheme.typography.bodySmall,
                     maxLines = 2,
                     overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis,

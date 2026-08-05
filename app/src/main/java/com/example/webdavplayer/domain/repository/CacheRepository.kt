@@ -22,4 +22,7 @@ interface CacheRepository {
 
     /** 删除缓存（清理本地文件 + Room 记录）。 */
     suspend fun delete(id: String)
+
+    /** 当前生效的下载根目录绝对路径（用户配置 or 默认 cacheDir/cache）。 */
+    suspend fun getEffectiveRootDir(): String
 }

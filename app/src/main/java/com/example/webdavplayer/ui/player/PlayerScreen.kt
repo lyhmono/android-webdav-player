@@ -130,8 +130,10 @@ fun PlayerScreen(
         }
     }
 
-    // 视频比例首次确定后自动进入全屏（横屏视频→横向，竖屏视频→竖向）
-    LaunchedEffect(videoAspect, isVideo) {
+    // 视频比例首次确定后自动进入全屏（横屏视频→横向，竖屏视频→竖向）。
+    // key 含 currentItemId：避免 VM 切歌时把 videoAspect 短暂置 0 又恢复为相同值（如两段都是 16:9），
+    // Compose 可能 batch 掉中间变化导致此 effect 不重启；让 currentItemId 也作 key 保证切歌一定重判。
+    LaunchedEffect(currentItemId, videoAspect, isVideo) {
         if (isVideo && videoAspect > 0f && !isFullScreen && !userExitedFullscreen) {
             isFullScreen = true
         }

@@ -6,6 +6,7 @@ import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
 import androidx.compose.foundation.background
 import androidx.compose.foundation.gestures.detectHorizontalDragGestures
+import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -279,7 +280,9 @@ fun PlayerControls(
  * 自定义细进度条 Composable。
  *
  * 视觉：4dp 高圆角轨道，已播部分白色，未播部分半透明白；
- * thumb 为 14dp 白色圆点，拖动时显现，松手后隐藏。
+ * thumb 为 14dp 白色圆点，按下时显现，松手后隐藏（与拖动状态解耦）。
+ *
+ * 交互：点击轨道任意位置即跳转；按住拖动连续 seek；松手提交。
  */
 @Composable
 private fun SeekBar(
@@ -288,7 +291,8 @@ private fun SeekBar(
     onSeekFinished: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
-    var dragging by remember { mutableStateOf(false) }
+    // pressed：手指正按在轨道上（拖动或点击都算）。thumb 与 pressed 绑定，与 dragging 解耦。
+    var pressed by remember { mutableStateOf(false) }
     val density = androidx.compose.ui.platform.LocalDensity.current
     val trackWidthPx = remember { mutableStateOf(0) }
 
@@ -298,10 +302,27 @@ private fun SeekBar(
             .height(36.dp)
             .onSizeChanged { trackWidthPx.value = it.width }
             .pointerInput(Unit) {
+                detectTapGestures(
+                    onPress = {
+                        pressed = true
+                        tryAwaitRelease()
+                        pressed = false
+                    },
+                    onTap = { offset ->
+                        val w = size.width.toFloat()
+                        if (w > 0) {
+                            val ratio = (offset.x / w).coerceIn(0f, 1f)
+                            onSeek(ratio)
+                            onSeekFinished()
+                        }
+                    },
+                )
+            }
+            .pointerInput(Unit) {
                 detectHorizontalDragGestures(
-                    onDragStart = { dragging = true },
-                    onDragEnd = { dragging = false; onSeekFinished() },
-                    onDragCancel = { dragging = false },
+                    onDragStart = { pressed = true },
+                    onDragEnd = { pressed = false; onSeekFinished() },
+                    onDragCancel = { pressed = false },
                 ) { change, _ ->
                     val w = size.width.toFloat()
                     if (w > 0) {
@@ -328,9 +349,9 @@ private fun SeekBar(
                 .clip(RoundedCornerShape(2.dp))
                 .background(Color.White),
         )
-        // thumb（拖动时显示）——用 dp 像素偏移定位
+        // thumb（按下时显示）——用 dp 像素偏移定位
         AnimatedVisibility(
-            visible = dragging,
+            visible = pressed,
             enter = fadeIn(),
             exit = fadeOut(),
         ) {

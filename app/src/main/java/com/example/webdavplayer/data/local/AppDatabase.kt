@@ -29,7 +29,7 @@ import com.example.webdavplayer.data.local.entity.TrustedCertEntity
         DirectoryMetaEntity::class,  // §1.3 优化：目录缓存 TTL 元数据
         CachedMediaEntity::class,    // P2：离线缓存元数据
     ],
-    version = 4,
+    version = 5,
     exportSchema = false,
 )
 @TypeConverters(Converters::class)
