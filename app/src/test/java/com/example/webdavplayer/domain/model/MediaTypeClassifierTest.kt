@@ -13,7 +13,7 @@ import org.junit.Test
  * - [MediaTypeClassifier.classify]：综合识别（contentType 优先）
  *
  * 注：音频不再作为独立类型支持（产品方向聚焦视频+图片），
- * 原 audio/* contentType 与 mp3/flac 等扩展名现归为 null / OTHER。
+ * 原音频 contentType 与 mp3/flac 等扩展名现归为 null / OTHER。
  */
 class MediaTypeClassifierTest {
 
