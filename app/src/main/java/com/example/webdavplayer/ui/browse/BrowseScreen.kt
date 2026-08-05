@@ -33,7 +33,6 @@ import androidx.compose.material.icons.filled.Clear
 import androidx.compose.material.icons.filled.InsertDriveFile
 import androidx.compose.material.icons.filled.Image
 import androidx.compose.material.icons.filled.Movie
-import androidx.compose.material.icons.filled.MusicNote
 import androidx.compose.material.icons.filled.QueueMusic
 import androidx.compose.material.icons.filled.Search
 import androidx.compose.material.icons.filled.Settings
@@ -521,7 +520,6 @@ private fun FileRow(
             } else {
                 when (file.mediaType) {
                     com.example.webdavplayer.domain.model.MediaType.VIDEO -> Icons.Filled.Movie
-                    com.example.webdavplayer.domain.model.MediaType.AUDIO -> Icons.Filled.MusicNote
                     com.example.webdavplayer.domain.model.MediaType.IMAGE -> Icons.Filled.Image
                     com.example.webdavplayer.domain.model.MediaType.OTHER -> Icons.Filled.InsertDriveFile
                 }

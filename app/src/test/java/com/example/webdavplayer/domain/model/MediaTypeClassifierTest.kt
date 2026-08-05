@@ -8,9 +8,12 @@ import org.junit.Test
  * [MediaTypeClassifier] 表驱动单元测试（§8：contentType 优先，扩展名兜底）。
  *
  * 覆盖：
- * - [MediaTypeClassifier.fromContentType]：video/audio 子类型 与 未知/null
- * - [MediaTypeClassifier.fromExtension]：视频/音频/其它扩展名白名单
+ * - [MediaTypeClassifier.fromContentType]：video/image 子类型 与 未知/null
+ * - [MediaTypeClassifier.fromExtension]：视频/图片/其它扩展名白名单
  * - [MediaTypeClassifier.classify]：综合识别（contentType 优先）
+ *
+ * 注：音频不再作为独立类型支持（产品方向聚焦视频+图片），
+ * 原 audio/* contentType 与 mp3/flac 等扩展名现归为 null / OTHER。
  */
 class MediaTypeClassifierTest {
 
@@ -23,12 +26,11 @@ class MediaTypeClassifierTest {
             ContentTypeCase("video/mp4", MediaType.VIDEO),
             ContentTypeCase("video/quicktime", MediaType.VIDEO),
             ContentTypeCase("VIDEO/MPEG", MediaType.VIDEO), // 忽略大小写
-            ContentTypeCase("audio/mpeg", MediaType.AUDIO),
-            ContentTypeCase("audio/MP3", MediaType.AUDIO),  // 忽略大小写
             ContentTypeCase("image/png", MediaType.IMAGE),
             ContentTypeCase("image/jpeg", MediaType.IMAGE),
             ContentTypeCase("application/octet-stream", null),
             ContentTypeCase("text/plain", null),
+            ContentTypeCase("audio/mpeg", null), // 音频不再独立分类
             ContentTypeCase("", null),
             ContentTypeCase(null, null),
         )
@@ -53,13 +55,14 @@ class MediaTypeClassifierTest {
     }
 
     @Test
-    fun fromExtension_audioTable() {
+    fun fromExtension_audioFallsToNull() {
+        // 音频扩展名已从白名单移除——识别为 null（即归类为 OTHER）
         val audioNames = listOf(
             "song.mp3", "lossless.FLAC", "aac.aac", "ringtone.m4a",
             "pcm.wav", "voice.ogg", "win.wma", "talk.opus",
         )
         audioNames.forEach { name ->
-            assertEquals("fromExtension($name) should be AUDIO", MediaType.AUDIO, MediaTypeClassifier.fromExtension(name))
+            assertNull("fromExtension($name) should be null (audio dropped)", MediaTypeClassifier.fromExtension(name))
         }
     }
 
@@ -96,14 +99,16 @@ class MediaTypeClassifierTest {
     fun classify_contentTypeWinsOverExtension() {
         // contentType=video/* 优先，即使扩展名是其它
         assertEquals(MediaType.VIDEO, MediaTypeClassifier.classify("video/mp4", "notes.txt"))
-        assertEquals(MediaType.AUDIO, MediaTypeClassifier.classify("audio/mpeg", "clip.mp4"))
+        // audio/* 不再独立分类 → fallback 到扩展名 → clip.mp4 = VIDEO
+        assertEquals(MediaType.VIDEO, MediaTypeClassifier.classify("audio/mpeg", "clip.mp4"))
     }
 
     @Test
     fun classify_extensionBacksUpWhenContentTypeUnknown() {
         // contentType 未知/空 → 扩展名兜底
         assertEquals(MediaType.VIDEO, MediaTypeClassifier.classify("application/octet-stream", "movie.mp4"))
-        assertEquals(MediaType.AUDIO, MediaTypeClassifier.classify(null, "song.mp3"))
+        // 音频扩展名不再识别 → song.mp3 = OTHER
+        assertEquals(MediaType.OTHER, MediaTypeClassifier.classify(null, "song.mp3"))
         assertEquals(MediaType.VIDEO, MediaTypeClassifier.classify("", "film.mkv"))
     }
 

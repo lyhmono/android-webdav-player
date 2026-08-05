@@ -47,17 +47,8 @@ class MediaConstantsTest {
     }
 
     @Test
-    fun audioExtensions_whitelist_matches_spec() {
-        val expected = setOf(
-            "mp3", "flac", "m4a", "aac", "wav", "ogg", "wma", "opus",
-        )
-        assertEquals(expected, MediaConstants.AUDIO_EXTENSIONS)
-        expected.forEach { assertTrue("$it should be an audio extension", it in MediaConstants.AUDIO_EXTENSIONS) }
-    }
-
-    @Test
-    fun video_and_audio_whitelists_do_not_overlap() {
-        val overlap = MediaConstants.VIDEO_EXTENSIONS.intersect(MediaConstants.AUDIO_EXTENSIONS)
-        assertTrue("video/audio extension sets must be disjoint", overlap.isEmpty())
+    fun video_and_image_whitelists_do_not_overlap() {
+        val overlap = MediaConstants.VIDEO_EXTENSIONS.intersect(MediaConstants.IMAGE_EXTENSIONS)
+        assertTrue("video/image extension sets must be disjoint", overlap.isEmpty())
     }
 }

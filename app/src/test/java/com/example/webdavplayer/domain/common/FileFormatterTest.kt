@@ -42,7 +42,7 @@ class FileFormatterTest {
     @Test
     fun mediaTypeLabel_correct() {
         assertEquals("视频", FileFormatter.mediaTypeLabel(MediaType.VIDEO))
-        assertEquals("音频", FileFormatter.mediaTypeLabel(MediaType.AUDIO))
+        assertEquals("图片", FileFormatter.mediaTypeLabel(MediaType.IMAGE))
         assertEquals("文件", FileFormatter.mediaTypeLabel(MediaType.OTHER))
     }
 }

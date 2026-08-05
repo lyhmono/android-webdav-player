@@ -3,24 +3,25 @@ package com.example.webdavplayer.domain.model
 import com.example.webdavplayer.domain.common.MediaConstants
 
 /**
- * 媒体类型：视频 / 音频 / 图片 / 其他。
+ * 媒体类型：视频 / 图片 / 其他。
  * 识别规则（§8）：contentType 优先，扩展名兜底。
+ *
+ * 注：音频文件不再作为独立类型支持（产品方向聚焦视频+图片），
+ * 原音频文件按 contentType/扩展名识别失败后归为 OTHER。
  */
 enum class MediaType {
     VIDEO,
-    AUDIO,
     IMAGE,
     OTHER,
 }
 
 /** 媒体类型识别工具（contentType 优先，扩展名兜底）。 */
 object MediaTypeClassifier {
-    /** 仅由 contentType 推断（以 video/ 或 audio/ 或 image/ 开头）。 */
+    /** 仅由 contentType 推断（以 video/ 或 image/ 开头）。 */
     fun fromContentType(contentType: String?): MediaType? {
         if (contentType.isNullOrBlank()) return null
         return when {
             contentType.startsWith("video/", ignoreCase = true) -> MediaType.VIDEO
-            contentType.startsWith("audio/", ignoreCase = true) -> MediaType.AUDIO
             contentType.startsWith("image/", ignoreCase = true) -> MediaType.IMAGE
             else -> null
         }
@@ -31,7 +32,6 @@ object MediaTypeClassifier {
         val ext = MediaConstants.extensionOf(name)
         return when {
             ext in MediaConstants.VIDEO_EXTENSIONS -> MediaType.VIDEO
-            ext in MediaConstants.AUDIO_EXTENSIONS -> MediaType.AUDIO
             ext in MediaConstants.IMAGE_EXTENSIONS -> MediaType.IMAGE
             else -> null
         }

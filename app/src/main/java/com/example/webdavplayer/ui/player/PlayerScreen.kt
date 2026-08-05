@@ -27,7 +27,6 @@ import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.ArrowBack
-import androidx.compose.material.icons.filled.AudioFile
 import androidx.compose.material.icons.filled.Error
 import androidx.compose.material.icons.filled.MoreVert
 import androidx.compose.material.icons.filled.Pause
@@ -44,8 +43,6 @@ import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.SnackbarHost
 import androidx.compose.material3.SnackbarHostState
-import androidx.compose.material3.Slider
-import androidx.compose.material3.SliderDefaults
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
@@ -410,57 +407,9 @@ fun PlayerScreen(
                         }
                     }
                 }
-            } else if (!isVideo && currentItemId != null) {
-                // A5：音频模式也显示标题 + 播放按钮；左右滑动切上一首/下一首（#23）
-                val density = LocalDensity.current
-                var dragAccum by remember { mutableStateOf(0f) }
-                Box(
-                    Modifier
-                        .fillMaxSize()
-                        .pointerInput(Unit) {
-                            detectHorizontalDragGestures(
-                                onDragStart = { dragAccum = 0f },
-                                onHorizontalDrag = { _, dragAmount ->
-                                    dragAccum += dragAmount
-                                    val threshold = with(density) { 80.dp.toPx() }
-                                    if (dragAccum > threshold) {
-                                        playerVm.next()
-                                        dragAccum = 0f
-                                    } else if (dragAccum < -threshold) {
-                                        playerVm.previous()
-                                        dragAccum = 0f
-                                    }
-                                },
-                            )
-                        },
-                    contentAlignment = Alignment.Center,
-                ) {
-                    Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                        Icon(Icons.Filled.AudioFile, "音频", modifier = Modifier.size(100.dp), tint = Color.White.copy(alpha = 0.25f))
-                        Spacer(Modifier.height(16.dp))
-                        Text(title.ifEmpty { "未选择媒体" }, color = Color.White, style = MaterialTheme.typography.titleMedium)
-                        Spacer(Modifier.height(16.dp))
-                        IconButton(
-                            onClick = { playerVm.togglePlay() },
-                            modifier = Modifier.size(72.dp),
-                        ) {
-                            Icon(
-                                if (isPlaying) Icons.Filled.Pause else Icons.Filled.PlayArrow,
-                                "播放",
-                                modifier = Modifier.size(48.dp),
-                                tint = Color.White,
-                            )
-                        }
-                        // 音频进度条（#9/#10：独立组件，内部订阅 position/duration，避免父级重组）
-                        AudioProgressBar(
-                            positionState = playerVm.position.collectAsStateWithLifecycle(),
-                            durationState = playerVm.duration.collectAsStateWithLifecycle(),
-                            onSeekRequested = { playerVm.seekTo(it) },
-                        )
-                    }
-                }
             } else {
-                // #3：尚未确定媒体类型（初始帧）/ 引擎未就绪——显示 loading，避免闪现音频占位图标
+                // #3：尚未确定媒体类型（初始帧）/ 引擎未就绪——显示 loading
+                // 注：音频模式已下线（产品聚焦视频+图片），原音频 UI 分支删除
                 Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
                     CircularProgressIndicator(color = Color.White)
                 }
@@ -515,7 +464,6 @@ fun PlayerScreen(
                                     Icon(
                                         when (item.mediaType) {
                                             MediaType.VIDEO -> Icons.Filled.VideoLibrary
-                                            MediaType.AUDIO -> Icons.Filled.AudioFile
                                             MediaType.IMAGE -> Icons.Filled.Photo
                                             MediaType.OTHER -> Icons.Filled.VideoLibrary
                                         },
@@ -553,56 +501,5 @@ fun PlayerScreen(
     // 菜单已内嵌到 PlayerControls（视频）与图片顶栏（图片）的触发按钮处，锚定弹出
 }
 
-/**
- * #9/#10：音频模式竖屏进度条——独立 Composable，内部订阅 position/duration + seekPosition。
- * 父级 PlayerScreen 不再订阅 position，避免 200ms 进度回调触发整体重组。
- */
-@Composable
-private fun AudioProgressBar(
-    positionState: androidx.compose.runtime.State<Long>,
-    durationState: androidx.compose.runtime.State<Long>,
-    onSeekRequested: (Long) -> Unit,
-) {
-    var seekPosition by remember { mutableStateOf<Long?>(null) }
-    val position = positionState.value
-    val duration = durationState.value
-    val displayPos = seekPosition ?: position
+// AudioProgressBar 已随音频模式一起下线（产品方向聚焦视频+图片）
 
-    if (duration > 0) {
-        Slider(
-            value = (displayPos.toFloat() / duration).coerceIn(0f, 1f),
-            onValueChange = { ratio -> seekPosition = (ratio * duration).toLong() },
-            onValueChangeFinished = {
-                val final = seekPosition ?: position
-                seekPosition = null
-                onSeekRequested(final)
-            },
-            valueRange = 0f..1f,
-            colors = SliderDefaults.colors(
-                thumbColor = Color.White,
-                activeTrackColor = Color.White.copy(alpha = 0.9f),
-                inactiveTrackColor = Color.White.copy(alpha = 0.3f),
-            ),
-            modifier = Modifier.fillMaxWidth().padding(horizontal = 32.dp),
-        )
-        Text(
-            "${formatDuration(displayPos)} / ${formatDuration(duration)}",
-            color = Color.White.copy(alpha = 0.85f),
-            style = MaterialTheme.typography.labelSmall,
-        )
-    } else {
-        // duration 尚未知（刚 prepare）：显示不可拖动的占位条
-        Slider(
-            value = 0f,
-            onValueChange = {},
-            enabled = false,
-            valueRange = 0f..1f,
-            colors = SliderDefaults.colors(
-                thumbColor = Color.White.copy(alpha = 0.3f),
-                activeTrackColor = Color.White.copy(alpha = 0.2f),
-                inactiveTrackColor = Color.White.copy(alpha = 0.15f),
-            ),
-            modifier = Modifier.fillMaxWidth().padding(horizontal = 32.dp),
-        )
-    }
-}

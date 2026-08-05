@@ -20,12 +20,12 @@ import androidx.compose.ui.input.pointer.pointerInput
 import kotlin.math.roundToInt
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.ArrowBack
-import androidx.compose.material.icons.filled.AudioFile
 import androidx.compose.material.icons.filled.ClearAll
 import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.DragHandle
 import androidx.compose.material.icons.filled.Equalizer
 import androidx.compose.material.icons.filled.Image
+import androidx.compose.material.icons.filled.InsertDriveFile
 import androidx.compose.material.icons.filled.VideoLibrary
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
@@ -233,9 +233,8 @@ private fun PlaylistRow(
             Icon(
                 when (item.mediaType) {
                     MediaType.VIDEO -> Icons.Filled.VideoLibrary
-                    MediaType.AUDIO -> Icons.Filled.AudioFile
                     MediaType.IMAGE -> Icons.Filled.Image
-                    MediaType.OTHER -> Icons.Filled.AudioFile
+                    MediaType.OTHER -> Icons.Filled.InsertDriveFile
                 },
                 contentDescription = null,
                 tint = if (isCurrent) MaterialTheme.colorScheme.primary
@@ -254,7 +253,6 @@ private fun PlaylistRow(
             Text(
                 when (item.mediaType) {
                     MediaType.VIDEO -> "视频"
-                    MediaType.AUDIO -> "音频"
                     MediaType.IMAGE -> "图片"
                     MediaType.OTHER -> "其他"
                 },
