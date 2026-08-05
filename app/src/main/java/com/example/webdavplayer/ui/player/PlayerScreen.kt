@@ -8,7 +8,6 @@ import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
-import androidx.compose.foundation.gestures.detectHorizontalDragGestures
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -56,9 +55,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.asImageBitmap
-import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.platform.LocalContext
-import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
@@ -93,7 +90,7 @@ fun PlayerScreen(
 ) {
     val title by playerVm.title.collectAsStateWithLifecycle()
     val state by playerVm.state.collectAsStateWithLifecycle()
-    // #9: 不在父级订阅 position/duration——只在 PlayerControls / AudioProgressBar 内部订阅
+    // #9: 不在父级订阅 position/duration——只在 PlayerControls 内部订阅
     //   原代码 200ms 进度回调让整个 PlayerScreen 重组（含 PlayerSurface）
     val items by playerVm.items.collectAsStateWithLifecycle()
     val mode by playerVm.mode.collectAsStateWithLifecycle()
@@ -408,10 +405,32 @@ fun PlayerScreen(
                     }
                 }
             } else {
-                // #3：尚未确定媒体类型（初始帧）/ 引擎未就绪——显示 loading
-                // 注：音频模式已下线（产品聚焦视频+图片），原音频 UI 分支删除
-                Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
-                    CircularProgressIndicator(color = Color.White)
+                // else 分支两种情况：
+                // 1) 尚未选中任何项（currentItemId == null / mediaType == OTHER）→ 显示 loading
+                // 2) 选中了非视频/图片文件（OTHER，如音频）→ 显示"不支持"
+                if (currentItemId == null) {
+                    Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
+                        CircularProgressIndicator(color = Color.White)
+                    }
+                } else {
+                    Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
+                        Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                            Icon(
+                                Icons.Filled.Error,
+                                "不支持的媒体",
+                                modifier = Modifier.size(48.dp),
+                                tint = Color.White.copy(alpha = 0.5f),
+                            )
+                            Spacer(Modifier.height(8.dp))
+                            Text("不支持的媒体类型", color = Color.White, style = MaterialTheme.typography.titleMedium)
+                            Spacer(Modifier.height(4.dp))
+                            Text(
+                                "仅支持视频与图片",
+                                color = Color.White.copy(alpha = 0.6f),
+                                style = MaterialTheme.typography.bodySmall,
+                            )
+                        }
+                    }
                 }
             }
         }
@@ -500,6 +519,3 @@ fun PlayerScreen(
 
     // 菜单已内嵌到 PlayerControls（视频）与图片顶栏（图片）的触发按钮处，锚定弹出
 }
-
-// AudioProgressBar 已随音频模式一起下线（产品方向聚焦视频+图片）
-
