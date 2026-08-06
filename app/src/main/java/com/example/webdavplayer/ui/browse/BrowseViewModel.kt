@@ -160,8 +160,11 @@ class BrowseViewModel @Inject constructor(
         }
     }
 
-    /** 直接点击媒体文件：替换播放列表为该项，跳转到播放页。实际播放由 PlayerScreen 触发。 */
-    fun playFile(file: RemoteFile) {
+    /** 直接点击媒体文件：替换播放列表为该项，跳转到播放页。返回构建好的 [PlaylistItem]，
+     *  供调用方同步触发 [PlayerViewModel.playItem]（避免等 PlaylistRepository flow 异步到达 PlayerScreen 期间
+     *  UI 显示"未选择媒体"的空窗）；同时仍写库以维护后续切歌所依赖的播放列表。
+     */
+    fun playFile(file: RemoteFile): PlaylistItem {
         val item = PlaylistItem(
             id = "${file.serverId}:${fullPath(file.name)}",
             serverId = file.serverId,
@@ -171,10 +174,12 @@ class BrowseViewModel @Inject constructor(
             durationMs = 0L,
             addedAt = System.currentTimeMillis(),
         )
-        // 不再直接调 playMedia，改为加入播放列表（清空旧列表），让 PlayerScreen 负责播放
+        // 写库依旧异步——仅"切歌"等场景使用；PlayerScreen 的 LaunchedEffect(items) 会在 items 到达后
+        // 做去重判定（currentItemId 已同步被设好），避免重复触发 playItem。
         viewModelScope.launch {
             playlistRepository.addItems(listOf(item), replace = true)
         }
+        return item
     }
 
     fun consumeMessage() {

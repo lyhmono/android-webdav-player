@@ -320,7 +320,8 @@ fun BrowseScreen(
                                                 URLEncoder.encode(child, "UTF-8"),
                                         )
                                     } else {
-                                        viewModel.playFile(file)
+                                        val item = viewModel.playFile(file)
+                                        playerVm.playItem(item)
                                         navController.navigate("player")
                                     }
                                 },
@@ -344,7 +345,8 @@ fun BrowseScreen(
                                             URLEncoder.encode(child, "UTF-8"),
                                     )
                                 } else {
-                                    viewModel.playFile(file)
+                                    val item = viewModel.playFile(file)
+                                    playerVm.playItem(item)
                                     navController.navigate("player")
                                 }
                             },

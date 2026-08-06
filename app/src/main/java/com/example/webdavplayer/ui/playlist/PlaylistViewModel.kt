@@ -6,7 +6,6 @@ import androidx.lifecycle.viewModelScope
 import com.example.webdavplayer.domain.model.PlayMode
 import com.example.webdavplayer.domain.model.PlaylistItem
 import com.example.webdavplayer.domain.repository.PlaylistRepository
-import com.example.webdavplayer.domain.usecase.PlayMediaUseCase
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.stateIn
@@ -17,7 +16,6 @@ import javax.inject.Inject
 @HiltViewModel
 class PlaylistViewModel @Inject constructor(
     private val playlistRepository: PlaylistRepository,
-    private val playMedia: PlayMediaUseCase,
 ) : ViewModel() {
 
     val items: StateFlow<List<PlaylistItem>> = playlistRepository.observeItems()
@@ -36,10 +34,6 @@ class PlaylistViewModel @Inject constructor(
 
     fun setMode(mode: PlayMode) = viewModelScope.launch {
         playlistRepository.setMode(mode)
-    }
-
-    fun playItem(item: PlaylistItem) = viewModelScope.launch {
-        playMedia(item)
     }
 
     /** C2：拖拽重排（重编号 addedAt 落库）。 */

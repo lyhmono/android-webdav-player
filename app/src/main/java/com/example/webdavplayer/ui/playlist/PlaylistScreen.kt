@@ -152,7 +152,7 @@ fun PlaylistScreen(
                                 .fillMaxWidth()
                                 .animateItemPlacement(),
                             onClick = {
-                                playlistVm.playItem(item)
+                                playerVm.playItem(item)
                                 navController.navigate("player")
                             },
                             onRemove = { playlistVm.removeItem(item.id) },
